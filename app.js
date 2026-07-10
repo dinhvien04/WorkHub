@@ -23,7 +23,9 @@ const hostRoutes = require('./routes/hostRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const seoRoutes = require('./routes/seoRoutes');
+const meExtraRoutes = require('./routes/meExtraRoutes');
 const { getHostReportsPage } = require('./controllers/hostController');
+const { expireStaleHolds } = require('./services/bookingService');
 
 function createApp() {
   const app = express();
@@ -129,8 +131,20 @@ function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/customers', customerApiRoutes);
+  app.use('/api/me', meExtraRoutes);
   app.use('/api/hosts', hostRoutes);
   app.use('/api/admin', adminRoutes);
+
+  // Best-effort: expire holds on hot path for small deployments
+  app.use(async (req, res, next) => {
+    if (req.method === 'GET' || Math.random() > 0.05) return next();
+    try {
+      await expireStaleHolds();
+    } catch {
+      /* ignore */
+    }
+    return next();
+  });
 
   app.use(expressLayouts);
   app.set('view engine', 'ejs');
@@ -184,6 +198,13 @@ function createApp() {
     res.render('host/bookings', {
       currentUser: req.currentUser,
       scripts: res.locals.scriptsFrom(['/js/host-spaces.js']),
+    })
+  );
+  app.get('/host/calendar', requireHostPage, (req, res) =>
+    res.render('host/calendar', {
+      currentUser: req.currentUser,
+      pageTitle: 'Lịch — Host',
+      scripts: res.locals.scriptsFrom(['/js/host-calendar.js']),
     })
   );
   app.get('/host/reports', requireHostPage, getHostReportsPage);

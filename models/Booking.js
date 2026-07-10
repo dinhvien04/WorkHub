@@ -32,11 +32,44 @@ const bookingSchema = new mongoose.Schema({
     // 4. TRẠNG THÁI VÀ GHI CHÚ
     Status: { 
         type: String, 
-        enum: ['pending', 'confirmed','in-use', 'completed', 'cancelled'], 
+        enum: [
+          'draft',
+          'hold',
+          'pending',
+          'awaiting_payment',
+          'payment_under_review',
+          'confirmed',
+          'in-use',
+          'completed',
+          'cancel_requested',
+          'cancelled',
+          'rejected',
+          'expired',
+        ], 
         default: 'pending',
         index: true 
     },
-    Note: { type: String, default: "" }
+    Note: { type: String, default: "" },
+    // Temporary hold before payment (minutes)
+    HoldExpiresAt: { type: Date, default: null, index: true },
+    CouponCode: { type: String, default: '' },
+    DiscountAmount: { type: Number, default: 0, min: 0 },
+    // Immutable snapshot for history/receipts
+    Snapshot: {
+      BranchName: { type: String, default: '' },
+      SpaceName: { type: String, default: '' },
+      SpaceCode: { type: String, default: '' },
+      Address: { type: String, default: '' },
+      PricePerHour: { type: Number, default: 0 },
+      Currency: { type: String, default: 'VND' },
+      Timezone: { type: String, default: 'Asia/Ho_Chi_Minh' },
+    },
+    CancelReason: { type: String, default: '' },
+    CancelledAt: { type: Date, default: null },
+    CancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    CheckInAt: { type: Date, default: null },
+    CheckOutAt: { type: Date, default: null },
+    InstantBook: { type: Boolean, default: false },
 
 }, { 
     // Tự động tạo CreateAt và UpdateAt

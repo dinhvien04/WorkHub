@@ -7,18 +7,22 @@ let running = false;
 let timer = null;
 
 /**
- * Periodic job: complete in-use bookings past EndTime.
+ * Periodic job: complete in-use bookings past EndTime + expire holds.
  * Simple in-process lock prevents overlapping runs on the same instance.
  */
 async function runCompleteExpiredBookings() {
   if (running) return { skipped: true };
   running = true;
   try {
+    const holds = await bookingService.expireStaleHolds();
+    if (holds.modifiedCount > 0) {
+      logger.info(`Expired ${holds.modifiedCount} stale hold(s).`);
+    }
     const result = await bookingService.completeExpiredBookings();
     if (result.modifiedCount > 0) {
       logger.info(`Completed ${result.modifiedCount} expired booking(s).`);
     }
-    return result;
+    return { holds, completed: result };
   } catch (err) {
     logger.error('completeExpiredBookings failed:', err.message);
     return { error: err.message };

@@ -1,0 +1,31 @@
+<div class="max-w-6xl mx-auto">
+  <h1 class="text-2xl font-black text-slate-800 mb-2">Lịch vận hành</h1>
+  <p class="text-sm text-slate-500 mb-4">Booking theo khoảng ngày (host-scoped).</p>
+  <div class="flex flex-wrap gap-3 mb-6 items-end">
+    <div>
+      <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="cal-from">Từ</label>
+      <input type="date" id="cal-from" class="border rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="cal-to">Đến</label>
+      <input type="date" id="cal-to" class="border rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <button type="button" id="cal-load" class="btn-primary">Tải lịch</button>
+  </div>
+  <div id="cal-error" class="error-state hidden mb-4"></div>
+  <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
+        <tr>
+          <th class="p-4">Bắt đầu</th>
+          <th class="p-4">Kết thúc</th>
+          <th class="p-4">Phòng</th>
+          <th class="p-4">Khách</th>
+          <th class="p-4">Trạng thái</th>
+          <th class="p-4">Tiền</th>
+        </tr>
+      </thead>
+      <tbody id="cal-body"></tbody>
+    </table>
+  </div>
+</div>

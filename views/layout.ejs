@@ -10,7 +10,9 @@
     <meta property="og:description" content="<%= typeof metaDescription !== 'undefined' ? metaDescription : 'Đặt chỗ co-working trên WorkHub' %>">
     <meta property="og:type" content="website">
     <meta name="theme-color" content="#0d9488">
-    <link rel="icon" href="/css/style.css">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdn.tailwindcss.com"></script>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>
@@ -41,5 +43,19 @@
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/domSafe.js"></script>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/main.js"></script>
     <%- typeof scripts !== 'undefined' ? scripts : '' %>
+    <nav class="mobile-bottom-nav" aria-label="Điều hướng mobile">
+      <a href="/" class="mob-nav-item" data-nav="home">🏠<span>Khám phá</span></a>
+      <a href="/history" class="mob-nav-item" data-nav="history">📅<span>Lịch đặt</span></a>
+      <a href="/favorites" class="mob-nav-item" data-nav="favorites">❤️<span>Yêu thích</span></a>
+      <a href="/notifications" class="mob-nav-item" data-nav="notifications">🔔<span>Thông báo</span></a>
+      <a href="/profile" class="mob-nav-item" data-nav="profile">👤<span>Tài khoản</span></a>
+    </nav>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>">
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+      }
+    </script>
 </body>
 </html>

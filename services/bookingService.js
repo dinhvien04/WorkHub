@@ -14,14 +14,28 @@ const {
   ForbiddenError,
 } = require('../utils/errors');
 
-const ACTIVE_STATUSES = ['pending', 'confirmed', 'in-use'];
+const ACTIVE_STATUSES = [
+  'hold',
+  'pending',
+  'awaiting_payment',
+  'payment_under_review',
+  'confirmed',
+  'in-use',
+];
 
 const allowedTransitions = {
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['in-use', 'cancelled'],
+  draft: ['hold', 'pending', 'cancelled'],
+  hold: ['pending', 'awaiting_payment', 'cancelled', 'expired'],
+  pending: ['confirmed', 'awaiting_payment', 'payment_under_review', 'cancelled', 'rejected'],
+  awaiting_payment: ['payment_under_review', 'confirmed', 'cancelled', 'expired'],
+  payment_under_review: ['confirmed', 'cancelled', 'rejected'],
+  confirmed: ['in-use', 'cancelled', 'cancel_requested'],
   'in-use': ['completed'],
+  cancel_requested: ['cancelled', 'confirmed'],
   completed: [],
   cancelled: [],
+  rejected: [],
+  expired: [],
 };
 
 function assertTransition(from, to) {
@@ -104,7 +118,15 @@ function validateBookingWindow(start, end) {
   // Documented: BOOKING_SLOT_MINUTES granularity locks partial overlaps.
 }
 
-async function createBooking({ customerId, spaceId, startTime, endTime, note = '' }) {
+async function createBooking({
+  customerId,
+  spaceId,
+  startTime,
+  endTime,
+  note = '',
+  couponCode = '',
+  holdMinutes = 15,
+}) {
   if (!spaceId || !startTime || !endTime) {
     throw new ValidationError('Thiếu thông tin đặt chỗ (spaceId, startTime, endTime).');
   }
@@ -113,7 +135,7 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
   const end = new Date(endTime);
   validateBookingWindow(start, end);
 
-  const space = await Space.findById(spaceId);
+  const space = await Space.findById(spaceId).populate('BranchID', 'Name Address Timezone');
   if (!space) throw new NotFoundError('Không tìm thấy phòng.');
   if (space.Status !== 'available') {
     throw new ValidationError('Không gian hiện không khả dụng để đặt.');
@@ -126,11 +148,64 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
   }
 
   const hours = (end - start) / (1000 * 60 * 60);
-  const total = Math.round(hours * (space.PricePerHour || 0));
+  let total = Math.round(hours * (space.PricePerHour || 0));
+  let discountAmount = 0;
+  let appliedCoupon = null;
+
+  if (couponCode) {
+    const couponService = require('./couponService');
+    const branchId = space.BranchID?._id || space.BranchID;
+    const result = await couponService.validateCoupon({
+      code: couponCode,
+      userId: customerId,
+      orderAmount: total,
+      branchId,
+      hostId: space.HostID,
+    });
+    discountAmount = result.discountAmount;
+    total = result.finalAmount;
+    appliedCoupon = result.coupon;
+  }
+
   const deposit =
-    space.DepositAmount > 0 ? space.DepositAmount : Math.round(total * 0.3);
+    space.DepositAmount > 0
+      ? Math.min(space.DepositAmount, total)
+      : Math.round(total * 0.3);
+
+  const holdMs = Math.min(Math.max(Number(holdMinutes) || 15, 5), 60) * 60 * 1000;
+  const holdExpires = new Date(Date.now() + holdMs);
+
+  const branch = space.BranchID;
+  const snapshot = {
+    BranchName: branch?.Name || '',
+    SpaceName: space.Name || '',
+    SpaceCode: space.SpaceCode || '',
+    Address: branch?.Address || '',
+    PricePerHour: space.PricePerHour || 0,
+    Currency: 'VND',
+    Timezone: branch?.Timezone || 'Asia/Ho_Chi_Minh',
+  };
 
   return withOptionalTransaction(async (session) => {
+    // Expire stale holds for this space first
+    await Booking.updateMany(
+      {
+        SpaceID: spaceId,
+        Status: 'hold',
+        HoldExpiresAt: { $lt: new Date() },
+      },
+      { $set: { Status: 'expired' } }
+    );
+    if (!session) {
+      const expired = await Booking.find({
+        SpaceID: spaceId,
+        Status: 'expired',
+      }).select('_id');
+      if (expired.length) {
+        await BookingSlot.deleteMany({ BookingID: { $in: expired.map((e) => e._id) } });
+      }
+    }
+
     let conflictQuery = Booking.findOne({
       SpaceID: spaceId,
       Status: { $in: ACTIVE_STATUSES },
@@ -153,6 +228,10 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
       DepositAmount: deposit,
       Status: 'pending',
       Note: note || '',
+      HoldExpiresAt: holdExpires,
+      CouponCode: appliedCoupon ? appliedCoupon.Code : '',
+      DiscountAmount: discountAmount,
+      Snapshot: snapshot,
     };
 
     let booking;
@@ -185,6 +264,20 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
       throw slotErr;
     }
 
+    if (appliedCoupon) {
+      try {
+        const couponService = require('./couponService');
+        await couponService.redeemCoupon({
+          couponId: appliedCoupon._id,
+          userId: customerId,
+          bookingId: booking._id,
+          discountAmount,
+        });
+      } catch {
+        /* non-fatal if redemption race */
+      }
+    }
+
     await logActivity(
       customerId,
       'CREATE_BOOKING',
@@ -193,6 +286,21 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
       `Khách hàng tạo đơn đặt chỗ trị giá ${total.toLocaleString('vi-VN')}đ`,
       'info'
     );
+
+    try {
+      const { notifyUser } = require('./notificationService');
+      await notifyUser({
+        userId: space.HostID,
+        title: 'Booking mới',
+        body: `${snapshot.SpaceName} · ${total.toLocaleString('vi-VN')}đ`,
+        type: 'booking',
+        entityType: 'Booking',
+        entityId: booking._id,
+        link: '/host/bookings',
+      });
+    } catch {
+      /* ignore */
+    }
 
     return booking;
   });
@@ -204,7 +312,11 @@ async function confirmBooking(hostId, bookingId) {
     if (session) opts.session = session;
 
     const booking = await Booking.findOneAndUpdate(
-      { _id: bookingId, HostID: hostId, Status: 'pending' },
+      {
+        _id: bookingId,
+        HostID: hostId,
+        Status: { $in: ['pending', 'payment_under_review', 'awaiting_payment'] },
+      },
       { $set: { Status: 'confirmed' } },
       opts
     );
@@ -264,13 +376,16 @@ async function cancelBookingByHost(hostId, bookingId) {
   return booking;
 }
 
-async function cancelBookingByCustomer(customerId, bookingId) {
+async function cancelBookingByCustomer(customerId, bookingId, reason = '') {
   const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
   if (!booking) throw new NotFoundError('Không tìm thấy đơn hàng của bạn.');
-  if (booking.Status !== 'pending') {
-    throw new ValidationError('Chỉ có thể hủy đơn đang chờ xác nhận.');
+  if (!['pending', 'hold', 'awaiting_payment', 'payment_under_review'].includes(booking.Status)) {
+    throw new ValidationError('Chỉ có thể hủy đơn đang chờ xác nhận/thanh toán.');
   }
   booking.Status = 'cancelled';
+  booking.CancelReason = String(reason || '').slice(0, 500);
+  booking.CancelledAt = new Date();
+  booking.CancelledBy = customerId;
   await booking.save();
   await BookingSlot.deleteMany({ BookingID: booking._id });
   await PaymentHistory.updateMany(
@@ -278,7 +393,38 @@ async function cancelBookingByCustomer(customerId, bookingId) {
     { $set: { Status: 'failed', FailureReason: 'Booking cancelled by customer' } }
   );
   await logActivity(customerId, 'CANCEL_BOOKING', 'Booking', booking._id, 'Khách hàng hủy đơn', 'warning');
+  try {
+    const { notifyUser } = require('./notificationService');
+    await notifyUser({
+      userId: booking.HostID,
+      title: 'Khách hủy booking',
+      body: booking.Snapshot?.SpaceName || String(booking._id),
+      type: 'booking',
+      entityType: 'Booking',
+      entityId: booking._id,
+      link: '/host/bookings',
+    });
+  } catch {
+    /* ignore */
+  }
   return booking;
+}
+
+/** Expire holds past HoldExpiresAt and free slots. */
+async function expireStaleHolds() {
+  const now = new Date();
+  const stale = await Booking.find({
+    Status: { $in: ['hold', 'awaiting_payment'] },
+    HoldExpiresAt: { $lt: now },
+  }).select('_id');
+  if (!stale.length) return { modifiedCount: 0 };
+  const ids = stale.map((s) => s._id);
+  await Booking.updateMany(
+    { _id: { $in: ids } },
+    { $set: { Status: 'expired' } }
+  );
+  await BookingSlot.deleteMany({ BookingID: { $in: ids } });
+  return { modifiedCount: ids.length };
 }
 
 async function completeExpiredBookings({ hostId = null } = {}) {
@@ -300,6 +446,7 @@ module.exports = {
   cancelBookingByHost,
   cancelBookingByCustomer,
   completeExpiredBookings,
+  expireStaleHolds,
   ACTIVE_STATUSES,
   validateBookingWindow,
 };

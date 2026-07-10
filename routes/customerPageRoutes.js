@@ -44,4 +44,25 @@ router.get('/profile', (req, res) => {
   });
 });
 
+router.get('/favorites', (req, res) => {
+  res.render('customer/favorites', {
+    pageTitle: 'Yêu thích — WorkHub',
+    scripts: pageScripts(res, ['/js/favorites.js']),
+  });
+});
+
+router.get('/notifications', (req, res) => {
+  res.render('customer/notifications', {
+    pageTitle: 'Thông báo — WorkHub',
+    scripts: pageScripts(res, ['/js/notifications.js']),
+  });
+});
+
+router.get('/booking/wizard', (req, res) => {
+  res.render('customer/booking-wizard', {
+    pageTitle: 'Đặt chỗ — WorkHub',
+    scripts: pageScripts(res, ['/js/booking-wizard.js']),
+  });
+});
+
 module.exports = router;

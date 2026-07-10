@@ -377,16 +377,24 @@ async function createBooking(req, res) {
       return res.status(403).json({ error: 'Không được tạo booking cho người dùng khác.' });
     }
 
-    const { spaceId, startTime, endTime, note } = req.body;
+    const { spaceId, startTime, endTime, note, couponCode, holdMinutes } = req.body;
     const booking = await bookingService.createBooking({
       customerId,
       spaceId,
       startTime,
       endTime,
       note,
+      couponCode,
+      holdMinutes,
     });
 
-    return res.status(201).json({ message: 'Tạo đơn đặt chỗ thành công', booking });
+    return res.status(201).json({
+      message: 'Tạo đơn đặt chỗ thành công',
+      booking,
+      holdExpiresAt: booking.HoldExpiresAt,
+      snapshot: booking.Snapshot,
+      discountAmount: booking.DiscountAmount || 0,
+    });
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: error.message, code: error.code });
@@ -437,13 +445,20 @@ async function confirmPayment(req, res) {
     });
 
     const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
+    // Mark booking under host payment review
+    if (booking && booking.Status === 'pending') {
+      booking.Status = 'payment_under_review';
+      await booking.save();
+    }
+
     return res.json({
       message: duplicate
-        ? 'Yêu cầu thanh toán đã được ghi nhận trước đó.'
-        : 'Đã gửi yêu cầu xác nhận thanh toán thành công!',
+        ? 'Yêu cầu thanh toán đã được ghi nhận trước đó. Đang chờ host xác minh.'
+        : 'Đã gửi báo cáo thanh toán. Đang chờ chủ cơ sở xác minh — chưa phải thanh toán thành công.',
       booking,
       payment,
       duplicate,
+      uiStatus: 'awaiting_host_verification',
     });
   } catch (error) {
     if (error.statusCode) {

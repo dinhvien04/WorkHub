@@ -53,7 +53,20 @@ npm start        # production
 npm test         # jest + mongodb-memory-server
 npm run lint     # eslint
 npm run check    # lint + test
+npm run seed:extras  # coupons + feature flags demo
 ```
+
+## Product features (shipped baseline)
+
+- 3-step booking wizard: `/booking/wizard`
+- Favorites + guest merge: `/favorites`, `POST /api/me/favorites`
+- Notifications center: `/notifications`
+- Host calendar: `/host/calendar`, `GET /api/me/host/calendar`
+- Coupons: `POST /api/me/coupons/preview` (seed `WELCOME10`, `FLAT20K`)
+- Booking messages: `/api/me/bookings/:id/messages`
+- ICS download: `/api/me/bookings/:id/ics`
+- SEO URLs, sitemap, robots, PWA manifest + service worker
+- Payment verify/reject UI for host
 
 ## Roles
 
