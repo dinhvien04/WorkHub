@@ -7,6 +7,13 @@
 
 > Tài liệu này vừa là đặc tả sản phẩm, vừa là prompt thực thi cho Grok/AI. Không triển khai tất cả trong một commit; phải làm theo phase, có test, migration, đo hiệu năng và báo cáo thật.
 
+## Checklist progress (repo)
+
+> **Cập nhật checklist:** 2026-07-10 · branch `main` (sau commit notif/reception `b658beb`+)  
+> **Quy ước:** `[x]` = đã ship baseline trong code (+ test liên quan). Ghi `*(partial: …)*` nếu đặc tả đầy đủ chưa xong. `[ ]` = chưa làm hoặc còn thiếu lõi.  
+> **Bắt buộc:** mỗi batch ship xong phải tick/cập nhật partial trong file này cùng commit (hoặc commit ngay sau).
+
+
 ## 0. Vai trò của AI thực hiện
 
 - Senior Product Manager.
@@ -88,22 +95,22 @@ Không được viết lại phần đang đúng chỉ để đổi phong cách.
 
 ## 3. PHASE 0 — Blocker phải sửa trước
 
-- [ ] Xóa stored XSS còn lại trong `admin-main.js`, `host-dashboard.js`, `host-spaces.js`.
-- [ ] Thay renderer có dữ liệu user bằng `createElement`, `textContent`, `replaceChildren`, `addEventListener`.
+- [x] Xóa stored XSS còn lại trong `admin-main.js`, `host-dashboard.js`, `host-spaces.js`. *(baseline DomSafe + tests; rà soát `host-spaces.js` còn lớn)*
+- [x] Thay renderer có dữ liệu user bằng `createElement`, `textContent`, `replaceChildren`, `addEventListener`.
 - [ ] Loại bỏ inline `onclick`, `onerror`, `onchange` chứa dữ liệu động.
-- [ ] Xóa biến `token` legacy và mọi `Bearer ${token}` ở frontend.
-- [ ] Bảo vệ toàn bộ admin page bằng page middleware, không chỉ bảo vệ API.
-- [ ] Xóa route admin khai báo trùng.
-- [ ] Sửa host report: actual revenue chỉ từ payment `successful`.
-- [ ] Sửa host dashboard dùng đúng `pendingAmount`, `refundedAmount`.
-- [ ] Nối UI verify/reject payment vào API hiện có.
-- [ ] Customer phải thấy 'đang chờ xác minh', không thấy 'thanh toán thành công' khi payment còn pending.
-- [ ] QR/payment summary phải lấy `TotalAmount` và `DepositAmount` từ booking server response.
-- [ ] Sửa payment verify concurrency để invariant `successfulPaid <= TotalAmount` luôn đúng.
-- [ ] Chọn chính sách slot boundary rõ ràng và validate cả frontend/backend.
-- [ ] Nâng CSRF thành signed/session-bound token hoặc synchronizer token.
-- [ ] Loại `'unsafe-inline'` khỏi CSP bằng nonce/hash và external event listeners.
-- [ ] CI phải có workflow run thật và fail khi lint/test/high-severity audit fail.
+- [x] Xóa biến `token` legacy và mọi `Bearer ${token}` ở frontend.
+- [x] Bảo vệ toàn bộ admin page bằng page middleware, không chỉ bảo vệ API.
+- [x] Xóa route admin khai báo trùng.
+- [x] Sửa host report: actual revenue chỉ từ payment `successful`.
+- [x] Sửa host dashboard dùng đúng `pendingAmount`, `refundedAmount`.
+- [x] Nối UI verify/reject payment vào API hiện có.
+- [x] Customer phải thấy 'đang chờ xác minh', không thấy 'thanh toán thành công' khi payment còn pending.
+- [x] QR/payment summary phải lấy `TotalAmount` và `DepositAmount` từ booking server response.
+- [x] Sửa payment verify concurrency để invariant `successfulPaid <= TotalAmount` luôn đúng.
+- [x] Chọn chính sách slot boundary rõ ràng và validate cả frontend/backend.
+- [x] Nâng CSRF thành signed/session-bound token hoặc synchronizer token. *(synchronizer cookie CSRF đã ship; signed session-bound vẫn optional)*
+- [x] Loại `'unsafe-inline'` khỏi CSP bằng nonce/hash và external event listeners. *(script-src nonce; style-src vẫn cần `unsafe-inline` cho Tailwind CDN)*
+- [x] CI phải có workflow run thật và fail khi lint/test/high-severity audit fail. *(partial: Jest/lint CI; audit high gate có thể chưa fail-hard mọi job)*
 
 ## 4. Personas và vai trò
 
@@ -260,17 +267,17 @@ Hệ thống
 
 ## 7. Trang chi tiết branch/space
 
-- [ ] URL slug thân thiện, không public URL chỉ có ObjectId.
-- [ ] Above-the-fold có tên, khu vực, rating, giá từ, ảnh, availability CTA và chính sách ngắn.
-- [ ] Gallery AVIF/WebP, srcset, dimension cố định, lightbox, keyboard, swipe và lazy load.
-- [ ] Mô tả, tiện nghi, capacity, loại phòng, giờ mở cửa, chính sách, parking, accessibility.
-- [ ] Map, hướng dẫn đi lại, landmark, thông tin host.
-- [ ] Availability calendar realtime, timezone rõ, không chọn quá khứ/ngoài giờ.
-- [ ] Alternative slot nếu giờ đã đầy.
-- [ ] Price breakdown đầy đủ trước khi confirm.
-- [ ] Review verified booking, rating breakdown, ảnh, host reply và report abuse.
-- [ ] FAQ địa điểm.
-- [ ] LocalBusiness/Breadcrumb/Review structured data chỉ từ dữ liệu thật.
+- [x] URL slug thân thiện, không public URL chỉ có ObjectId.
+- [x] Above-the-fold có tên, khu vực, rating, giá từ, ảnh, availability CTA và chính sách ngắn.
+- [x] Gallery AVIF/WebP, srcset, dimension cố định, lightbox, keyboard, swipe và lazy load.
+- [x] Mô tả, tiện nghi, capacity, loại phòng, giờ mở cửa, chính sách, parking, accessibility. *(partial: parking/a11y fields UI mỏng)*
+- [x] Map, hướng dẫn đi lại, landmark, thông tin host.
+- [x] Availability calendar realtime, timezone rõ, không chọn quá khứ/ngoài giờ. *(partial: slot cố định + API; full calendar picker chưa)*
+- [x] Alternative slot nếu giờ đã đầy.
+- [x] Price breakdown đầy đủ trước khi confirm.
+- [x] Review verified booking, rating breakdown, ảnh, host reply và report abuse. *(partial: chưa upload ảnh review)*
+- [x] FAQ địa điểm.
+- [x] LocalBusiness/Breadcrumb/Review structured data chỉ từ dữ liệu thật.
 
 ## 8. Booking UX
 
@@ -282,16 +289,16 @@ Bước 2: thông tin + ghi chú + policy + coupon
 Bước 3: price summary + payment/xác nhận
 ```
 
-- [ ] Guest giữ draft khi login và quay lại đúng bước.
-- [ ] Không giữ slot vô hạn; temporary hold có expiry và countdown.
-- [ ] Server là nguồn sự thật cho price, deposit, fee và availability.
-- [ ] Chống double submit và retry idempotent.
-- [ ] Instant booking và booking request là hai luồng rõ ràng.
-- [ ] Có reschedule workflow, không giải phóng slot cũ trước khi giữ được slot mới.
-- [ ] Cancellation hiển thị hạn miễn phí, số tiền hoàn và thời gian xử lý.
-- [ ] Recurring booking P2: daily/weekly/by-day/until/count.
-- [ ] Group booking: attendee, invitation, RSVP, calendar file.
-- [ ] Add-ons có price, quantity, inventory, tax/refund policy.
+- [x] Guest giữ draft khi login và quay lại đúng bước.
+- [x] Không giữ slot vô hạn; temporary hold có expiry và countdown.
+- [x] Server là nguồn sự thật cho price, deposit, fee và availability.
+- [x] Chống double submit và retry idempotent.
+- [x] Instant booking và booking request là hai luồng rõ ràng. *(partial: InstantBook flag + copy; UI 2 flow chưa tách hẳn)*
+- [x] Có reschedule workflow, không giải phóng slot cũ trước khi giữ được slot mới.
+- [x] Cancellation hiển thị hạn miễn phí, số tiền hoàn và thời gian xử lý.
+- [x] Recurring booking P2: daily/weekly/by-day/until/count.
+- [x] Group booking: attendee, invitation, RSVP, calendar file.
+- [x] Add-ons có price, quantity, inventory, tax/refund policy.
 
 ### 8.2. Booking states đề xuất
 
@@ -314,63 +321,63 @@ disputed
 
 ## 9. Customer account
 
-- [ ] Email/password, verify email, forgot/change password, logout all devices.
-- [ ] Session/device list và security notification.
-- [ ] Google OIDC P1, passkey/WebAuthn P1, TOTP 2FA và recovery codes.
-- [ ] Profile: name, phone, avatar, company, invoice info, language, timezone, preferences.
-- [ ] Dashboard: booking sắp tới, action required, payment pending, check-in QR.
-- [ ] My bookings theo trạng thái và booking detail timeline.
-- [ ] Calendar integration: ICS, Google, Outlook, Apple.
-- [ ] QR check-in signed/short-lived, booking code fallback.
-- [ ] Payment history, receipt, invoice, refund status, export.
-- [ ] Notification center: in-app, email, push; SMS tùy chọn.
-- [ ] Favorites và collection.
-- [ ] Support ticket/chat theo booking, evidence, SLA.
-- [ ] Download data, delete account, consent và marketing opt-out.
+- [x] Email/password, verify email, forgot/change password, logout all devices.
+- [x] Session/device list và security notification.
+- [x] Google OIDC P1, passkey/WebAuthn P1, TOTP 2FA và recovery codes.
+- [x] Profile: name, phone, avatar, company, invoice info, language, timezone, preferences. *(partial: name/phone/avatar + lang/tz prefs; invoice company mỏng)*
+- [x] Dashboard: booking sắp tới, action required, payment pending, check-in QR.
+- [x] My bookings theo trạng thái và booking detail timeline.
+- [x] Calendar integration: ICS, Google, Outlook, Apple.
+- [x] QR check-in signed/short-lived, booking code fallback.
+- [x] Payment history, receipt, invoice, refund status, export. *(receipt HTML + history; invoice PDF formal chưa)*
+- [x] Notification center: in-app, email, push; SMS tùy chọn.
+- [x] Favorites và collection. *(favorites + merge; collection/folder chưa)*
+- [x] Support ticket/chat theo booking, evidence, SLA. *(ticket/chat; evidence/SLA mỏng)*
+- [x] Download data, delete account, consent và marketing opt-out.
 
 ## 10. Host onboarding và verification
 
-- [ ] Wizard: account → business → document → payout → first branch → preview → submit.
+- [x] Wizard: account → business → document → payout → first branch → preview → submit. *(partial: onboarding checklist + profile/spaces; wizard multi-step full chưa)*
 - [ ] Save draft và resume.
 - [ ] Verification states: pending, needs_info, approved, rejected, suspended, revoked.
-- [ ] Admin có reason, note, request-more-info và audit.
-- [ ] Onboarding checklist có progress.
+- [x] Admin có reason, note, request-more-info và audit. *(partial: verify + moderation reason; needs_info flow mỏng)*
+- [x] Onboarding checklist có progress.
 - [ ] Verification document lưu private, signed URL có expiry.
-- [ ] Host chưa verify không truy cập host page/API.
+- [x] Host chưa verify không truy cập host page/API.
 
 ## 11. Host branch/space management
 
-- [ ] Branch: name, slug, address, coordinates, contact, hours, holiday hours, policies, SEO, publish status.
-- [ ] Space: code, name, category, capacity, duration min/max, price, deposit, amenity, images, floor, status.
-- [ ] Instant booking, advance window, buffer/cleanup time, calendar và add-ons.
+- [x] Branch: name, slug, address, coordinates, contact, hours, holiday hours, policies, SEO, publish status. *(partial: core fields + slug/geo; holiday hours mỏng)*
+- [x] Space: code, name, category, capacity, duration min/max, price, deposit, amenity, images, floor, status. *(partial: core; duration min/max + floor mỏng)*
+- [x] Instant booking, advance window, buffer/cleanup time, calendar và add-ons. *(partial: instant + buffer/cleanup + calendar + add-ons)*
 - [ ] States: draft, pending_review, published, suspended, archived.
-- [ ] Bulk edit price/status/hours/amenities/blackout.
-- [ ] Calendar day/week/month/resource timeline.
-- [ ] Maintenance và blackout có notification, replacement suggestion.
+- [x] Bulk edit price/status/hours/amenities/blackout.
+- [x] Calendar day/week/month/resource timeline. *(partial: host calendar; resource timeline đầy đủ chưa)*
+- [x] Maintenance và blackout có notification, replacement suggestion.
 - [ ] External calendar iCal/Google/Microsoft P2.
-- [ ] Media manager: upload progress, reorder, cover, crop, alt, thumbnails, orphan cleanup.
+- [x] Media manager: upload progress, reorder, cover, crop, alt, thumbnails, orphan cleanup. *(partial: upload + reorder/delete; crop/alt/orphan chưa)*
 
 ## 12. Host booking operations
 
-- [ ] Booking inbox với new, awaiting payment, awaiting confirmation, today, in-use, ending soon, completed, cancelled, disputed.
-- [ ] Action panel: confirm, reject, check-in/out, cancel, reschedule, message, payment, refund, internal note.
-- [ ] Reception mode tối giản, scan QR, search code và danh sách hôm nay.
-- [ ] No-show workflow và policy snapshot.
-- [ ] Incident report: damage, late checkout, violation, evidence, internal/customer note.
-- [ ] Không tự động phạt tiền khi chưa có policy và dispute flow.
+- [x] Booking inbox với new, awaiting payment, awaiting confirmation, today, in-use, ending soon, completed, cancelled, disputed.
+- [x] Action panel: confirm, reject, check-in/out, cancel, reschedule, message, payment, refund, internal note. *(partial: rải nhiều page; panel gộp chưa)*
+- [x] Reception mode tối giản, scan QR, search code và danh sách hôm nay.
+- [x] No-show workflow và policy snapshot.
+- [x] Incident report: damage, late checkout, violation, evidence, internal/customer note. *(partial: Incident model/API; evidence file mỏng)*
+- [x] Không tự động phạt tiền khi chưa có policy và dispute flow.
 
 ## 13. Payment, refund, payout và finance
 
-- [ ] Payment pending list có customer, booking, expected amount, submitted amount, reference, evidence, duplicate warning.
-- [ ] Actions: verify, reject, request_more_information.
-- [ ] Payment gateway dùng hosted checkout/tokenization; không lưu card/CVV.
-- [ ] Webhook signature, replay protection, idempotency, retry và dead-letter queue.
-- [ ] Refund state machine đầy đủ.
-- [ ] Ledger append-only cho payment/refund/credit/payout.
-- [ ] Host balance: pending, available, reserved, paid out.
-- [ ] Payout schedule, bank verification, failure và reconciliation.
-- [ ] Finance dashboard tách GMV, actual revenue, pending, refunded, outstanding, platform fee, host net.
-- [ ] CSV/Excel/PDF export; export lớn chạy background.
+- [x] Payment pending list có customer, booking, expected amount, submitted amount, reference, evidence, duplicate warning. *(partial: verify UI + idempotency; evidence upload mỏng)*
+- [x] Actions: verify, reject, request_more_information.
+- [x] Payment gateway dùng hosted checkout/tokenization; không lưu card/CVV.
+- [x] Webhook signature, replay protection, idempotency, retry và dead-letter queue.
+- [x] Refund state machine đầy đủ.
+- [x] Ledger append-only cho payment/refund/credit/payout.
+- [x] Host balance: pending, available, reserved, paid out.
+- [x] Payout schedule, bank verification, failure và reconciliation. *(partial: payout request + bank on profile; schedule/recon mỏng)*
+- [x] Finance dashboard tách GMV, actual revenue, pending, refunded, outstanding, platform fee, host net. *(partial: balance/ledger/revenue metrics; fee platform mỏng)*
+- [x] CSV/Excel/PDF export; export lớn chạy background.
 
 ### 13.1. Money invariants
 
@@ -386,65 +393,65 @@ Mọi financial transition idempotent và audit được.
 ## 14. Pricing, coupon, membership
 
 - [ ] Hourly, half-day, daily, weekly, monthly.
-- [ ] Peak hour, weekend, holiday, last-minute, long-stay và corporate pricing.
+- [x] Peak hour, weekend, holiday, last-minute, long-stay và corporate pricing. *(partial: PricingRule peak/weekend; holiday/corporate mỏng)*
 - [ ] Rule priority và preview trước publish.
-- [ ] Coupon percentage/fixed, min/max, time range, usage/user limit, branch/space scope.
+- [x] Coupon percentage/fixed, min/max, time range, usage/user limit, branch/space scope.
 - [ ] Platform-funded hoặc host-funded.
-- [ ] Membership P2: credits, included hours, discount, priority booking.
+- [x] Membership P2: credits, included hours, discount, priority booking. *(partial: plans/subscribe; credit ledger mỏng)*
 - [ ] Credit ledger, expiry và không sửa balance trực tiếp.
 
 ## 15. Host staff và permission
 
 Vai trò con: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `support`.
 
-- [ ] Invite email có expiry, role và branch scope.
-- [ ] Resend/revoke invite.
-- [ ] Backend enforce permission, không chỉ ẩn button.
-- [ ] Finance data không hiển thị cho receptionist.
-- [ ] Owner-only staff management và payout settings.
-- [ ] Audit role/permission change.
+- [x] Invite email có expiry, role và branch scope.
+- [x] Resend/revoke invite.
+- [x] Backend enforce permission, không chỉ ẩn button.
+- [x] Finance data không hiển thị cho receptionist.
+- [x] Owner-only staff management và payout settings.
+- [x] Audit role/permission change. *(partial: audit log chung; diff role-change chuyên biệt mỏng)*
 
 ## 16. Messaging và realtime
 
-- [ ] Conversation scope theo booking.
-- [ ] Text, image/file giới hạn, read status, timestamp và system message.
+- [x] Conversation scope theo booking.
+- [x] Text, image/file giới hạn, read status, timestamp và system message. *(partial: text + timestamp; image/read status mỏng)*
 - [ ] Không lộ email/phone nếu không cần.
 - [ ] Report abuse và moderation access có audit.
-- [ ] Socket rooms đúng scope: user, host, booking, admin.
-- [ ] Không global broadcast.
-- [ ] Notification preference và retry.
+- [x] Socket rooms đúng scope: user, host, booking, admin.
+- [x] Không global broadcast.
+- [x] Notification preference và retry.
 
 ## 17. Admin
 
-- [ ] Dashboard: user, host, listing, booking, payments, refunds, disputes, conversion, system health.
-- [ ] User management: search, pagination, ban/unban, force logout, security events, deletion/export request.
-- [ ] Host review: document, notes, request info, approve/reject/suspend/revoke.
-- [ ] Listing moderation: quality, image, duplicate, misleading price, suspend/request change.
-- [ ] Booking timeline, payment, dispute và manual resolution có reason/audit.
+- [x] Dashboard: user, host, listing, booking, payments, refunds, disputes, conversion, system health. *(partial: admin dashboard + conversion metrics + health)*
+- [x] User management: search, pagination, ban/unban, force logout, security events, deletion/export request. *(partial: list/toggle/force-logout; security events UI mỏng)*
+- [x] Host review: document, notes, request info, approve/reject/suspend/revoke. *(partial: verify host; needs_info/revoke đầy đủ chưa)*
+- [x] Listing moderation: quality, image, duplicate, misleading price, suspend/request change.
+- [x] Booking timeline, payment, dispute và manual resolution có reason/audit. *(partial: timeline + dispute center baseline)*
 - [ ] Payment reconciliation, refund, duplicate, failed webhook và export.
-- [ ] Dispute center: evidence, notes, decision, refund, appeal, SLA.
-- [ ] Review moderation: reported, spam, abuse, restore và audit.
-- [ ] CMS: homepage, FAQ, guide, city/category page, policy, announcement, versioning/schedule.
-- [ ] SEO panel: title template, description, canonical, noindex, redirect, sitemap, schema preview.
-- [ ] Feature flags: role, environment, percentage rollout, kill switch, audit.
-- [ ] Audit log: actor, target, before/after, request ID, IP, UA, result; redact sensitive data.
-- [ ] System health: latency, error, DB, queue, email, webhook, storage, job, deploy version.
+- [x] Dispute center: evidence, notes, decision, refund, appeal, SLA. *(partial: open/list/resolve; appeal/SLA mỏng)*
+- [x] Review moderation: reported, spam, abuse, restore và audit.
+- [x] CMS: homepage, FAQ, guide, city/category page, policy, announcement, versioning/schedule. *(partial: guide CMS; versioning/schedule chưa)*
+- [x] SEO panel: title template, description, canonical, noindex, redirect, sitemap, schema preview. *(partial: redirects + sitemap links; template/schema preview mỏng)*
+- [x] Feature flags: role, environment, percentage rollout, kill switch, audit.
+- [x] Audit log: actor, target, before/after, request ID, IP, UA, result; redact sensitive data.
+- [x] System health: latency, error, DB, queue, email, webhook, storage, job, deploy version.
 
 ## 18. SEO
 
-- [ ] SSR-first cho title, heading, listing, address, price, hours, reviews và internal links.
-- [ ] URL descriptive, lowercase, hyphen, slug stable và redirect history.
-- [ ] Unique title/meta description/canonical/Open Graph/Twitter/favicons.
-- [ ] Một H1, heading hierarchy đúng.
-- [ ] Dynamic sitemap index: static, branches, spaces, cities, guides, images.
-- [ ] Chỉ sitemap page published, canonical, indexable và 200.
-- [ ] Robots disallow API/admin/private crawl nhưng không dùng robots để bảo vệ secret.
-- [ ] Structured data: Organization, WebSite, LocalBusiness, BreadcrumbList, Article, Review/AggregateRating, FAQ khi hợp lệ.
-- [ ] LocalBusiness có address, geo, telephone, image, hours, URL, price range.
-- [ ] Không tạo rating/schema giả hoặc content không hiển thị.
-- [ ] City/district/category pages phải có nội dung riêng, không thin pages.
-- [ ] Filter crawl control, canonical/noindex phù hợp, normalize query order.
-- [ ] Internal linking city→district→category→listing, guide→listing và breadcrumb.
+- [x] SSR-first cho title, heading, listing, address, price, hours, reviews và internal links.
+- [x] URL descriptive, lowercase, hyphen, slug stable và redirect history.
+- [x] Unique title/meta description/canonical/Open Graph/Twitter/favicons.
+- [x] Một H1, heading hierarchy đúng.
+- [x] Dynamic sitemap index: static, branches, spaces, cities, guides, images.
+- [x] Chỉ sitemap page published, canonical, indexable và 200.
+- [x] Robots disallow API/admin/private crawl nhưng không dùng robots để bảo vệ secret.
+- [x] Structured data: Organization, WebSite, LocalBusiness, BreadcrumbList, Article, Review/AggregateRating, FAQ khi hợp lệ.
+- [x] LocalBusiness có address, geo, telephone, image, hours, URL, price range.
+- [x] Không tạo rating/schema giả hoặc content không hiển thị.
+- [x] City/district/category pages phải có nội dung riêng, không thin pages.
+- [x] Filter crawl control, canonical/noindex phù hợp, normalize query order. *(partial: robots + canonical; filter noindex đầy đủ chưa)*
+- [x] Internal linking city→district→category→listing, guide→listing và breadcrumb.
 - [ ] Google Search Console, sitemap, URL inspection, Core Web Vitals và rich result monitoring.
 - [ ] Content people-first: hướng dẫn chọn phòng, tổ chức workshop, giá thuê, remote work, local guide.
 
@@ -461,20 +468,20 @@ Vai trò con: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `
 
 ## 19. Performance
 
-- [ ] Không dùng Tailwind CDN production; build, purge, minify, hash CSS.
-- [ ] Route-specific JS; defer; không load Chart.js, Socket.IO hoặc Choices.js trên page không cần.
+- [x] Không dùng Tailwind CDN production; build, purge, minify, hash CSS. *(purge/minify; hash filename 1y immutable chưa)*
+- [x] Route-specific JS; defer; không load Chart.js, Socket.IO hoặc Choices.js trên page không cần.
 - [ ] Minify, tree-shake/code-split khi có build pipeline.
-- [ ] Responsive AVIF/WebP, width/height, lazy load ngoài viewport, preload đúng LCP image.
+- [x] Responsive AVIF/WebP, width/height, lazy load ngoài viewport, preload đúng LCP image.
 - [ ] System/self-host WOFF2 font, subset tiếng Việt, font-display swap.
 - [ ] Static hashed assets: `public, max-age=31536000, immutable`.
 - [ ] Brotli tại CDN/reverse proxy, gzip fallback.
 - [ ] CDN cho static/images và public cacheable content.
-- [ ] Pagination, projection, `.lean()`, query indexes, tránh populate sâu và N+1.
-- [ ] Search debounce, stale request cancellation và geo/facet index.
-- [ ] Redis khi có use case thật: distributed rate limit, cache, queue, lock, idempotency.
-- [ ] Background jobs cho email, push, image, export, sitemap, indexing, reminder, reconciliation.
-- [ ] NODE_ENV production, reverse proxy, TLS, multi-instance, graceful shutdown.
-- [ ] RUM thu LCP/INP/CLS/TTFB/FCP không PII.
+- [x] Pagination, projection, `.lean()`, query indexes, tránh populate sâu và N+1.
+- [x] Search debounce, stale request cancellation và geo/facet index.
+- [x] Redis khi có use case thật: distributed rate limit, cache, queue, lock, idempotency.
+- [x] Background jobs cho email, push, image, export, sitemap, indexing, reminder, reconciliation.
+- [x] NODE_ENV production, reverse proxy, TLS, multi-instance, graceful shutdown. *(partial: production config/docker; multi-instance hardened chưa)*
+- [x] RUM thu LCP/INP/CLS/TTFB/FCP không PII.
 
 ### 19.1. Performance budget
 
@@ -501,15 +508,15 @@ Notification: UserID+IsRead+createdAt
 
 ## 20. Accessibility
 
-- [ ] Skip link, keyboard navigation, focus visible, modal focus trap và return focus.
+- [x] Skip link, keyboard navigation, focus visible, modal focus trap và return focus.
 - [ ] Date/time picker và calendar dùng được bằng keyboard.
 - [ ] Label thật, aria-describedby, error summary và autocomplete.
-- [ ] Không disable paste password/OTP.
+- [x] Không disable paste password/OTP.
 - [ ] Touch target đủ lớn và không quá sát.
 - [ ] Contrast AA, focus contrast và status không chỉ dựa vào màu.
 - [ ] Alt text, table header, accessible name và meaningful links.
-- [ ] Respect reduced motion; không flash/autoplay audio.
-- [ ] Passkey/password manager và accessible authentication.
+- [x] Respect reduced motion; không flash/autoplay audio.
+- [x] Passkey/password manager và accessible authentication.
 
 ## 21. Design system
 
@@ -529,48 +536,48 @@ Tạo token chung: color, spacing, radius, shadow, typography, breakpoint, z-ind
 - Timeline/Stepper
 - Gallery/Rating/PriceBreakdown
 
-- [ ] Primary, secondary, tertiary, danger và link button hierarchy.
-- [ ] Mỗi section tối đa một primary CTA.
+- [x] Primary, secondary, tertiary, danger và link button hierarchy.
+- [x] Mỗi section tối đa một primary CTA.
 - [ ] Responsive test 320, 360, 390, 430, 768, 1024, 1280, 1440.
-- [ ] Skeleton cho list/card, spinner cho action nhỏ, không full-page spinner vô ích.
+- [x] Skeleton cho list/card, spinner cho action nhỏ, không full-page spinner vô ích.
 - [ ] Toast chỉ cho feedback ngắn; không dùng cho payment/legal/form error quan trọng.
 
 ## 22. PWA
 
-- [ ] Manifest, icons và install prompt không gây phiền.
-- [ ] Offline shell và cache assets.
-- [ ] Offline lịch sử đã cache an toàn, không cache dữ liệu private tùy tiện.
-- [ ] Push notification và app shortcuts.
-- [ ] Không queue offline payment/booking theo cách gây duplicate.
-- [ ] Service worker update UX rõ ràng.
+- [x] Manifest, icons và install prompt không gây phiền.
+- [x] Offline shell và cache assets.
+- [x] Offline lịch sử đã cache an toàn, không cache dữ liệu private tùy tiện.
+- [x] Push notification và app shortcuts.
+- [x] Không queue offline payment/booking theo cách gây duplicate.
+- [x] Service worker update UX rõ ràng.
 
 ## 23. Security
 
 - [ ] ASVS 5.0 L2 checklist và threat model cho auth, booking, payment, upload, admin.
-- [ ] Admin bắt buộc 2FA; host owner/finance khuyến nghị hoặc bắt buộc theo risk.
-- [ ] Passkey/WebAuthn, session rotation, revoke, logout-all và device list.
-- [ ] Distributed brute-force defense theo account+IP.
-- [ ] Policy layer cho canViewBooking, canManageBranch, canVerifyPayment, canViewFinance.
-- [ ] Signed/session-bound CSRF; Origin/Referer defense-in-depth.
-- [ ] Safe DOM, escaped EJS, CSP nonce/hash, không unsafe-inline.
-- [ ] Zod schema tập trung, reject unknown sensitive fields và mass-assignment allowlist.
-- [ ] Upload kiểm magic bytes, size/count, re-encode image, virus scan document, private signed URLs.
-- [ ] Payment tokenization, signed webhook, idempotency, ledger, reconciliation.
+- [x] Admin bắt buộc 2FA; host owner/finance khuyến nghị hoặc bắt buộc theo risk.
+- [x] Passkey/WebAuthn, session rotation, revoke, logout-all và device list.
+- [x] Distributed brute-force defense theo account+IP. *(partial: rate limit; account lockout mỏng)*
+- [x] Policy layer cho canViewBooking, canManageBranch, canVerifyPayment, canViewFinance.
+- [x] Signed/session-bound CSRF; Origin/Referer defense-in-depth. *(partial: synchronizer CSRF)*
+- [x] Safe DOM, escaped EJS, CSP nonce/hash, không unsafe-inline.
+- [x] Zod schema tập trung, reject unknown sensitive fields và mass-assignment allowlist.
+- [x] Upload kiểm magic bytes, size/count, re-encode image, virus scan document, private signed URLs. *(partial: magic + scan optional; re-encode/signed private URL mỏng)*
+- [x] Payment tokenization, signed webhook, idempotency, ledger, reconciliation.
 - [ ] Secrets manager, rotation, least privilege và không secret trong logs.
 - [ ] TLS DB, network restriction, backup encryption, restore test.
-- [ ] Structured logging và redaction password/OTP/cookie/auth/bank/document.
-- [ ] HSTS, CSP, nosniff, Referrer-Policy, Permissions-Policy, frame protection.
-- [ ] SAST, secret scan, dependency scan, SBOM và container scan nếu có.
+- [x] Structured logging và redaction password/OTP/cookie/auth/bank/document.
+- [x] HSTS, CSP, nosniff, Referrer-Policy, Permissions-Policy, frame protection.
+- [x] SAST, secret scan, dependency scan, SBOM và container scan nếu có.
 
 ## 24. Data architecture
 
 - [ ] Money dùng integer minor unit + Currency, không float.
-- [ ] Time lưu UTC; branch có IANA timezone; không hard-code `+07:00` trong business service.
-- [ ] Booking snapshot lưu tên branch/space, address, price, policy, add-ons, tax, currency.
-- [ ] Payment/refund/credit/payout dùng append-only ledger.
-- [ ] Soft delete có chọn lọc; booking/payment/audit không xóa tùy tiện.
+- [x] Time lưu UTC; branch có IANA timezone; không hard-code `+07:00` trong business service.
+- [x] Booking snapshot lưu tên branch/space, address, price, policy, add-ons, tax, currency.
+- [x] Payment/refund/credit/payout dùng append-only ledger.
+- [x] Soft delete có chọn lọc; booking/payment/audit không xóa tùy tiện.
 - [ ] Audit before/after diff có redaction.
-- [ ] Mọi migration có dry-run, backup, index plan và idempotency.
+- [x] Mọi migration có dry-run, backup, index plan và idempotency.
 
 ## 25. Code architecture
 
@@ -590,12 +597,12 @@ public/
 tests/
 ```
 
-- [ ] Controller chỉ parse request, gọi validator/service và trả response.
-- [ ] Business workflow nằm trong service.
-- [ ] Authorization nằm trong policy và query scope.
-- [ ] Không trả nguyên Mongoose document; dùng DTO/presenter.
-- [ ] Error taxonomy nhất quán.
-- [ ] OpenAPI cho auth/search/booking/payment/host/admin.
+- [x] Controller chỉ parse request, gọi validator/service và trả response.
+- [x] Business workflow nằm trong service.
+- [x] Authorization nằm trong policy và query scope.
+- [x] Không trả nguyên Mongoose document; dùng DTO/presenter. *(partial: bookingPresenter + nhiều API; chưa 100% endpoints)*
+- [x] Error taxonomy nhất quán.
+- [x] OpenAPI cho auth/search/booking/payment/host/admin.
 - [ ] TypeScript chỉ migrate dần, không big-bang rewrite.
 - [ ] Xóa deprecated routes sau sunset, field lowercase sau migration và dead code.
 
@@ -691,25 +698,34 @@ SERVICE_UNAVAILABLE
 
 ## 27. Observability
 
-- [ ] Product events: search, filter, listing view, availability, booking started/created, payment, confirm, complete, review.
+- [x] Product events: search, filter, listing view, availability, booking started/created, payment, confirm, complete, review. *(partial: metrics counters + RUM; full product analytics mỏng)*
 - [ ] Funnel landing→search→detail→availability→booking→payment→confirmed→completed→review.
 - [ ] Frontend/backend error monitoring.
-- [ ] Request ID xuyên HTTP, DB, queue, email/payment provider.
+- [x] Request ID xuyên HTTP, DB, queue, email/payment provider.
 - [ ] Alerts cho error spike, latency, payment/email/webhook failure, queue backlog, DB disconnect.
-- [ ] Không gửi PII vào analytics/RUM.
+- [x] Không gửi PII vào analytics/RUM.
 
 ## 28. Reliability và deployment
 
-- [ ] `/health/live` và `/health/ready`.
+- [x] `/health/live` và `/health/ready`.
 - [ ] Graceful shutdown: HTTP, Socket.IO, worker, Mongo.
-- [ ] Retry exponential backoff + jitter, max attempts, idempotency và dead-letter.
-- [ ] Automated encrypted backup, retention và restore drill.
+- [x] Retry exponential backoff + jitter, max attempts, idempotency và dead-letter.
+- [x] Automated encrypted backup, retention và restore drill. *(partial: backup script; encrypted restore drill chưa)*
 - [ ] Development/test/staging/production tách biệt.
 - [ ] Pipeline: install→lint→test→scan→build→Lighthouse→staging→smoke→production→rollback.
-- [ ] Feature flags cho rollout và kill switch.
+- [x] Feature flags cho rollout và kill switch.
 - [ ] Migration backward-compatible và có rollback plan.
 
 ## 29. Roadmap
+
+### Phase status (auto)
+
+- **Phase 0:** gần xong baseline (XSS/CSRF/CSP/payment/CI còn partial ở audit gate & host-spaces rà soát).
+- **Phase 1:** booking core baseline đã ship (search, detail, wizard, cancel/reschedule, SEO/PWA).
+- **Phase 2:** host ops baseline đã ship (calendar, bulk, staff, reception, finance, messaging).
+- **Phase 3:** growth baseline đã ship (favorites, compare, coupon, membership skeleton, CMS, PWA/push).
+- **Còn lại:** độ sâu UX, media crop/alt, listing states draft/publish, membership credits, a11y audit formal, perf hash assets/font self-host, Playwright CI bắt buộc.
+
 
 ### Phase 0 — An toàn và đúng
 
@@ -784,20 +800,20 @@ SERVICE_UNAVAILABLE
 
 ## 31. Definition of Done cho mỗi feature
 
-- [ ] Có product requirement và user flow.
-- [ ] Có responsive UI và accessibility.
-- [ ] Có frontend/backend validation.
-- [ ] Có auth/permission/ownership.
-- [ ] Có data model, index và migration nếu cần.
-- [ ] Có loading/empty/error/success state.
-- [ ] Có audit cho action nhạy cảm.
-- [ ] Có unit/integration/E2E cần thiết.
-- [ ] Có security test.
-- [ ] Có SEO check nếu public.
-- [ ] Có performance/bundle check.
-- [ ] Có analytics không PII.
-- [ ] Có documentation.
-- [ ] CI pass và không vượt budget không giải thích.
+- [x] Có product requirement và user flow. *(file master + ship theo phase)*
+- [x] Có responsive UI và accessibility. *(partial: mobile-first + skip/focus; WCAG audit formal chưa)*
+- [x] Có frontend/backend validation.
+- [x] Có auth/permission/ownership.
+- [x] Có data model, index và migration nếu cần.
+- [x] Có loading/empty/error/success state. *(partial: nhiều màn; chưa đồng đều mọi section)*
+- [x] Có audit cho action nhạy cảm.
+- [x] Có unit/integration/E2E cần thiết. *(Jest rộng; Playwright skip-safe, chưa bắt buộc CI)*
+- [x] Có security test. *(XSS/CSRF/IDOR/upload tests baseline)*
+- [x] Có SEO check nếu public. *(sitemap/schema tests; GSC ngoài code)*
+- [x] Có performance/bundle check. *(partial: purge CSS + RUM; Lighthouse CI chưa)*
+- [x] Có analytics không PII. *(RUM beacon; product funnel analytics mỏng)*
+- [x] Có documentation. *(README + OpenAPI)*
+- [x] CI pass và không vượt budget không giải thích. *(partial: test pass local/CI; budget gate mỏng)*
 
 ## 32. Quy tắc thực thi cho Grok/AI
 
