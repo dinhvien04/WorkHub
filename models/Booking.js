@@ -83,6 +83,14 @@ const bookingSchema = new mongoose.Schema({
     ],
     AddOnsTotal: { type: Number, default: 0, min: 0 },
     BaseAmount: { type: Number, default: 0, min: 0 },
+    CancellationPolicy: {
+      freeCancelHours: { type: Number, default: 24 },
+      refundBeforeStartPercent: { type: Number, default: 100 },
+      refundAfterStartPercent: { type: Number, default: 0 },
+      currency: { type: String, default: 'VND' },
+      summary: { type: String, default: '' },
+    },
+    HoldReminderSent: { type: Boolean, default: false },
 
 }, { 
     // Tự động tạo CreateAt và UpdateAt

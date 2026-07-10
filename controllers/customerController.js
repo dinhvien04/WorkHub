@@ -452,8 +452,17 @@ async function cancelBooking(req, res) {
       return res.status(403).json({ error: 'Không có quyền hủy đơn của người khác.' });
     }
     const { bookingId } = req.params;
-    const booking = await bookingService.cancelBookingByCustomer(customerId, bookingId);
-    return res.json({ message: 'Bạn đã hủy đơn đặt chỗ thành công.', booking });
+    const booking = await bookingService.cancelBookingByCustomer(
+      customerId,
+      bookingId,
+      req.body?.reason
+    );
+    const cancelPreview = booking._cancelPreview || null;
+    return res.json({
+      message: 'Bạn đã hủy đơn đặt chỗ thành công.',
+      booking,
+      cancelPreview,
+    });
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: error.message, code: error.code });

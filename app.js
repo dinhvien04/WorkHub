@@ -214,7 +214,14 @@ function createApp() {
   app.get('/host/bookings', requireHostPage, (req, res) =>
     res.render('host/bookings', {
       currentUser: req.currentUser,
-      scripts: res.locals.scriptsFrom(['/js/host-spaces.js']),
+      scripts: res.locals.scriptsFrom(['/js/host-spaces.js', '/js/host-inbox.js']),
+    })
+  );
+  app.get('/host/onboarding', requireHostPage, (req, res) =>
+    res.render('host/onboarding', {
+      currentUser: req.currentUser,
+      pageTitle: 'Onboarding — Host',
+      scripts: res.locals.scriptsFrom(['/js/host-onboarding.js']),
     })
   );
   app.get('/host/calendar', requireHostPage, (req, res) =>

@@ -33,7 +33,14 @@ router.get('/csrf', ensureCsrfCookie, (req, res) => {
   res.json({ csrfToken: res.locals.csrfToken || (req.cookies && req.cookies.csrfToken) });
 });
 
-router.post('/register', registerLimiter, upload.single('verificationDocument'), registerUser);
+router.post(
+  '/register',
+  registerLimiter,
+  ...(upload.singleWithMagic
+    ? upload.singleWithMagic('verificationDocument')
+    : [upload.single('verificationDocument')]),
+  registerUser
+);
 router.post('/login', loginLimiter, loginUser);
 router.post('/2fa/verify', loginLimiter, verify2faLogin);
 router.get('/2fa/status', authMiddleware.verifyToken, get2faStatus);

@@ -275,6 +275,10 @@ async function createBooking({
 
   const isInstant = preferInstant && !!space.InstantBook;
   const initialStatus = isInstant ? 'confirmed' : 'pending';
+  const cancellationPolicyService = require('./cancellationPolicyService');
+  const cancellationPolicy = cancellationPolicyService.buildPolicySnapshot({
+    freeCancelHours: space.FreeCancelHours || 24,
+  });
 
   const holdMs = Math.min(Math.max(Number(holdMinutes) || 15, 5), 60) * 60 * 1000;
   const holdExpires = new Date(Date.now() + holdMs);
@@ -341,6 +345,7 @@ async function createBooking({
       DiscountAmount: discountAmount,
       Snapshot: snapshot,
       AppliedPricingRules: appliedPricingRules,
+      CancellationPolicy: cancellationPolicy,
     };
 
     let booking;
@@ -488,9 +493,24 @@ async function cancelBookingByHost(hostId, bookingId) {
 async function cancelBookingByCustomer(customerId, bookingId, reason = '') {
   const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
   if (!booking) throw new NotFoundError('Không tìm thấy đơn hàng của bạn.');
-  if (!['pending', 'hold', 'awaiting_payment', 'payment_under_review'].includes(booking.Status)) {
-    throw new ValidationError('Chỉ có thể hủy đơn đang chờ xác nhận/thanh toán.');
+  if (
+    !['pending', 'hold', 'awaiting_payment', 'payment_under_review', 'confirmed'].includes(
+      booking.Status
+    )
+  ) {
+    throw new ValidationError('Không thể hủy đơn ở trạng thái hiện tại.');
   }
+  const cancellationPolicyService = require('./cancellationPolicyService');
+  const successfulPaid = await PaymentHistory.aggregate([
+    { $match: { BookingID: booking._id, Status: 'successful' } },
+    { $group: { _id: null, sum: { $sum: '$Amount' } } },
+  ]);
+  const paid = successfulPaid[0]?.sum || 0;
+  const cancelPreview = cancellationPolicyService.evaluateCancellation(
+    { ...booking.toObject(), _successfulPaid: paid },
+    { now: new Date() }
+  );
+
   booking.Status = 'cancelled';
   booking.CancelReason = String(reason || '').slice(0, 500);
   booking.CancelledAt = new Date();
@@ -516,6 +536,7 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = '') {
   } catch {
     /* ignore */
   }
+  booking._cancelPreview = cancelPreview;
   return booking;
 }
 

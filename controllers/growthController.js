@@ -524,6 +524,85 @@ const hostReplyReview = asyncHandler(async (req, res) => {
   res.json({ review });
 });
 
+// —— Booking timeline + cancel preview ——
+const bookingTimeline = asyncHandler(async (req, res) => {
+  const timeline = await require('../services/bookingTimelineService').getBookingTimeline({
+    bookingId: req.params.bookingId,
+    userId: req.user.userId,
+    role: req.user.role,
+  });
+  res.json(timeline);
+});
+
+const cancelPreview = asyncHandler(async (req, res) => {
+  const Booking = require('../models/Booking');
+  const PaymentHistory = require('../models/Payment_History');
+  const cancellationPolicyService = require('../services/cancellationPolicyService');
+  const { presentBooking } = require('../presenters/bookingPresenter');
+  const booking = await Booking.findById(req.params.bookingId);
+  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (
+    String(booking.CustomerID) !== String(req.user.userId) &&
+    String(booking.HostID) !== String(req.user.userId) &&
+    req.user.role !== 'admin'
+  ) {
+    throw new ForbiddenError('Không có quyền.');
+  }
+  const paidAgg = await PaymentHistory.aggregate([
+    { $match: { BookingID: booking._id, Status: 'successful' } },
+    { $group: { _id: null, sum: { $sum: '$Amount' } } },
+  ]);
+  const preview = cancellationPolicyService.evaluateCancellation(
+    { ...booking.toObject(), _successfulPaid: paidAgg[0]?.sum || 0 },
+    { now: new Date() }
+  );
+  res.json({
+    booking: presentBooking(booking, { role: req.user.role }),
+    cancelPreview: preview,
+  });
+});
+
+// —— Host inbox + onboarding ——
+const hostInbox = asyncHandler(async (req, res) => {
+  const data = await require('../services/hostInboxService').listHostInbox(req.user.userId, {
+    bucket: req.query.bucket,
+    page: req.query.page,
+    limit: req.query.limit,
+  });
+  const { presentBooking } = require('../presenters/bookingPresenter');
+  res.json({
+    ...data,
+    items: data.items.map((b) => ({
+      ...presentBooking(b, { role: 'host' }),
+      customer: b.CustomerID,
+      space: b.SpaceID,
+    })),
+  });
+});
+
+const hostOnboarding = asyncHandler(async (req, res) => {
+  const data = await require('../services/onboardingService').getHostOnboarding(req.user.userId);
+  res.json(data);
+});
+
+// —— Admin force logout ——
+const adminForceLogout = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.userId);
+  if (!user) throw new NotFoundError('User not found');
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+  await user.save();
+  try {
+    const UserSession = require('../models/Session');
+    await UserSession.updateMany(
+      { UserID: user._id, RevokedAt: null },
+      { $set: { RevokedAt: new Date() } }
+    );
+  } catch {
+    /* ignore */
+  }
+  res.json({ message: 'Đã force logout user (tokenVersion bumped).' });
+});
+
 module.exports = {
   createCheckout,
   gatewayWebhook,
@@ -565,4 +644,9 @@ module.exports = {
   reportReview,
   moderateReview,
   hostReplyReview,
+  bookingTimeline,
+  cancelPreview,
+  hostInbox,
+  hostOnboarding,
+  adminForceLogout,
 };

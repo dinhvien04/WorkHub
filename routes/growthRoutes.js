@@ -143,4 +143,31 @@ router.post(
   g.hostReplyReview
 );
 
+// Timeline + cancel policy preview
+router.get('/bookings/:bookingId/timeline', verifyToken, g.bookingTimeline);
+router.get('/bookings/:bookingId/cancel-preview', verifyToken, g.cancelPreview);
+
+// Host inbox + onboarding
+router.get(
+  '/host/inbox',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.hostInbox
+);
+router.get(
+  '/host/onboarding',
+  verifyToken,
+  authorizeRole('host'),
+  g.hostOnboarding
+);
+
+// Admin force logout
+router.post(
+  '/admin/users/:userId/force-logout',
+  verifyToken,
+  requireAdmin,
+  g.adminForceLogout
+);
+
 module.exports = router;

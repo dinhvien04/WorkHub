@@ -9,6 +9,10 @@ const {
   startCompleteExpiredBookingsJob,
   stopCompleteExpiredBookingsJob,
 } = require('./jobs/completeExpiredBookings');
+const {
+  startHoldRemindersJob,
+  stopHoldRemindersJob,
+} = require('./jobs/holdReminders');
 const logger = require('./utils/logger');
 
 const app = createApp();
@@ -23,6 +27,7 @@ initSocket(io);
 async function start() {
   await connectDB();
   startCompleteExpiredBookingsJob(60_000);
+  startHoldRemindersJob(120_000);
 
   server.listen(env.PORT, () => {
     logger.info(`WorkHub Server running at http://localhost:${env.PORT}`);
@@ -32,6 +37,7 @@ async function start() {
 async function shutdown(signal) {
   logger.info(`${signal} received — shutting down`);
   stopCompleteExpiredBookingsJob();
+  stopHoldRemindersJob();
   server.close(async () => {
     await disconnectDB();
     process.exit(0);

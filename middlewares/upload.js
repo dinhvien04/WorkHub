@@ -75,6 +75,19 @@ const uploadCloud = multer({
   fileFilter,
 });
 
+const { validateUploadMagicBytes, sniffImageOrPdf, assertAllowedMagic } = require('../utils/magicBytes');
+
+// Compose: multer fields + magic-byte validation when buffer present (memoryStorage / tests)
+function withMagicBytes(multerMw) {
+  return [multerMw, validateUploadMagicBytes()];
+}
+
 module.exports = uploadCloud;
 module.exports.cloudinary = cloudinary;
 module.exports.IMAGE_MIMES = IMAGE_MIMES;
+module.exports.validateUploadMagicBytes = validateUploadMagicBytes;
+module.exports.sniffImageOrPdf = sniffImageOrPdf;
+module.exports.assertAllowedMagic = assertAllowedMagic;
+module.exports.withMagicBytes = withMagicBytes;
+module.exports.singleWithMagic = (field) => withMagicBytes(uploadCloud.single(field));
+module.exports.arrayWithMagic = (field, max) => withMagicBytes(uploadCloud.array(field, max));

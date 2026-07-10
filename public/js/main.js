@@ -18,6 +18,7 @@ const menus = {
   ],
   host: [
     { id: 'host_dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'host_onboarding', label: 'Onboarding', icon: '🚀' },
     { id: 'host_calendar', label: 'Lịch', icon: '🗓️' },
     { id: 'host_reception', label: 'Lễ tân', icon: '🛎️' },
     { id: 'host_spaces', label: 'Quản lý không gian', icon: '🏢' },
@@ -60,6 +61,7 @@ function navigateTo(id) {
     login: '/login',
     host_profile: '/host/profile',
     host_dashboard: '/host/dashboard',
+    host_onboarding: '/host/onboarding',
     host_calendar: '/host/calendar',
     host_reception: '/host/reception',
     host_spaces: '/host/spaces',

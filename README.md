@@ -92,6 +92,10 @@ npm run seed:extras  # coupons + feature flags demo
 - Review report / moderate / host reply
 - Admin SEO redirects, flags, health UIs
 - Perf: Chart.js / Choices / Socket only when needed
+- Cancellation policy snapshot + cancel preview / timeline
+- Host inbox buckets + onboarding checklist
+- Upload magic-bytes validation, booking DTO presenter
+- Admin force-logout, hold-expiry reminder job
 
 ```bash
 npm run backup
