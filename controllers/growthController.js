@@ -16,7 +16,7 @@ const Space = require('../models/Space');
 const UserSession = require('../models/Session');
 const calendarService = require('../services/calendarService');
 const { parsePagination, paginationMeta } = require('../utils/pagination');
-const { ValidationError, NotFoundError } = require('../utils/errors');
+const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
 
 // —— Gateway ——
 const createCheckout = asyncHandler(async (req, res) => {
@@ -420,6 +420,110 @@ const listSeoRedirects = asyncHandler(async (req, res) => {
   res.json({ redirects: await SeoRedirect.find().sort({ FromPath: 1 }).lean() });
 });
 
+// —— Alternatives / public add-ons ——
+const alternativeSlots = asyncHandler(async (req, res) => {
+  const availabilityService = require('../services/availabilityService');
+  const alts = await availabilityService.suggestAlternativeSlots({
+    spaceId: req.query.spaceId || req.body.spaceId,
+    startTime: req.query.startTime || req.body.startTime,
+    endTime: req.query.endTime || req.body.endTime,
+    max: Number(req.query.max) || 6,
+  });
+  res.json({ alternatives: alts });
+});
+
+const publicAddOns = asyncHandler(async (req, res) => {
+  const AddOn = require('../models/AddOn');
+  const filter = { Status: 'active' };
+  if (req.query.hostId) filter.HostID = req.query.hostId;
+  if (req.query.branchId) filter.BranchID = req.query.branchId;
+  const items = await AddOn.find(filter).limit(50).lean();
+  res.json({ addOns: items });
+});
+
+// —— Receipt + ledger CSV ——
+const bookingReceipt = asyncHandler(async (req, res) => {
+  const Booking = require('../models/Booking');
+  const PaymentHistory = require('../models/Payment_History');
+  const exportService = require('../services/exportService');
+  const booking = await Booking.findById(req.params.bookingId);
+  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  const uid = req.user.userId;
+  const role = req.user.role;
+  if (
+    role !== 'admin' &&
+    String(booking.CustomerID) !== String(uid) &&
+    String(booking.HostID) !== String(uid)
+  ) {
+    throw new ForbiddenError('Không có quyền xem biên lai.');
+  }
+  const payments = await PaymentHistory.find({ BookingID: booking._id })
+    .select('Amount Status TransactionCode PaymentMethod createdAt')
+    .lean();
+  const html = exportService.bookingReceiptHtml(booking, payments);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
+const exportLedgerCsv = asyncHandler(async (req, res) => {
+  const ledgerService = require('../services/ledgerService');
+  const exportService = require('../services/exportService');
+  const data = await ledgerService.listLedger(req.user.userId, { page: 1, limit: 500 });
+  const csv = exportService.ledgerToCsv(data.items);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="workhub-ledger.csv"');
+  res.send(csv);
+});
+
+// —— Review report / moderate / host reply ——
+const reportReview = asyncHandler(async (req, res) => {
+  const Review = require('../models/Review');
+  const review = await Review.findById(req.params.reviewId);
+  if (!review) throw new NotFoundError('Không tìm thấy review.');
+  const reason = String(req.body.reason || 'abuse').slice(0, 500);
+  review.ReportCount = (review.ReportCount || 0) + 1;
+  review.ReportReasons = [...(review.ReportReasons || []), reason].slice(-20);
+  if (review.Status === 'published') review.Status = 'reported';
+  await review.save();
+  res.json({ review, message: 'Đã gửi báo cáo review.' });
+});
+
+const moderateReview = asyncHandler(async (req, res) => {
+  const Review = require('../models/Review');
+  const status = req.body.status;
+  if (!['published', 'hidden', 'removed'].includes(status)) {
+    throw new ValidationError('Status không hợp lệ.');
+  }
+  const review = await Review.findByIdAndUpdate(
+    req.params.reviewId,
+    {
+      $set: {
+        Status: status,
+        ModeratedBy: req.user.userId,
+        ModeratedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
+  if (!review) throw new NotFoundError('Không tìm thấy review.');
+  res.json({ review });
+});
+
+const hostReplyReview = asyncHandler(async (req, res) => {
+  const Review = require('../models/Review');
+  const Space = require('../models/Space');
+  const review = await Review.findById(req.params.reviewId);
+  if (!review) throw new NotFoundError('Không tìm thấy review.');
+  const space = await Space.findById(review.SpaceID).select('HostID');
+  if (!space || String(space.HostID) !== String(req.user.userId)) {
+    throw new ValidationError('Chỉ host của listing mới được trả lời.');
+  }
+  review.HostReply = String(req.body.reply || '').slice(0, 2000);
+  review.HostRepliedAt = new Date();
+  await review.save();
+  res.json({ review });
+});
+
 module.exports = {
   createCheckout,
   gatewayWebhook,
@@ -454,4 +558,11 @@ module.exports = {
   systemHealth,
   upsertSeoRedirect,
   listSeoRedirects,
+  alternativeSlots,
+  publicAddOns,
+  bookingReceipt,
+  exportLedgerCsv,
+  reportReview,
+  moderateReview,
+  hostReplyReview,
 };

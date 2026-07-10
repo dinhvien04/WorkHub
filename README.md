@@ -86,6 +86,12 @@ npm run seed:extras  # coupons + feature flags demo
 - Feature flags (percentage/role/env) + admin upsert
 - SEO: sitemap index, cities/guides sitemaps, redirects, rich LocalBusiness JSON-LD
 - Notification prefs + admin system-health
+- Booking add-ons, instant book, conflict alternatives, price breakdown
+- Receipt HTML + host ledger CSV export
+- Email verification request/confirm
+- Review report / moderate / host reply
+- Admin SEO redirects, flags, health UIs
+- Perf: Chart.js / Choices / Socket only when needed
 
 ```bash
 npm run backup

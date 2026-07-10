@@ -14,6 +14,8 @@ const {
   enable2fa,
   disable2fa,
   get2faStatus,
+  requestEmailVerification,
+  confirmEmailVerification,
 } = require('../controllers/authController');
 
 const authMiddleware = require('../middlewares/authMiddleware');
@@ -38,6 +40,8 @@ router.get('/2fa/status', authMiddleware.verifyToken, get2faStatus);
 router.post('/2fa/setup', authMiddleware.verifyToken, setup2fa);
 router.post('/2fa/enable', authMiddleware.verifyToken, enable2fa);
 router.post('/2fa/disable', authMiddleware.verifyToken, disable2fa);
+router.post('/email/request-verify', authMiddleware.verifyToken, requestEmailVerification);
+router.post('/email/confirm', confirmEmailVerification);
 router.post('/logout', logoutUser);
 router.get('/me', authMiddleware.verifyToken, getMe);
 router.post('/change-password', authMiddleware.verifyToken, changePassword);

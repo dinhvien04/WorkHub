@@ -15,8 +15,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
 
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdn.tailwindcss.com"></script>
+    <% if (typeof loadChartJs !== 'undefined' && loadChartJs) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>
+    <% } %>
+    <% if (typeof loadChoices !== 'undefined' && loadChoices) { %>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
+    <% } %>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <% if (typeof jsonLd !== 'undefined' && jsonLd) { %>
@@ -28,12 +32,14 @@
 </head>
 <body class="antialiased text-slate-800">
     <a class="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/socket.io/socket.io.js"></script>
+    <% if (typeof loadSocket !== 'undefined' && loadSocket) { %>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/socket.io/socket.io.js" defer></script>
+    <% } %>
     <div class="app-wrapper">
         <%- include('partials/header') %>
         <div class="main-container">
             <%- include('partials/sidebar') %>
-            <main class="content-area" id="main-content">
+            <main class="content-area" id="main-content" tabindex="-1">
                 <%- body %>
             </main>
         </div>
@@ -41,7 +47,9 @@
 
     <%- include('partials/modals') %>
 
+    <% if (typeof loadChoices !== 'undefined' && loadChoices) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js" defer></script>
+    <% } %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/api.js"></script>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/domSafe.js"></script>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/main.js"></script>

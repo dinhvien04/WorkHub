@@ -72,6 +72,17 @@ const bookingSchema = new mongoose.Schema({
     InstantBook: { type: Boolean, default: false },
     NoShow: { type: Boolean, default: false },
     AppliedPricingRules: [{ name: String, type: String, multiplier: Number }],
+    AddOns: [
+      {
+        AddOnID: { type: mongoose.Schema.Types.ObjectId, ref: 'AddOn' },
+        Name: { type: String, default: '' },
+        UnitPrice: { type: Number, default: 0 },
+        Quantity: { type: Number, default: 1, min: 1 },
+        LineTotal: { type: Number, default: 0 },
+      },
+    ],
+    AddOnsTotal: { type: Number, default: 0, min: 0 },
+    BaseAmount: { type: Number, default: 0, min: 0 },
 
 }, { 
     // Tự động tạo CreateAt và UpdateAt

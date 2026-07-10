@@ -123,6 +123,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const exportBtn = document.getElementById('ledger-export-btn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      window.location.href = '/api/host/ledger/export.csv';
+    });
+  }
+
   try {
     await loadBalance();
     await loadLedger();

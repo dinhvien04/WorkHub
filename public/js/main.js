@@ -34,6 +34,9 @@ const menus = {
     { id: 'admin_hosts', label: 'Chủ cơ sở', icon: '🏢' },
     { id: 'admin_disputes', label: 'Disputes', icon: '⚖️' },
     { id: 'admin_cms', label: 'CMS', icon: '📝' },
+    { id: 'admin_seo', label: 'SEO', icon: '🔎' },
+    { id: 'admin_flags', label: 'Flags', icon: '🚩' },
+    { id: 'admin_health', label: 'Health', icon: '💚' },
     { id: 'admin_activitylog', label: 'Nhật ký hoạt động', icon: '⭐' },
   ],
 };
@@ -72,6 +75,9 @@ function navigateTo(id) {
     admin_hosts: '/admin/hosts',
     admin_disputes: '/admin/disputes',
     admin_cms: '/admin/cms',
+    admin_seo: '/admin/seo',
+    admin_flags: '/admin/flags',
+    admin_health: '/admin/health',
     admin_activitylog: '/admin/activitylog',
   };
   if (routes[id]) window.location.href = routes[id];

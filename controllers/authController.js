@@ -329,6 +329,55 @@ const get2faStatus = asyncHandler(async (req, res) => {
   });
 });
 
+const requestEmailVerification = asyncHandler(async (req, res) => {
+  const EmailVerificationToken = require('../models/EmailVerificationToken');
+  const user = await User.findById(req.user.userId);
+  if (!user) throw new NotFoundError('User not found');
+  if (user.EmailVerified) {
+    return res.json({ message: 'Email đã được xác minh.', verified: true });
+  }
+  const raw = crypto.randomBytes(32).toString('hex');
+  const TokenHash = crypto.createHash('sha256').update(raw).digest('hex');
+  await EmailVerificationToken.create({
+    UserID: user._id,
+    TokenHash,
+    ExpiresAt: new Date(Date.now() + 24 * 3600000),
+  });
+  try {
+    await emailService.sendGeneric({
+      to: user.Email,
+      subject: 'Xác minh email WorkHub',
+      text: `Mã xác minh email WorkHub: ${raw}\nHết hạn sau 24 giờ.`,
+    });
+  } catch {
+    /* dev: token still returned only in non-production */
+  }
+  const payload = { message: 'Đã gửi mã xác minh (nếu email provider cấu hình).' };
+  if (!env.isProduction) payload.devToken = raw;
+  res.json(payload);
+});
+
+const confirmEmailVerification = asyncHandler(async (req, res) => {
+  const EmailVerificationToken = require('../models/EmailVerificationToken');
+  const token = String(req.body.token || '').trim();
+  if (!token) throw new ValidationError('Thiếu token.');
+  const TokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const record = await EmailVerificationToken.findOne({
+    TokenHash,
+    UsedAt: null,
+    ExpiresAt: { $gt: new Date() },
+  });
+  if (!record) throw new ValidationError('Token không hợp lệ hoặc đã hết hạn.');
+  const user = await User.findById(record.UserID);
+  if (!user) throw new NotFoundError('User not found');
+  user.EmailVerified = true;
+  user.EmailVerifiedAt = new Date();
+  await user.save();
+  record.UsedAt = new Date();
+  await record.save();
+  res.json({ message: 'Email đã xác minh.', verified: true });
+});
+
 const logoutUser = asyncHandler(async (req, res) => {
   res.clearCookie(env.AUTH_COOKIE_NAME, {
     httpOnly: true,
@@ -513,4 +562,6 @@ module.exports = {
   enable2fa,
   disable2fa,
   get2faStatus,
+  requestEmailVerification,
+  confirmEmailVerification,
 };

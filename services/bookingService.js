@@ -126,6 +126,8 @@ async function createBooking({
   note = '',
   couponCode = '',
   holdMinutes = 15,
+  addOns = [],
+  preferInstant = true,
 }) {
   if (!spaceId || !startTime || !endTime) {
     throw new ValidationError('Thiếu thông tin đặt chỗ (spaceId, startTime, endTime).');
@@ -211,6 +213,44 @@ async function createBooking({
   let discountAmount = 0;
   let appliedCoupon = null;
 
+  const baseAmount = total;
+
+  // Add-ons (server-priced)
+  const addOnLines = [];
+  let addOnsTotal = 0;
+  if (Array.isArray(addOns) && addOns.length) {
+    const AddOn = require('../models/AddOn');
+    const hours = Math.max(0, (end - start) / 3600000);
+    for (const item of addOns.slice(0, 20)) {
+      const id = item.addOnId || item.id;
+      if (!id) continue;
+      const doc = await AddOn.findOne({
+        _id: id,
+        HostID: space.HostID,
+        Status: 'active',
+      }).lean();
+      if (!doc) continue;
+      const qty = Math.max(1, Math.min(99, Math.round(Number(item.quantity) || 1)));
+      if (doc.Inventory != null && qty > doc.Inventory) {
+        throw new ValidationError(`Add-on "${doc.Name}" không đủ tồn kho.`);
+      }
+      let unit = doc.Price || 0;
+      let line = unit * qty;
+      if (doc.Unit === 'hour') line = unit * qty * hours;
+      if (doc.Unit === 'person') line = unit * qty;
+      line = Math.round(line);
+      addOnLines.push({
+        AddOnID: doc._id,
+        Name: doc.Name,
+        UnitPrice: unit,
+        Quantity: qty,
+        LineTotal: line,
+      });
+      addOnsTotal += line;
+    }
+  }
+  total = Math.round(baseAmount + addOnsTotal);
+
   if (couponCode) {
     const couponService = require('./couponService');
     const branchId = space.BranchID?._id || space.BranchID;
@@ -232,6 +272,9 @@ async function createBooking({
       : depositFromQuote != null
         ? Math.min(depositFromQuote, total)
         : Math.round(total * 0.3);
+
+  const isInstant = preferInstant && !!space.InstantBook;
+  const initialStatus = isInstant ? 'confirmed' : 'pending';
 
   const holdMs = Math.min(Math.max(Number(holdMinutes) || 15, 5), 60) * 60 * 1000;
   const holdExpires = new Date(Date.now() + holdMs);
@@ -287,9 +330,13 @@ async function createBooking({
       EndTime: end,
       TotalAmount: total,
       DepositAmount: deposit,
-      Status: 'pending',
+      BaseAmount: baseAmount,
+      AddOnsTotal: addOnsTotal,
+      AddOns: addOnLines,
+      Status: initialStatus,
+      InstantBook: isInstant,
       Note: note || '',
-      HoldExpiresAt: holdExpires,
+      HoldExpiresAt: isInstant ? null : holdExpires,
       CouponCode: appliedCoupon ? appliedCoupon.Code : '',
       DiscountAmount: discountAmount,
       Snapshot: snapshot,
@@ -512,3 +559,7 @@ module.exports = {
   ACTIVE_STATUSES,
   validateBookingWindow,
 };
+
+// Re-export alternatives for convenience
+module.exports.suggestAlternativeSlots = (...args) =>
+  require('./availabilityService').suggestAlternativeSlots(...args);

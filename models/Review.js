@@ -32,7 +32,19 @@ const reviewSchema = new mongoose.Schema({
         type: String,
         trim: true,
         default: ""
-    }
+    },
+    Status: {
+        type: String,
+        enum: ['published', 'reported', 'hidden', 'removed'],
+        default: 'published',
+        index: true,
+    },
+    ReportCount: { type: Number, default: 0, min: 0 },
+    ReportReasons: [{ type: String, maxlength: 500 }],
+    HostReply: { type: String, default: '', maxlength: 2000 },
+    HostRepliedAt: { type: Date, default: null },
+    ModeratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    ModeratedAt: { type: Date, default: null },
 }, {
     collection: 'reviews',
     timestamps: true 

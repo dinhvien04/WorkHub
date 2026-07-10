@@ -74,6 +74,11 @@ const spaceSchema = new mongoose.Schema({
         default: 'available',
         index: true
     },
+    InstantBook: {
+        type: Boolean,
+        default: false,
+        index: true,
+    },
     RatingAvg: { 
         type: Number, 
         default: 0 

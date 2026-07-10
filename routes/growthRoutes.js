@@ -114,4 +114,33 @@ router.get('/admin/system-health', verifyToken, requireAdmin, g.systemHealth);
 router.get('/admin/seo/redirects', verifyToken, requireAdmin, g.listSeoRedirects);
 router.put('/admin/seo/redirects', verifyToken, requireAdmin, g.upsertSeoRedirect);
 
+// Alternatives + add-ons (public read)
+router.get('/availability/alternatives', g.alternativeSlots);
+router.get('/addons', g.publicAddOns);
+
+// Receipt + finance export
+router.get(
+  '/bookings/:bookingId/receipt',
+  verifyToken,
+  g.bookingReceipt
+);
+router.get(
+  '/host/ledger/export.csv',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.exportLedgerCsv
+);
+
+// Reviews
+router.post('/reviews/:reviewId/report', verifyToken, g.reportReview);
+router.put('/admin/reviews/:reviewId/moderate', verifyToken, requireAdmin, g.moderateReview);
+router.post(
+  '/host/reviews/:reviewId/reply',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.hostReplyReview
+);
+
 module.exports = router;

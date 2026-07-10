@@ -1,0 +1,27 @@
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-black mb-2">SEO redirects</h1>
+  <p class="text-sm text-slate-500 mb-4">301/302 path redirects + sitemap index.</p>
+  <div class="bg-white rounded-3xl border p-5 mb-4 grid gap-3 md:grid-cols-2">
+    <div>
+      <label class="text-[10px] font-black uppercase text-slate-400" for="seo-from">From path</label>
+      <input id="seo-from" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="/old-url" />
+    </div>
+    <div>
+      <label class="text-[10px] font-black uppercase text-slate-400" for="seo-to">To path</label>
+      <input id="seo-to" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="/khong-gian" />
+    </div>
+    <div>
+      <label class="text-[10px] font-black uppercase text-slate-400" for="seo-code">Status</label>
+      <select id="seo-code" class="w-full border rounded-xl px-3 py-2 text-sm">
+        <option value="301">301 permanent</option>
+        <option value="302">302 temporary</option>
+      </select>
+    </div>
+    <div class="flex items-end">
+      <button type="button" id="seo-save" class="bg-teal-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase">Lưu</button>
+    </div>
+  </div>
+  <p id="seo-msg" class="text-sm mb-3" role="status"></p>
+  <div id="seo-list" class="bg-white rounded-3xl border overflow-hidden"></div>
+  <p class="text-xs text-slate-400 mt-4">Sitemaps: <a class="text-teal-700 underline" href="/sitemap_index.xml">/sitemap_index.xml</a></p>
+</div>

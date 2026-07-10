@@ -97,9 +97,31 @@
     }
     if (!data.spaces || !data.spaces.length) {
       box.appendChild(
-        DomSafe.createTextElement('p', 'text-sm text-slate-400', 'Không còn phòng. Thử khung giờ khác.')
+        DomSafe.createTextElement('p', 'text-sm text-slate-400', 'Không còn phòng. Đang gợi ý khung giờ khác…')
       );
       $('wz-next-1').disabled = true;
+      try {
+        const [a, b] = state.slot.split(' - ');
+        const startTime = new Date(`${state.date}T${a}:00`).toISOString();
+        const endTime = new Date(`${state.date}T${b}:00`).toISOString();
+        // Use first space of branch if known; else skip detailed alts
+        const altRes = await WorkHubAPI.api(
+          `/api/availability/alternatives?spaceId=${encodeURIComponent(state.spaceId || '')}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+          { redirectOn401: false }
+        );
+        const altData = await altRes.json();
+        if (altData.alternatives && altData.alternatives.length) {
+          const wrap = document.createElement('div');
+          wrap.className = 'mt-3 space-y-1';
+          wrap.appendChild(DomSafe.createTextElement('p', 'text-xs font-bold text-slate-600', 'Khung giờ thay thế:'));
+          altData.alternatives.forEach((alt) => {
+            wrap.appendChild(DomSafe.createTextElement('p', 'text-xs text-teal-700', alt.label));
+          });
+          box.appendChild(wrap);
+        }
+      } catch {
+        /* ignore */
+      }
       return;
     }
     DomSafe.renderSpaceList(box, data.spaces, (space) => {
@@ -196,7 +218,16 @@
       });
       const data = await res.json();
       if (!res.ok) {
-        showError(data.error || 'Không tạo được đơn');
+        let msg = data.error || 'Không tạo được đơn';
+        if (data.alternatives && data.alternatives.length) {
+          msg +=
+            ' · Gợi ý: ' +
+            data.alternatives
+              .slice(0, 3)
+              .map((a) => a.label)
+              .join('; ');
+        }
+        showError(msg);
         btn.disabled = false;
         return;
       }

@@ -94,6 +94,7 @@ function createApp() {
       (req.path === '/api/auth/register' && req.method === 'POST') ||
       (req.path === '/api/auth/forgot-password' && req.method === 'POST') ||
       (req.path === '/api/auth/reset-password' && req.method === 'POST') ||
+      (req.path === '/api/auth/email/confirm' && req.method === 'POST') ||
       (req.path === '/api/auth/csrf' && req.method === 'GET') ||
       req.path === '/api/gateway/webhook' ||
       req.path === '/api/rum' ||
@@ -200,6 +201,7 @@ function createApp() {
   app.get('/host/dashboard', requireHostPage, (req, res) =>
     res.render('host/dashboard', {
       currentUser: req.currentUser,
+      loadChartJs: true,
       scripts: res.locals.scriptsFrom(['/js/host-spaces.js', '/js/host-dashboard.js']),
     })
   );
@@ -243,7 +245,10 @@ function createApp() {
       scripts: res.locals.scriptsFrom(['/js/host-finance.js']),
     })
   );
-  app.get('/host/reports', requireHostPage, getHostReportsPage);
+  app.get('/host/reports', requireHostPage, (req, res, next) => {
+    res.locals.loadChartJs = true;
+    return getHostReportsPage(req, res, next);
+  });
 
   app.get('/compare', (req, res) =>
     res.render('customer/compare', {
@@ -315,6 +320,25 @@ function createApp() {
     res.render('admin/dashboard', {
       scripts: res.locals.scriptsFrom(adminScriptList),
       pageTitle: 'Admin — WorkHub',
+      loadChartJs: true,
+    })
+  );
+  app.get('/admin/seo', requireAdminPage, (req, res) =>
+    res.render('admin/seo', {
+      pageTitle: 'SEO — Admin',
+      scripts: res.locals.scriptsFrom(['/js/admin-seo.js']),
+    })
+  );
+  app.get('/admin/flags', requireAdminPage, (req, res) =>
+    res.render('admin/flags', {
+      pageTitle: 'Feature flags — Admin',
+      scripts: res.locals.scriptsFrom(['/js/admin-flags.js']),
+    })
+  );
+  app.get('/admin/health', requireAdminPage, (req, res) =>
+    res.render('admin/health', {
+      pageTitle: 'System health — Admin',
+      scripts: res.locals.scriptsFrom(['/js/admin-health.js']),
     })
   );
   app.get('/admin/users', requireAdminPage, (req, res) =>

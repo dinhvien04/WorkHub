@@ -79,8 +79,31 @@ function peekLastOtp() {
   return m ? m[1] : null;
 }
 
+async function sendGeneric({ to, subject, text }) {
+  const payload = {
+    to,
+    subject: subject || 'WorkHub',
+    body: text || '',
+    createdAt: new Date(),
+  };
+  if (env.isProduction) {
+    if (!env.EMAIL_PROVIDER || !env.EMAIL_FROM) {
+      throw new Error('Email provider is not configured for production.');
+    }
+    if (env.EMAIL_PROVIDER === 'resend') {
+      await sendViaResend({ to, subject: payload.subject, text: payload.body });
+      return { ok: true, provider: 'resend' };
+    }
+    throw new Error(`Unsupported EMAIL_PROVIDER: ${env.EMAIL_PROVIDER}`);
+  }
+  outbox.push(payload);
+  logger.info(`[DEV EMAIL] queued for ${to}: ${payload.subject}`);
+  return { ok: true, provider: 'dev-outbox' };
+}
+
 module.exports = {
   sendPasswordResetOtp,
+  sendGeneric,
   getLastDevEmail,
   clearDevOutbox,
   peekLastOtp,

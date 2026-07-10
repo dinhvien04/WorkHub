@@ -39,6 +39,9 @@ const userSchema = new mongoose.Schema({
         default: 0
     },
 
+    EmailVerified: { type: Boolean, default: true },
+    EmailVerifiedAt: { type: Date, default: null },
+
     // TOTP 2FA (secret never returned in public DTOs)
     TotpEnabled: { type: Boolean, default: false },
     TotpSecret: { type: String, default: null, select: false },

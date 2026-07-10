@@ -377,27 +377,69 @@ async function createBooking(req, res) {
       return res.status(403).json({ error: 'Không được tạo booking cho người dùng khác.' });
     }
 
-    const { spaceId, startTime, endTime, note, couponCode, holdMinutes } = req.body;
-    const booking = await bookingService.createBooking({
-      customerId,
+    const {
       spaceId,
       startTime,
       endTime,
       note,
       couponCode,
       holdMinutes,
-    });
+      addOns,
+      preferInstant,
+    } = req.body;
+    try {
+      const booking = await bookingService.createBooking({
+        customerId,
+        spaceId,
+        startTime,
+        endTime,
+        note,
+        couponCode,
+        holdMinutes,
+        addOns,
+        preferInstant,
+      });
 
-    return res.status(201).json({
-      message: 'Tạo đơn đặt chỗ thành công',
-      booking,
-      holdExpiresAt: booking.HoldExpiresAt,
-      snapshot: booking.Snapshot,
-      discountAmount: booking.DiscountAmount || 0,
-    });
+      return res.status(201).json({
+        message: booking.InstantBook
+          ? 'Đặt chỗ tức thì thành công (instant book).'
+          : 'Tạo đơn đặt chỗ thành công',
+        booking,
+        holdExpiresAt: booking.HoldExpiresAt,
+        snapshot: booking.Snapshot,
+        discountAmount: booking.DiscountAmount || 0,
+        instantBook: !!booking.InstantBook,
+        priceBreakdown: {
+          baseAmount: booking.BaseAmount,
+          addOnsTotal: booking.AddOnsTotal,
+          discountAmount: booking.DiscountAmount,
+          totalAmount: booking.TotalAmount,
+          depositAmount: booking.DepositAmount,
+          addOns: booking.AddOns,
+          appliedRules: booking.AppliedPricingRules,
+        },
+      });
+    } catch (error) {
+      if (error.statusCode === 409 || error.code === 'CONFLICT') {
+        const alternatives = await bookingService.suggestAlternativeSlots({
+          spaceId,
+          startTime,
+          endTime,
+        });
+        return res.status(409).json({
+          error: error.message,
+          code: error.code || 'CONFLICT',
+          alternatives,
+        });
+      }
+      throw error;
+    }
   } catch (error) {
     if (error.statusCode) {
-      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      return res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+      });
     }
     return sendServerError(res, error);
   }
