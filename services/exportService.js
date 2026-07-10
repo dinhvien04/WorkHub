@@ -3,8 +3,15 @@
 /**
  * CSV / simple receipt helpers (no card data).
  */
+/**
+ * Escape CSV cell and neutralize spreadsheet formula injection.
+ * Cells starting with = + - @ \t \r are prefixed with a single quote.
+ */
 function escapeCsv(val) {
-  const s = String(val ?? "");
+  let s = String(val ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

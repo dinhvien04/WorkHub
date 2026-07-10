@@ -16,9 +16,17 @@
     const root = document.querySelector('[data-gallery]');
     if (!root) return;
 
+    function safeUrl(u) {
+      if (window.DomSafe && DomSafe.safeImageUrl) return DomSafe.safeImageUrl(u) || '';
+      if (!u || typeof u !== 'string') return '';
+      if (/^javascript:/i.test(u) || u.startsWith('//') || /^data:/i.test(u)) return '';
+      if (u.startsWith('/') || /^https?:\/\//i.test(u)) return u;
+      return '';
+    }
     const urls = (root.getAttribute('data-gallery-urls') || '')
       .split('|')
       .map((s) => s.trim())
+      .map(safeUrl)
       .filter(Boolean);
     if (!urls.length) return;
 
@@ -73,7 +81,9 @@
       index = ((i % urls.length) + urls.length) % urls.length;
       const el = ensureOverlay();
       const img = el.querySelector('.gallery-lightbox__img');
-      img.src = urls[index];
+      const safe = safeUrl(urls[index]);
+      if (safe) img.src = safe;
+      else img.removeAttribute('src');
       img.alt = 'Ảnh ' + (index + 1) + ' / ' + urls.length;
       el.querySelector('.gallery-lightbox__counter').textContent =
         index + 1 + ' / ' + urls.length;

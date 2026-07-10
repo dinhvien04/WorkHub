@@ -16,9 +16,26 @@ npm run migrate:fields
 npm run reconcile:finance -- --dry-run
 npm run reconcile:finance -- --apply --confirm=YES
 
-# Indexes verify (optional script)
+# Indexes verify (read-only list)
 npm run indexes:verify
 ```
+
+## Security / finance schema notes (post-P0/P1)
+
+| Collection | Notable fields / indexes |
+|---|---|
+| `webauthn_challenges` | `ChallengeHash` + purpose/user/consumed; TTL on `ExpiresAt` |
+| `user_sessions` | unique `Sid`; `UserID` + `RevokedAt` / `ExpiresAt` |
+| `staff_members` | `AllBranches` (empty BranchIDs no longer means all) |
+| `api_keys` | `AllBranches` |
+| `webhook_events` | unique `(Provider, ProviderEventID)`; lease fields |
+| `host_balances` | unique `HostID` |
+| `refund_allocations` | unique `(RefundID, PaymentID)` |
+| `host_profiles` | `IcalTokenHash` / revoke / expiry |
+| `recurring_series` | sparse unique `IdempotencyKey`, `Timezone` |
+| `background_jobs` | `LeaseUntil` for stuck recovery |
+
+App models create indexes on boot/`syncIndexes`. Prefer rolling deploy: add fields optional first.
 
 ## Rollback plan template
 

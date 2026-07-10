@@ -817,9 +817,23 @@ const customerDashboard = asyncHandler(async (req, res) => {
 // —— SEO redirect admin ——
 const upsertSeoRedirect = asyncHandler(async (req, res) => {
   const SeoRedirect = require('../models/SeoRedirect');
+  const { isSafeInternalPath } = require('../utils/publicBaseUrl');
   const from = String(req.body.fromPath || '').trim();
   const to = String(req.body.toPath || '').trim();
   if (!from || !to) throw new ValidationError('fromPath và toPath bắt buộc.');
+  if (!isSafeInternalPath(from) || !isSafeInternalPath(to)) {
+    throw new ValidationError(
+      'Redirect chỉ cho phép path nội bộ (bắt đầu /, không //, không scheme).'
+    );
+  }
+  if (from === to) {
+    throw new ValidationError('fromPath và toPath không được trùng (tránh loop).');
+  }
+  // Block short redirect chains: to must not already redirect to from
+  const reverse = await SeoRedirect.findOne({ FromPath: to, Active: true }).lean();
+  if (reverse && reverse.ToPath === from) {
+    throw new ValidationError('Redirect tạo vòng lặp 2 bước.');
+  }
   const doc = await SeoRedirect.findOneAndUpdate(
     { FromPath: from },
     {

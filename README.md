@@ -41,14 +41,23 @@ Mở http://localhost:3000
 | `NODE_ENV` | Không | `development` / `production` / `test` |
 | `PUBLIC_BASE_URL` | Production | `https://your.domain` (không path/query) |
 | `GATEWAY_WEBHOOK_SECRET` | Production | Khác `JWT_SECRET` |
+| `SESSION_SECRET` | Production | Cookie/session (≥32, ≠ JWT) |
+| `CSRF_SECRET` | Production | CSRF HMAC (≥32, ≠ JWT) |
+| `CHECKIN_TOKEN_SECRET` | Production | Check-in sign/hash |
+| `OAUTH_STATE_SECRET` | Production | Google OIDC state |
+| `ICAL_FEED_SECRET` | Production | Host iCal feed tokens |
 | `PAYMENT_PROVIDER` | Production | `stripe` hoặc `momo` (không mock) |
-| `METRICS_AUTH_TOKEN` | Production | Bảo vệ `/metrics`, `/health/details` |
+| `METRICS_AUTH_TOKEN` | Production | Bearer only (không query string) |
 | `WEBAUTHN_ENABLED` | Không | Mặc định `false` |
+| `WEBAUTHN_USER_VERIFICATION` | Không | Production: `required` |
+| `ENABLE_TRANSACTIONS` | Production | `true` + Mongo replica set |
 | `CLOUDINARY_*` | Production | Upload ảnh |
 | `BOOKING_SLOT_MINUTES` | Không | Slot khóa lịch (mặc định 30) |
 | `TRUST_PROXY` | Production | `true` khi sau reverse proxy |
 
-Ứng dụng **fail-fast** nếu thiếu `JWT_SECRET` / `MONGODB_URI`, và trong production nếu mock payment / webhook secret = JWT / `PUBLIC_BASE_URL` không HTTPS.
+Ứng dụng **fail-fast** nếu thiếu `JWT_SECRET` / `MONGODB_URI`, và trong production nếu mock payment / secrets trùng JWT / `PUBLIC_BASE_URL` không HTTPS.
+
+Canonical SEO/sitemap/host JSON-LD dùng `PUBLIC_BASE_URL` (không Host header).
 
 ## Production deploy
 

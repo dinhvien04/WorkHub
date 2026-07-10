@@ -5,15 +5,18 @@ const Branch = require('../models/Branch');
 const CmsPage = require('../models/CmsPage');
 const SeoRedirect = require('../models/SeoRedirect');
 const { slugify } = require('../utils/slugify');
+const { publicBaseUrl, isSafeInternalPath } = require('../utils/publicBaseUrl');
 
 const router = express.Router();
 
-// SEO redirects (DB-driven 301/302)
+// SEO redirects (DB-driven 301/302) — only internal allowlisted paths
 router.use(async (req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   try {
     const hit = await SeoRedirect.findOne({ FromPath: req.path, Active: true }).lean();
-    if (hit) return res.redirect(hit.StatusCode || 301, hit.ToPath);
+    if (hit && isSafeInternalPath(hit.ToPath)) {
+      return res.redirect(hit.StatusCode || 301, hit.ToPath);
+    }
   } catch {
     /* ignore */
   }
@@ -21,6 +24,7 @@ router.use(async (req, res, next) => {
 });
 
 router.get('/robots.txt', (req, res) => {
+  const base = publicBaseUrl(req);
   res.type('text/plain');
   res.send(
     [
@@ -35,15 +39,15 @@ router.get('/robots.txt', (req, res) => {
       'Disallow: /history',
       'Disallow: /profile',
       'Disallow: /security',
-      `Sitemap: ${req.protocol}://${req.get('host')}/sitemap_index.xml`,
-      `Sitemap: ${req.protocol}://${req.get('host')}/sitemap.xml`,
+      `Sitemap: ${base}/sitemap_index.xml`,
+      `Sitemap: ${base}/sitemap.xml`,
       '',
     ].join('\n')
   );
 });
 
 router.get('/sitemap_index.xml', async (req, res) => {
-  const base = `${req.protocol}://${req.get('host')}`;
+  const base = publicBaseUrl(req);
   const now = new Date().toISOString();
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -59,7 +63,7 @@ router.get('/sitemap_index.xml', async (req, res) => {
 
 router.get('/sitemap-images.xml', async (req, res) => {
   try {
-    const base = `${req.protocol}://${req.get('host')}`;
+    const base = publicBaseUrl(req);
     const branches = await Branch.find({ Status: 'active' })
       .select('Slug CitySlug DistrictSlug Name Images updatedAt City District')
       .lean();
@@ -104,7 +108,7 @@ router.get('/sitemap-images.xml', async (req, res) => {
 
 router.get('/sitemap.xml', async (req, res) => {
   try {
-    const base = `${req.protocol}://${req.get('host')}`;
+    const base = publicBaseUrl(req);
     const branches = await Branch.find({ Status: 'active' })
       .select('Slug CitySlug DistrictSlug updatedAt Name City District')
       .lean();
@@ -146,7 +150,7 @@ router.get('/sitemap.xml', async (req, res) => {
 
 router.get('/sitemap-cities.xml', async (req, res) => {
   try {
-    const base = `${req.protocol}://${req.get('host')}`;
+    const base = publicBaseUrl(req);
     const cities = await Branch.aggregate([
       { $match: { Status: 'active', CitySlug: { $exists: true, $nin: [null, ''] } } },
       { $group: { _id: '$CitySlug', districts: { $addToSet: '$DistrictSlug' } } },
@@ -173,7 +177,7 @@ router.get('/sitemap-cities.xml', async (req, res) => {
 
 router.get('/sitemap-guides.xml', async (req, res) => {
   try {
-    const base = `${req.protocol}://${req.get('host')}`;
+    const base = publicBaseUrl(req);
     const pages = await CmsPage.find({ Status: 'published' }).select('Slug updatedAt').lean();
     const urls = pages.map((p) => ({
       loc: `${base}/huong-dan/${p.Slug}`,
@@ -278,7 +282,7 @@ async function renderListing(req, res, next, { city, district, slug }) {
         relatedGuides = [];
       }
 
-      const base = `${req.protocol}://${req.get('host')}`;
+      const base = publicBaseUrl(req);
       const breadcrumb = {
         '@context': 'https://schema.org',
         '@type': 'BreadcrumbList',

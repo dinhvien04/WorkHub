@@ -13,9 +13,19 @@ const COLLECTIONS = [
   'payment_histories',
   'ledger_entries',
   'webhook_events',
+  'webauthn_challenges',
+  'user_sessions',
+  'host_balances',
+  'refund_allocations',
+  'refunds',
+  'payouts',
+  'api_keys',
+  'staff_members',
   'users',
   'spaces',
   'branches',
+  'recurring_series',
+  'background_jobs',
 ];
 
 async function main() {

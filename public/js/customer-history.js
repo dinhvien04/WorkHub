@@ -209,7 +209,11 @@ function renderCustomerBookings(list) {
             'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=200';
         const rawImg =
             space.Images && space.Images.length > 0 ? space.Images[0] : fallbackImg;
-        const imgUrl = DS && DS.safeImageUrl ? DS.safeImageUrl(rawImg) || fallbackImg : rawImg;
+        // Never fall back to raw unsanitized URL
+        const imgUrl =
+            DS && DS.safeImageUrl
+                ? DS.safeImageUrl(rawImg) || DS.safeImageUrl(fallbackImg) || ''
+                : rawImg;
 
         const start = new Date(booking.StartTime);
         const end = new Date(booking.EndTime);
@@ -266,7 +270,7 @@ function renderCustomerBookings(list) {
 
         const imgWrap = el('div', 'w-full md:w-32 h-32 shrink-0 relative', null);
         const img = document.createElement('img');
-        img.src = imgUrl;
+        if (imgUrl) img.src = imgUrl;
         img.alt = displayName;
         img.className = 'w-full h-full object-cover rounded-2xl shadow-inner';
         imgWrap.appendChild(img);
@@ -405,7 +409,16 @@ function openDetailModal(id) {
     
     const getVal = (val) => (val && val.trim() !== '') ? val : 'Không có thông tin';
 
-    document.getElementById('md-img').src = (space.Images && space.Images.length > 0) ? space.Images[0] : 'https://images.unsplash.com/photo-1497366216548-37526070297c';
+    const mdRaw =
+        space.Images && space.Images.length > 0
+            ? space.Images[0]
+            : 'https://images.unsplash.com/photo-1497366216548-37526070297c';
+    const mdSafe =
+        window.DomSafe && DomSafe.safeImageUrl
+            ? DomSafe.safeImageUrl(mdRaw)
+            : mdRaw;
+    const mdEl = document.getElementById('md-img');
+    if (mdEl && mdSafe) mdEl.src = mdSafe;
     document.getElementById('md-space-name').textContent = getVal(space.Name);
     document.getElementById('md-space-code').textContent = 'Mã phòng: ' + getVal(space.SpaceCode);
     

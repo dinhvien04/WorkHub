@@ -450,7 +450,7 @@ function createApp() {
         '@context': 'https://schema.org',
         '@type': 'Organization',
         name: data.companyName,
-        url: `${req.protocol}://${req.get('host')}/hosts/${data.hostId}`,
+        url: `${require('./utils/publicBaseUrl').publicBaseUrl(req)}/hosts/${data.hostId}`,
         logo: data.logo || undefined,
         aggregateRating:
           data.stats.ratingTotal > 0
