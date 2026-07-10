@@ -17,7 +17,8 @@ const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { requireHostPage } = require('./middlewares/authMiddleware');
 
 const authRoutes = require('./routes/authRoutes');
-const customerRoutes = require('./routes/customerRoutes');
+const customerApiRoutes = require('./routes/customerApiRoutes');
+const customerPageRoutes = require('./routes/customerPageRoutes');
 const hostRoutes = require('./routes/hostRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
@@ -38,8 +39,20 @@ function createApp() {
         useDefaults: true,
         directives: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://cdn.jsdelivr.net'],
-          'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
+          'script-src': [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdn.tailwindcss.com',
+            'https://cdn.jsdelivr.net',
+            'https://cdnjs.cloudflare.com',
+          ],
+          'style-src': [
+            "'self'",
+            "'unsafe-inline'",
+            'https://fonts.googleapis.com',
+            'https://cdn.jsdelivr.net',
+            'https://cdnjs.cloudflare.com',
+          ],
           'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
           'img-src': ["'self'", 'data:', 'https:', 'blob:'],
           'connect-src': ["'self'", 'ws:', 'wss:'],
@@ -65,14 +78,13 @@ function createApp() {
       (req.path === '/api/auth/register' && req.method === 'POST') ||
       (req.path === '/api/auth/forgot-password' && req.method === 'POST') ||
       (req.path === '/api/auth/reset-password' && req.method === 'POST') ||
-      (req.path === '/api/auth/csrf' && req.method === 'GET') ||
-      (req.path === '/api/auth/logout' && req.method === 'POST');
+      (req.path === '/api/auth/csrf' && req.method === 'GET');
+    // logout requires CSRF (prevent forced logout)
     if (skip) return next();
     return csrfProtection(req, res, next);
   });
 
   app.use(express.static(path.join(__dirname, 'public')));
-  // Do not expose arbitrary uploads of sensitive docs — only public assets
   app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads'), {
     setHeaders(res) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -84,7 +96,7 @@ function createApp() {
   });
 
   app.use('/api/auth', authRoutes);
-  app.use('/api/customers', customerRoutes);
+  app.use('/api/customers', customerApiRoutes);
   app.use('/api/hosts', hostRoutes);
   app.use('/api/admin', adminRoutes);
 
@@ -148,8 +160,8 @@ function createApp() {
     res.render('admin/activitylog', { scripts: '<script src="/js/admin-main.js"></script>' })
   );
 
-  // Customer pages + APIs under /
-  app.use('/', customerRoutes);
+  // Customer pages only — never mount API routes at root
+  app.use('/', customerPageRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

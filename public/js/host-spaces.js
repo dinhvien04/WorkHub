@@ -172,7 +172,7 @@ async function deleteExistingBranchImage(imgUrl) {
     try {
         const response = await hostApiFetch(`/api/hosts/branches/${currentBranchId}/delete-image`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            headers: { "Content-Type": "application/json", },
             body: JSON.stringify({ imageUrl: imgUrl }),
         });
         if (response.ok) {
@@ -330,7 +330,7 @@ async function deleteExistingSpaceImage(imgUrl) {
     try {
         const response = await hostApiFetch(`/api/hosts/spaces/${currentSpaceId}/delete-image`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            headers: { "Content-Type": "application/json", },
             body: JSON.stringify({ imageUrl: imgUrl }),
         });
         const data = await response.json();
@@ -657,11 +657,7 @@ async function loadHostBookings() {
     const tableBody = document.getElementById('host-booking-table-body');
     const emptyState = document.getElementById('booking-empty-state');
     
-    if (!token) {
-        if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold bg-red-50 rounded-xl">Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại!</td></tr>`;
-        if (emptyState) emptyState.style.display = 'none';
-        return;
-    }
+    
 
     try {
         const response = await hostApiFetch(`/api/hosts/bookings`, {

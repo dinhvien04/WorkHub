@@ -11,11 +11,24 @@ const {
   ForbiddenError,
 } = require('../utils/errors');
 
+function validateIdempotencyKey(key) {
+  if (!key || typeof key !== 'string') {
+    throw new ValidationError('Thiếu Idempotency-Key.');
+  }
+  const k = key.trim();
+  if (k.length < 16 || k.length > 128) {
+    throw new ValidationError('Idempotency-Key không hợp lệ.');
+  }
+  return k;
+}
+
 async function getSuccessfulPaidAmount(bookingId) {
   const rows = await PaymentHistory.find({
     BookingID: bookingId,
     Status: 'successful',
-  }).select('Amount').lean();
+  })
+    .select('Amount')
+    .lean();
   return rows.reduce((sum, p) => sum + (p.Amount || 0), 0);
 }
 
@@ -41,16 +54,15 @@ async function getPaymentProgress(bookingId) {
   };
 }
 
-/**
- * Customer submits a payment report (pending until host verifies).
- */
 async function createPendingPayment({
   customerId,
   bookingId,
   paymentType,
   paymentMethod = 'bank_transfer',
-  idempotencyKey = null,
+  idempotencyKey,
 }) {
+  const key = validateIdempotencyKey(idempotencyKey);
+
   const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
   if (!booking) throw new NotFoundError('Không tìm thấy đơn hàng của bạn.');
 
@@ -58,18 +70,15 @@ async function createPendingPayment({
     throw new ValidationError('Đơn hàng không ở trạng thái có thể thanh toán.');
   }
 
-  if (idempotencyKey) {
-    const existing = await PaymentHistory.findOne({
-      BookingID: bookingId,
-      CustomerID: customerId,
-      IdempotencyKey: idempotencyKey,
-    });
-    if (existing) {
-      return { payment: existing, duplicate: true };
-    }
+  const existing = await PaymentHistory.findOne({
+    BookingID: bookingId,
+    CustomerID: customerId,
+    IdempotencyKey: key,
+  });
+  if (existing) {
+    return { payment: existing, duplicate: true };
   }
 
-  // Block infinite duplicate pending of same stage
   const typeStr = String(paymentType || 'deposit').toLowerCase().trim();
   let actualPaymentType = 'deposit';
   let amountToPay = booking.DepositAmount;
@@ -116,7 +125,7 @@ async function createPendingPayment({
       PaymentType: actualPaymentType,
       PaymentMethod: paymentMethod,
       Status: 'pending',
-      IdempotencyKey: idempotencyKey || undefined,
+      IdempotencyKey: key,
     });
 
     await logActivity(
@@ -131,18 +140,28 @@ async function createPendingPayment({
     return { payment, duplicate: false };
   } catch (err) {
     if (err.code === 11000) {
-      const existing = await PaymentHistory.findOne({
+      const again = await PaymentHistory.findOne({
         BookingID: bookingId,
         CustomerID: customerId,
-        IdempotencyKey: idempotencyKey,
+        IdempotencyKey: key,
       });
-      if (existing) return { payment: existing, duplicate: true };
+      if (again) return { payment: again, duplicate: true };
+      const stagePending = await PaymentHistory.findOne({
+        BookingID: bookingId,
+        CustomerID: customerId,
+        PaymentType: actualPaymentType,
+        Status: 'pending',
+      });
+      if (stagePending) return { payment: stagePending, duplicate: true };
       throw new ConflictError('Giao dịch trùng lặp.');
     }
     throw err;
   }
 }
 
+/**
+ * Atomic verify: only pending -> successful if paid+amount <= TotalAmount.
+ */
 async function verifyPayment(hostId, paymentId) {
   const payment = await PaymentHistory.findOne({ _id: paymentId, HostID: hostId });
   if (!payment) throw new NotFoundError('Không tìm thấy giao dịch.');
@@ -150,24 +169,82 @@ async function verifyPayment(hostId, paymentId) {
     throw new ValidationError('Chỉ có thể xác minh giao dịch đang pending.');
   }
 
-  const paid = await getSuccessfulPaidAmount(payment.BookingID);
   const booking = await Booking.findById(payment.BookingID);
   if (!booking) throw new NotFoundError('Không tìm thấy đơn hàng.');
   if (String(booking.HostID) !== String(hostId)) {
     throw new ForbiddenError('Bạn không có quyền xác minh giao dịch này.');
   }
+
+  const paid = await getSuccessfulPaidAmount(payment.BookingID);
   if (paid + payment.Amount > booking.TotalAmount) {
     throw new ValidationError('Xác minh sẽ làm vượt tổng đơn hàng.');
   }
 
-  payment.Status = 'successful';
-  payment.PaidAt = new Date();
-  payment.VerifiedAt = new Date();
-  payment.VerifiedBy = hostId;
-  await payment.save();
+  const now = new Date();
+  const updated = await PaymentHistory.findOneAndUpdate(
+    { _id: paymentId, HostID: hostId, Status: 'pending' },
+    {
+      $set: {
+        Status: 'successful',
+        PaidAt: now,
+        VerifiedAt: now,
+        VerifiedBy: hostId,
+      },
+    },
+    { returnDocument: 'after' }
+  );
 
-  await logActivity(hostId, 'VERIFY_PAYMENT', 'PaymentHistory', payment._id, 'Host xác minh thanh toán', 'success');
-  return payment;
+  if (!updated) {
+    throw new ConflictError('Giao dịch đã được xử lý bởi request khác.');
+  }
+
+  // Re-check total after atomic update (race with concurrent verifies)
+  const paidAfter = await getSuccessfulPaidAmount(payment.BookingID);
+  if (paidAfter > booking.TotalAmount) {
+    await PaymentHistory.updateOne(
+      { _id: paymentId },
+      {
+        $set: {
+          Status: 'failed',
+          FailureReason: 'Overpayment race — rolled back',
+          PaidAt: null,
+        },
+      }
+    );
+    throw new ConflictError('Không thể xác minh: vượt tổng đơn hàng do race condition.');
+  }
+
+  await logActivity(hostId, 'VERIFY_PAYMENT', 'PaymentHistory', updated._id, 'Host xác minh thanh toán', 'success');
+  return updated;
+}
+
+async function rejectPayment(hostId, paymentId, reason = '') {
+  const safeReason = String(reason || 'Rejected by host').slice(0, 500);
+  const now = new Date();
+  const updated = await PaymentHistory.findOneAndUpdate(
+    { _id: paymentId, HostID: hostId, Status: 'pending' },
+    {
+      $set: {
+        Status: 'failed',
+        FailureReason: safeReason,
+        VerifiedAt: now,
+        VerifiedBy: hostId,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!updated) {
+    const exists = await PaymentHistory.findOne({ _id: paymentId });
+    if (!exists) throw new NotFoundError('Không tìm thấy giao dịch.');
+    if (String(exists.HostID) !== String(hostId)) {
+      throw new ForbiddenError('Bạn không có quyền từ chối giao dịch này.');
+    }
+    throw new ValidationError('Chỉ có thể từ chối giao dịch đang pending.');
+  }
+
+  await logActivity(hostId, 'REJECT_PAYMENT', 'PaymentHistory', updated._id, 'Host từ chối thanh toán', 'warning');
+  return updated;
 }
 
 async function listHostPayments(hostId, { page = 1, limit = 20, status } = {}) {
@@ -188,11 +265,50 @@ async function listHostPayments(hostId, { page = 1, limit = 20, status } = {}) {
   return { payments, total, page, limit };
 }
 
+/**
+ * Host-scoped revenue metrics from PaymentHistory only.
+ */
+async function getHostRevenueMetrics(hostId, { spaceIds = null, from = null, to = null } = {}) {
+  const match = { HostID: hostId };
+  if (from || to) {
+    match.PaidAt = {};
+    if (from) match.PaidAt.$gte = from;
+    if (to) match.PaidAt.$lte = to;
+  }
+
+  const payments = await PaymentHistory.find(match).lean();
+  let filtered = payments;
+  if (spaceIds) {
+    const bookings = await Booking.find({
+      HostID: hostId,
+      SpaceID: { $in: spaceIds },
+    })
+      .select('_id')
+      .lean();
+    const set = new Set(bookings.map((b) => String(b._id)));
+    filtered = payments.filter((p) => set.has(String(p.BookingID)));
+  }
+
+  let actualRevenue = 0;
+  let pendingAmount = 0;
+  let refundedAmount = 0;
+  for (const p of filtered) {
+    if (p.Status === 'successful') actualRevenue += p.Amount || 0;
+    if (p.Status === 'pending') pendingAmount += p.Amount || 0;
+    if (p.Status === 'refunded') refundedAmount += p.Amount || 0;
+  }
+
+  return { actualRevenue, pendingAmount, refundedAmount };
+}
+
 module.exports = {
   getSuccessfulPaidAmount,
   getRemainingAmount,
   getPaymentProgress,
   createPendingPayment,
   verifyPayment,
+  rejectPayment,
   listHostPayments,
+  getHostRevenueMetrics,
+  validateIdempotencyKey,
 };

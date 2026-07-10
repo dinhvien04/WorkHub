@@ -80,12 +80,15 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(String(password), 10);
 
+  // Host starts inactive until admin verifies; customers active immediately
+  const initialStatus = normalizedRole === 'host' ? 'inactive' : 'active';
+
   const user = await User.create({
     Email: normalizedEmail,
     PasswordHash: passwordHash,
     FullName: String(fullName).trim(),
     Role: normalizedRole,
-    Status: 'active',
+    Status: initialStatus,
     tokenVersion: 0,
   });
 
@@ -148,6 +151,11 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ForbiddenError('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.');
   }
   if (user.Status !== 'active') {
+    if (user.Role === 'host') {
+      throw new ForbiddenError(
+        'Tài khoản host chưa được admin phê duyệt. Vui lòng chờ xác minh.'
+      );
+    }
     throw new ForbiddenError('Tài khoản chưa được kích hoạt.');
   }
 
@@ -281,7 +289,19 @@ const forgotPassword = asyncHandler(async (req, res) => {
     ExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
   });
 
-  await emailService.sendPasswordResetOtp({ to: normalizedEmail, otp });
+  try {
+    await emailService.sendPasswordResetOtp({ to: normalizedEmail, otp });
+  } catch (err) {
+    // Never log OTP. Generic client message; production fail is operational.
+    const logger = require('../utils/logger');
+    logger.error('Password reset email delivery failed', err.message);
+    if (env.isProduction) {
+      return res.status(503).json({
+        message: 'Không thể xử lý yêu cầu lúc này. Vui lòng thử lại sau.',
+      });
+    }
+    // Dev still returns generic success (outbox path is primary)
+  }
 
   return res.status(200).json({ message: GENERIC_FORGOT_MSG });
 });

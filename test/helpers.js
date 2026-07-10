@@ -1,6 +1,7 @@
 'use strict';
 
 const bcrypt = require('bcryptjs');
+const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
@@ -9,7 +10,7 @@ let appInstance;
 
 async function startMemoryMongo() {
   if (mongoose.connection.readyState === 1) {
-    return mongoose.connection.getClient().s?.url || process.env.MONGODB_URI;
+    return process.env.MONGODB_URI;
   }
   mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
@@ -38,11 +39,37 @@ async function clearDb() {
 
 function getApp() {
   if (!appInstance) {
-    // Require only after env + mongo are ready
     const { createApp } = require('../app');
     appInstance = createApp();
   }
   return appInstance;
+}
+
+/**
+ * Fetch CSRF cookie + header value for state-changing requests.
+ */
+async function getCsrfPair(app) {
+  const res = await request(app).get('/api/auth/csrf');
+  const csrfToken = res.body.csrfToken;
+  // Prefer single csrf cookie matching body (last Set-Cookie wins in browsers)
+  const setCookie = res.headers['set-cookie'] || [];
+  let cookieVal = csrfToken;
+  for (const c of setCookie) {
+    const m = c.match(/^csrfToken=([^;]+)/);
+    if (m) cookieVal = m[1];
+  }
+  const cookieHeader = `csrfToken=${cookieVal}`;
+  return { cookieHeader, csrfToken: cookieVal };
+}
+
+/**
+ * Attach CSRF cookie + header. Pass authCookie like `authToken=...`.
+ */
+function withCsrf(req, csrf, authCookie = '') {
+  const parts = [];
+  if (authCookie) parts.push(authCookie.includes('=') ? authCookie : `authToken=${authCookie}`);
+  if (csrf.cookieHeader) parts.push(csrf.cookieHeader);
+  return req.set('Cookie', parts.join('; ')).set('X-CSRF-Token', csrf.csrfToken);
 }
 
 async function createUser({
@@ -50,12 +77,22 @@ async function createUser({
   password = 'Pass1234',
   role = 'customer',
   fullName = 'Test User',
-  status = 'active',
+  status,
   tokenVersion = 0,
+  hostVerified = true,
 }) {
   const User = require('../models/User');
   const CustomerProfile = require('../models/Customer_Profile');
   const HostProfile = require('../models/Host_Profile');
+
+  const resolvedStatus =
+    status !== undefined
+      ? status
+      : role === 'host'
+        ? hostVerified
+          ? 'active'
+          : 'inactive'
+        : 'active';
 
   const hash = await bcrypt.hash(password, 10);
   const user = await User.create({
@@ -63,7 +100,7 @@ async function createUser({
     PasswordHash: hash,
     FullName: fullName,
     Role: role,
-    Status: status,
+    Status: resolvedStatus,
     tokenVersion,
   });
 
@@ -81,7 +118,7 @@ async function createUser({
       Hotline: '0900000001',
       BankName: 'VCB',
       BankNumber: '123456',
-      IsVerified: true,
+      IsVerified: hostVerified,
       VerificationDocument: 'doc.pdf',
     });
   }
@@ -109,7 +146,7 @@ async function seedHostSpace(hostUser) {
   const space = await Space.create({
     BranchID: branch._id,
     HostID: hostUser._id,
-    SpaceCode: `R-${Date.now().toString(36)}`,
+    SpaceCode: `R-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     Name: 'Room 01',
     Category: 'meeting_room',
     PricePerHour: 100000,
@@ -121,8 +158,20 @@ async function seedHostSpace(hostUser) {
 }
 
 function futureRange(hoursFromNow = 2, durationHours = 2) {
-  const start = new Date(Date.now() + hoursFromNow * 3600 * 1000);
+  // Align to 30-min slots for cleaner tests
+  const step = 30 * 60 * 1000;
+  let start = new Date(Date.now() + hoursFromNow * 3600 * 1000);
+  start = new Date(Math.ceil(start.getTime() / step) * step);
   const end = new Date(start.getTime() + durationHours * 3600 * 1000);
+  return { start, end };
+}
+
+/** Absolute range on a fixed day for overlap tests */
+function absoluteRange(baseDate, startH, startM, endH, endM) {
+  const start = new Date(baseDate);
+  start.setHours(startH, startM, 0, 0);
+  const end = new Date(baseDate);
+  end.setHours(endH, endM, 0, 0);
   return { start, end };
 }
 
@@ -134,5 +183,8 @@ module.exports = {
   agentWithAuth,
   seedHostSpace,
   futureRange,
+  absoluteRange,
   getApp,
+  getCsrfPair,
+  withCsrf,
 };

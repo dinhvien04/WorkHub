@@ -5,14 +5,13 @@ const router = express.Router();
 const hostController = require('../controllers/hostController');
 
 // Import Middleware bảo mật và Upload ảnh
-const { verifyToken, authorizeRole } = require('../middlewares/authMiddleware');
+const { verifyToken, authorizeRole, requireVerifiedHost } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
+const paymentService = require('../services/paymentService');
+const asyncHandler = require('../utils/asyncHandler');
 
-// ====================================================================
-// BẬT KHIÊN BẢO VỆ CHO TOÀN BỘ API HOST
-// Yêu cầu: Client phải gửi kèm Token hợp lệ VÀ có role là 'host' (Kế thừa từ Na)
-// ====================================================================
-router.use(verifyToken, authorizeRole('host'));
+// Host API: authenticated + role host + IsVerified
+router.use(verifyToken, authorizeRole('host'), requireVerifiedHost);
 
 // ====================================================================
 // 1. API HỒ SƠ & THỐNG KÊ (HEAD)
@@ -49,5 +48,25 @@ router.get('/bookings', hostController.getHostBookings);
 router.put('/bookings/:bookingId/confirm', hostController.confirmBooking);
 router.put('/bookings/:bookingId/checkin', hostController.checkinBooking);
 router.put('/bookings/:bookingId/cancel', hostController.cancelBooking);
+
+// Payment verify / reject
+router.put(
+  '/payments/:paymentId/verify',
+  asyncHandler(async (req, res) => {
+    const payment = await paymentService.verifyPayment(req.user.userId, req.params.paymentId);
+    res.json({ message: 'Đã xác minh thanh toán.', payment });
+  })
+);
+router.put(
+  '/payments/:paymentId/reject',
+  asyncHandler(async (req, res) => {
+    const payment = await paymentService.rejectPayment(
+      req.user.userId,
+      req.params.paymentId,
+      req.body?.reason
+    );
+    res.json({ message: 'Đã từ chối thanh toán.', payment });
+  })
+);
 
 module.exports = router;

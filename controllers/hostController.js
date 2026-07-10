@@ -82,39 +82,49 @@ async function getDashboardStatsAPI(req, res) {
     if (!hostId) return res.status(401).json({ error: 'Không tìm thấy Token xác thực.' });
 
     const { branchId } = req.query;
-    const hostQuery = { $or: [{ HostID: hostId }, { hostID: hostId }] };
+    const branches = await Branch.find({ HostID: hostId }).select('Name _id').lean();
 
-    const branches = await Branch.find(hostQuery).select('Name _id').lean();
+    let spaceFilter = { HostID: hostId };
+    if (branchId && branchId !== 'all') {
+      const branch = await Branch.findOne({ _id: branchId, HostID: hostId }).select('_id');
+      if (!branch) {
+        return res.status(404).json({ error: 'Không tìm thấy chi nhánh.' });
+      }
+      spaceFilter = { HostID: hostId, BranchID: branch._id };
+    }
 
-    const spaceMatchCondition = branchId && branchId !== 'all'
-      ? { $or: [{ BranchID: branchId }, { branchID: branchId }] }
-      : hostQuery;
-
-    const currentSpaces = await Space.find(spaceMatchCondition).select('_id SpaceCode Status spaceCode').lean();
-    const spaceIds = currentSpaces.map(s => s._id);
+    const currentSpaces = await Space.find(spaceFilter).select('_id SpaceCode Status Name').lean();
+    const spaceIds = currentSpaces.map((s) => s._id);
 
     const defaultStats = {
       branches,
-      stats: { revenue: 0, totalBookings: 0, totalOccupiedGuests: 0, activeRoomsCount: 0, paidAmount: 0, pendingAmount: 0 },
-      liveFloorPlan: [], recentBookings: [], chartData: { labels: [], bookings: [], revenue: [] }
+      stats: {
+        revenue: 0,
+        totalBookings: 0,
+        totalOccupiedGuests: 0,
+        activeRoomsCount: 0,
+        paidAmount: 0,
+        pendingAmount: 0,
+        refundedAmount: 0,
+      },
+      liveFloorPlan: [],
+      recentBookings: [],
+      chartData: { labels: [], bookings: [], revenue: [] },
     };
     if (spaceIds.length === 0) return res.json(defaultStats);
 
-    const bookingMatchCondition = { $or: [{ SpaceID: { $in: spaceIds } }, { spaceID: { $in: spaceIds } }] };
+    const bookingMatchCondition = {
+      HostID: hostId,
+      SpaceID: { $in: spaceIds },
+    };
 
-    const [bookingStats, totalBookings, totalOccupiedGuests] = await Promise.all([
-      Booking.aggregate([
-        { $match: { ...bookingMatchCondition, Status: { $ne: 'cancelled' } } },
-        { $group: { _id: null, totalRevenue: { $sum: "$TotalAmount" }, totalDeposit: { $sum: "$DepositAmount" } } }
-      ]),
+    const [totalBookings, totalOccupiedGuests, revenueMetrics] = await Promise.all([
       Booking.countDocuments({ ...bookingMatchCondition, Status: { $ne: 'cancelled' } }),
-      Booking.countDocuments({ ...bookingMatchCondition, Status: 'completed' })
+      Booking.countDocuments({ ...bookingMatchCondition, Status: 'completed' }),
+      paymentService.getHostRevenueMetrics(hostId, { spaceIds }),
     ]);
 
-    const revenue = bookingStats[0]?.totalRevenue || 0;
-    const paidAmount = bookingStats[0]?.totalDeposit || 0;
-    const activeRoomsCount = currentSpaces.filter(s => s.Status === 'available').length;
-
+    const activeRoomsCount = currentSpaces.filter((s) => s.Status === 'available').length;
     const nowRealTime = new Date();
     const startOfDay = new Date(new Date(nowRealTime).setHours(0, 0, 0, 0));
     const endOfDay = new Date(new Date(nowRealTime).setHours(23, 59, 59, 999));
@@ -123,32 +133,55 @@ async function getDashboardStatsAPI(req, res) {
       ...bookingMatchCondition,
       Status: { $in: ['confirmed', 'pending', 'in-use'] },
       StartTime: { $lte: endOfDay },
-      EndTime: { $gte: startOfDay }
+      EndTime: { $gte: startOfDay },
     }).lean();
 
-    const liveFloorPlan = currentSpaces.map(space => {
+    const liveFloorPlan = currentSpaces.map((space) => {
       const spaceIdStr = space._id.toString();
-      const bookingMatch = activeBookingsToday.find(b => (b.SpaceID || b.spaceID)?.toString() === spaceIdStr);
-
+      const bookingMatch = activeBookingsToday.find((b) => b.SpaceID?.toString() === spaceIdStr);
       let liveStatus = space.Status === 'maintenance' ? 'maintenance' : 'available';
       if (liveStatus !== 'maintenance' && bookingMatch) {
-        liveStatus = bookingMatch.StartTime <= nowRealTime && bookingMatch.EndTime >= nowRealTime ? 'occupied' : 'upcoming';
+        liveStatus =
+          bookingMatch.StartTime <= nowRealTime && bookingMatch.EndTime >= nowRealTime
+            ? 'occupied'
+            : 'upcoming';
       }
-      return { SpaceCode: space.SpaceCode || space.spaceCode, LiveStatus: liveStatus };
+      return { SpaceCode: space.SpaceCode, LiveStatus: liveStatus };
     });
 
-    const recentBookings = await Booking.find(hostQuery)
-      .populate('CustomerID', 'fullName FullName Email email')
-      .populate('SpaceID', 'SpaceCode spaceCode Name name')
-      .sort({ createdAt: -1 }).limit(5).lean();
+    const recentBookings = await Booking.find(bookingMatchCondition)
+      .populate('CustomerID', 'FullName Email')
+      .populate('SpaceID', 'SpaceCode Name')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
 
     const sevenDaysAgo = new Date(new Date().setHours(0, 0, 0, 0));
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    const chartDataRaw = await Booking.aggregate([
-      { $match: { ...bookingMatchCondition, Status: { $ne: 'cancelled' }, createdAt: { $gte: sevenDaysAgo } } },
-      { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 }, revenue: { $sum: "$TotalAmount" } } },
-      { $sort: { "_id": 1 } }
+    // Chart revenue from successful payments by PaidAt
+    const mongoose = require('mongoose');
+    const hostOid =
+      hostId instanceof mongoose.Types.ObjectId
+        ? hostId
+        : new mongoose.Types.ObjectId(hostId);
+
+    const chartDataRaw = await PaymentHistory.aggregate([
+      {
+        $match: {
+          HostID: hostOid,
+          Status: 'successful',
+          PaidAt: { $gte: sevenDaysAgo },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$PaidAt' } },
+          revenue: { $sum: '$Amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
     ]);
 
     const chartData = { labels: [], bookings: [], revenue: [] };
@@ -156,8 +189,7 @@ async function getDashboardStatsAPI(req, res) {
       const d = new Date(sevenDaysAgo);
       d.setDate(d.getDate() + i);
       const dateString = d.toISOString().split('T')[0];
-      const found = chartDataRaw.find(item => item._id === dateString);
-
+      const found = chartDataRaw.find((item) => item._id === dateString);
       chartData.labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
       chartData.bookings.push(found ? found.count : 0);
       chartData.revenue.push(found ? found.revenue : 0);
@@ -165,13 +197,21 @@ async function getDashboardStatsAPI(req, res) {
 
     return res.json({
       branches,
-      stats: { revenue, totalBookings, totalOccupiedGuests, activeRoomsCount, paidAmount, pendingAmount: 0 },
+      stats: {
+        revenue: revenueMetrics.actualRevenue,
+        totalBookings,
+        totalOccupiedGuests,
+        activeRoomsCount,
+        paidAmount: revenueMetrics.actualRevenue,
+        pendingAmount: revenueMetrics.pendingAmount,
+        refundedAmount: revenueMetrics.refundedAmount,
+      },
       liveFloorPlan,
       recentBookings,
-      chartData
+      chartData,
     });
   } catch (error) {
-    console.error("Lỗi getDashboardStatsAPI:", error);
+    console.error('Lỗi getDashboardStatsAPI:', error);
     return res.status(500).json({ error: 'Lỗi hệ thống khi tải số liệu thống kê!' });
   }
 }

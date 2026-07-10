@@ -8,10 +8,11 @@
     "start": "node server.js",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch --runInBand",
-    "lint": "eslint . --max-warnings=100",
+    "lint": "eslint . --max-warnings=50",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
-    "check": "npm run lint && npm test"
+    "check": "npm run lint && npm test",
+    "migrate:fields": "node scripts/migrateCanonicalFields.js --dry-run"
   },
   "keywords": [
     "coworking",
@@ -50,6 +51,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^9.39.1",
     "jest": "^30.2.0",
+    "jsdom": "^29.1.1",
     "mongodb-memory-server": "^10.3.0",
     "nodemon": "^3.1.11",
     "prettier": "^3.6.2",

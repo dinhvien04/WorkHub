@@ -90,7 +90,7 @@ async function updateUIBasedOnAuth() {
   let user = null;
   try {
     const api = window.WorkHubAPI ? window.WorkHubAPI.api : (url, o) => fetch(url, { ...o, credentials: 'same-origin' });
-    const res = await api('/api/auth/me');
+    const res = await api('/api/auth/me', { redirectOn401: false });
     if (res.ok) {
       const data = await res.json();
       user = data.user;

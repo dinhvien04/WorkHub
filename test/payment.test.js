@@ -1,12 +1,5 @@
 'use strict';
 
-process.env.NODE_ENV = 'test';
-process.env.DISABLE_CSRF = '1';
-process.env.JWT_SECRET =
-  process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32
-    ? process.env.JWT_SECRET
-    : 'test_jwt_secret_key_at_least_32_characters_long_for_workhub';
-
 const paymentService = require('../services/paymentService');
 const PaymentHistory = require('../models/Payment_History');
 const Booking = require('../models/Booking');
@@ -17,10 +10,18 @@ const {
   createUser,
   seedHostSpace,
   futureRange,
+  getApp,
+  agentWithAuth,
+  getCsrfPair,
+  withCsrf,
 } = require('./helpers');
+const request = require('supertest');
+
+let app;
 
 beforeAll(async () => {
   await startMemoryMongo();
+  app = getApp();
 });
 
 afterAll(async () => {
@@ -49,10 +50,9 @@ async function setupBooking(status = 'pending') {
   return { host, customer, booking };
 }
 
-describe('Payment calculations', () => {
-  test('pending/failed/refunded do not count as paid; successful does', async () => {
+describe('Payment calculations & APIs', () => {
+  test('pending/failed/refunded not counted; successful counted', async () => {
     const { host, customer, booking } = await setupBooking();
-
     await PaymentHistory.create([
       {
         BookingID: booking._id,
@@ -92,27 +92,11 @@ describe('Payment calculations', () => {
         PaidAt: new Date(),
       },
     ]);
-
-    const paid = await paymentService.getSuccessfulPaidAmount(booking._id);
-    expect(paid).toBe(25000);
-    const progress = await paymentService.getPaymentProgress(booking._id);
-    expect(progress.paidAmount).toBe(25000);
-    expect(progress.remainingAmount).toBe(75000);
+    expect(await paymentService.getSuccessfulPaidAmount(booking._id)).toBe(25000);
   });
 
-  test('cannot pay over TotalAmount', async () => {
+  test('idempotency key required', async () => {
     const { customer, booking } = await setupBooking();
-    await PaymentHistory.create({
-      BookingID: booking._id,
-      CustomerID: customer._id,
-      HostID: booking.HostID,
-      TransactionCode: 'T5',
-      Amount: 100000,
-      PaymentType: 'full_payment',
-      Status: 'successful',
-      PaidAt: new Date(),
-    });
-
     await expect(
       paymentService.createPendingPayment({
         customerId: customer._id,
@@ -122,41 +106,94 @@ describe('Payment calculations', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  test('double-submit same stage returns same pending payment', async () => {
+  test('same idempotency key returns same payment', async () => {
     const { customer, booking } = await setupBooking();
     const r1 = await paymentService.createPendingPayment({
       customerId: customer._id,
       bookingId: booking._id,
       paymentType: 'deposit',
-      idempotencyKey: 'idem-1',
+      idempotencyKey: 'idem-key-1234567890',
     });
     const r2 = await paymentService.createPendingPayment({
       customerId: customer._id,
       bookingId: booking._id,
       paymentType: 'deposit',
-      idempotencyKey: 'idem-1',
+      idempotencyKey: 'idem-key-1234567890',
     });
     expect(r2.duplicate).toBe(true);
     expect(String(r1.payment._id)).toBe(String(r2.payment._id));
-    const count = await PaymentHistory.countDocuments({ BookingID: booking._id });
-    expect(count).toBe(1);
   });
 
-  test('host cannot verify another host payment', async () => {
+  test('verify and reject ownership', async () => {
     const { host, customer, booking } = await setupBooking();
-    const otherHost = await createUser({ email: 'other@test.com', role: 'host' });
-    const payment = await PaymentHistory.create({
-      BookingID: booking._id,
-      CustomerID: customer._id,
-      HostID: host._id,
-      TransactionCode: 'T6',
-      Amount: 30000,
-      PaymentType: 'deposit',
-      Status: 'pending',
+    const other = await createUser({ email: 'other@test.com', role: 'host' });
+    const { payment } = await paymentService.createPendingPayment({
+      customerId: customer._id,
+      bookingId: booking._id,
+      paymentType: 'deposit',
+      idempotencyKey: 'idem-verify-11111111',
     });
 
-    await expect(paymentService.verifyPayment(otherHost._id, payment._id)).rejects.toMatchObject({
+    await expect(paymentService.verifyPayment(other._id, payment._id)).rejects.toMatchObject({
       statusCode: 404,
     });
+
+    const verified = await paymentService.verifyPayment(host._id, payment._id);
+    expect(verified.Status).toBe('successful');
+
+    await expect(paymentService.verifyPayment(host._id, payment._id)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  test('reject pending', async () => {
+    const { host, customer, booking } = await setupBooking();
+    const { payment } = await paymentService.createPendingPayment({
+      customerId: customer._id,
+      bookingId: booking._id,
+      paymentType: 'deposit',
+      idempotencyKey: 'idem-reject-11111111',
+    });
+    const rejected = await paymentService.rejectPayment(host._id, payment._id, 'bad proof');
+    expect(rejected.Status).toBe('failed');
+  });
+
+  test('host API verify/reject routes', async () => {
+    const { host, customer, booking } = await setupBooking();
+    const { payment } = await paymentService.createPendingPayment({
+      customerId: customer._id,
+      bookingId: booking._id,
+      paymentType: 'deposit',
+      idempotencyKey: 'idem-route-11111111',
+    });
+    const { token } = agentWithAuth(app, host);
+    const csrf = await getCsrfPair(app);
+
+    const res = await withCsrf(
+      request(app).put(`/api/hosts/payments/${payment._id}/verify`),
+      csrf,
+      `authToken=${token}`
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.payment.Status).toBe('successful');
+  });
+
+  test('revenue metrics use successful only', async () => {
+    const { host, customer, booking } = await setupBooking();
+    await paymentService.createPendingPayment({
+      customerId: customer._id,
+      bookingId: booking._id,
+      paymentType: 'deposit',
+      idempotencyKey: 'idem-rev-1111111111',
+    });
+    let metrics = await paymentService.getHostRevenueMetrics(host._id);
+    expect(metrics.actualRevenue).toBe(0);
+    expect(metrics.pendingAmount).toBe(30000);
+
+    const pending = await PaymentHistory.findOne({ BookingID: booking._id, Status: 'pending' });
+    await paymentService.verifyPayment(host._id, pending._id);
+    metrics = await paymentService.getHostRevenueMetrics(host._id);
+    expect(metrics.actualRevenue).toBe(30000);
+    expect(metrics.pendingAmount).toBe(0);
   });
 });

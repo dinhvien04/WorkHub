@@ -242,7 +242,11 @@ async function updateMyProfile(req, res) {
 // ==========================================
 async function checkAvailability(req, res) {
   try {
-    const { branchId, date, timeSlot, roomType } = req.body;
+    // Prefer query (GET); body supported for backward compat
+    const branchId = req.query.branchId || req.body?.branchId;
+    const date = req.query.date || req.body?.date;
+    const timeSlot = req.query.timeSlot || req.body?.timeSlot;
+    const roomType = req.query.roomType || req.body?.roomType;
 
     if (!branchId || !date || !timeSlot || !roomType) {
       return res.status(400).json({ error: 'Thiếu dữ liệu: branchId, date, timeSlot, roomType' });
@@ -365,7 +369,7 @@ async function confirmPayment(req, res) {
     const { bookingId, paymentType } = req.body;
     if (!bookingId) return res.status(400).json({ error: 'Thiếu mã đơn hàng' });
 
-    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey || null;
+    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey;
     const { payment, duplicate } = await paymentService.createPendingPayment({
       customerId,
       bookingId,
@@ -398,7 +402,7 @@ async function payRemainder(req, res) {
       return res.status(403).json({ error: 'Không có quyền thanh toán đơn của người khác.' });
     }
     const { bookingId } = req.params;
-    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey || null;
+    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey;
 
     const { payment, duplicate } = await paymentService.createPendingPayment({
       customerId,

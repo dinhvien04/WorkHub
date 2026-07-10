@@ -73,6 +73,9 @@ pending → confirmed → in-use → completed
 Transition chỉ qua `services/bookingService.js`.  
 Job `jobs/completeExpiredBookings.js` chỉ chuyển `in-use` + `EndTime < now` → `completed`.
 
+Slot lock: floor-start intervals (`BOOKING_SLOT_MINUTES`), unique index `{ SpaceID, SlotStart }`.  
+Giới hạn: `MAX_BOOKING_HOURS`, `MAX_BOOKING_DAYS_AHEAD`.
+
 ## Payment states
 
 `pending` · `successful` · `failed` · `refunded` · `refund_pending`
@@ -101,18 +104,23 @@ POST   /api/auth/reset-password
 GET    /api/customers/me/profile
 PUT    /api/customers/me/profile
 GET    /api/customers/me/bookings
+GET    /api/customers/bookings/availability   (public GET, no CSRF)
 POST   /api/customers/me/bookings
 PUT    /api/customers/me/bookings/:bookingId/cancel
-POST   /api/customers/me/booking/confirm
+POST   /api/customers/me/booking/confirm      (requires Idempotency-Key)
 
 GET    /api/hosts/branches
 GET    /api/hosts/bookings
 PUT    /api/hosts/bookings/:id/confirm|checkin|cancel
+PUT    /api/hosts/payments/:paymentId/verify|reject
 
 GET    /health
 ```
 
-Route `/:userId/...` cũ vẫn có nhưng **chỉ self-access** (403 nếu khác user).
+Customer **API chỉ** mount tại `/api/customers`. Page routes tại `/`.  
+Route `/:userId/...` deprecated, self-only, chỉ dưới `/api/customers`.
+
+Host mới: `Status=inactive` + `IsVerified=false` cho đến khi admin verify.
 
 ## Security notes
 

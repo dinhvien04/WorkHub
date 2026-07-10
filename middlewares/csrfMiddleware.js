@@ -14,6 +14,9 @@ function createCsrfToken() {
  * Ensure CSRF cookie exists (readable by JS for double-submit).
  */
 function ensureCsrfCookie(req, res, next) {
+  // Avoid double-set on same request (global middleware + route middleware)
+  if (res.locals.csrfToken) return next();
+
   const name = env.CSRF_COOKIE_NAME;
   if (!req.cookies || !req.cookies[name]) {
     const token = createCsrfToken();
@@ -67,8 +70,10 @@ function csrfProtection(req, res, next) {
   const cookieToken = req.cookies && req.cookies[env.CSRF_COOKIE_NAME];
   const headerToken = req.get('x-csrf-token') || req.get('x-xsrf-token') || (req.body && req.body._csrf);
 
-  // In test env allow missing CSRF when explicitly disabled
-  if (process.env.DISABLE_CSRF === '1') return next();
+  // Opt-in only for isolated unit suites that do not exercise HTTP CSRF
+  if (process.env.DISABLE_CSRF === '1' && process.env.ALLOW_DISABLE_CSRF === '1') {
+    return next();
+  }
 
   if (!cookieToken || !headerToken || cookieToken !== headerToken) {
     return next(new ForbiddenError('Thiếu hoặc sai CSRF token.'));

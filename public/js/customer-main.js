@@ -133,72 +133,107 @@ async function checkAvailableSlots() {
         return;
     }
 
-    const token = localStorage.getItem('token');
-    listGrid.innerHTML = '<p class="text-slate-500 text-sm">Đang tải...</p>';
+    DomSafe.clearElement(listGrid);
+    listGrid.appendChild(DomSafe.createTextElement('p', 'text-slate-500 text-sm', 'Đang tải...'));
 
     try {
-        const res = await fetch('/api/customers/bookings/check-availability', { 
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                branchId,
-                date,
-                timeSlot: selectedTimeSlot,
-                roomType: currentRoomType 
-            })
+        const params = new URLSearchParams({
+            branchId,
+            date,
+            timeSlot: selectedTimeSlot,
+            roomType: currentRoomType,
         });
-
+        const res = await WorkHubAPI.api(
+            `/api/customers/bookings/availability?${params.toString()}`,
+            { redirectOn401: false }
+        );
         const data = await res.json();
 
         if (!res.ok) {
-            listGrid.innerHTML = `<p class="text-red-500 text-sm">${data.error || data.message || 'Lỗi hệ thống'}</p>`;
+            DomSafe.clearElement(listGrid);
+            listGrid.appendChild(
+                DomSafe.createTextElement(
+                    'p',
+                    'text-red-500 text-sm',
+                    data.error || data.message || 'Lỗi hệ thống'
+                )
+            );
             return;
         }
 
+        DomSafe.clearElement(listGrid);
         if (!data.spaces || data.spaces.length === 0) {
-            listGrid.innerHTML = '<p class="text-slate-400 text-xs italic">Không còn phòng trống trong khung giờ này.</p>';
+            listGrid.appendChild(
+                DomSafe.createTextElement(
+                    'p',
+                    'text-slate-400 text-xs italic',
+                    'Không còn phòng trống trong khung giờ này.'
+                )
+            );
         } else {
-            listGrid.innerHTML = data.spaces.map(space => `
-                <div class="room-card bg-white border border-slate-200 rounded-[1rem] p-4 flex justify-between items-center gap-3 cursor-pointer transition hover:border-teal-300"
-                    data-room-id="${space._id}"
-                    data-room-price="${space.PricePerHour || 0}"
-                    onclick="selectRoomCardDetail(this)">
-                    <div class="flex-1 min-w-0">
-                        <div class="font-bold text-sm text-slate-800">${space.Name}</div>
-                        <div class="text-xs font-black text-teal-700 mt-0.5">
-                            ${Number(space.PricePerHour || 0).toLocaleString('vi-VN')}đ/giờ
-                        </div>
-                        <div class="text-[10px] text-emerald-600 font-black uppercase mt-1.5 flex items-center gap-1">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            Sẵn sàng
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="text-[10px] px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 font-bold shrink-0 hover:bg-teal-100 transition"
-                        onclick="openModalSafe(
-                            '${space.Name}',
-                            '${space.PricePerHour || 0}',
-                            '${encodeURIComponent((space.Images || []).join(','))}',
-                            '${encodeURIComponent(space.Description || '')}',
-                            '${space.Capacity || 0}',
-                            '${encodeURIComponent((space.Amenities || []).join(','))}'
-                        ); event.stopPropagation();">
-                        Chi tiết
-                    </button>
-                </div>
-            `).join('');
+            data.spaces.forEach((space) => {
+                const card = document.createElement('div');
+                card.className =
+                    'room-card bg-white border border-slate-200 rounded-[1rem] p-4 flex justify-between items-center gap-3 cursor-pointer transition hover:border-teal-300';
+                card.dataset.roomId = String(space._id);
+                card.dataset.roomPrice = String(space.PricePerHour || 0);
+                card.addEventListener('click', () => selectRoomCardDetail(card));
+
+                const left = document.createElement('div');
+                left.className = 'flex-1 min-w-0';
+                left.appendChild(
+                    DomSafe.createTextElement('div', 'font-bold text-sm text-slate-800', space.Name || '')
+                );
+                left.appendChild(
+                    DomSafe.createTextElement(
+                        'div',
+                        'text-xs font-black text-teal-700 mt-0.5',
+                        `${Number(space.PricePerHour || 0).toLocaleString('vi-VN')}đ/giờ`
+                    )
+                );
+                left.appendChild(
+                    DomSafe.createTextElement(
+                        'div',
+                        'text-[10px] text-emerald-600 font-black uppercase mt-1.5',
+                        'Sẵn sàng'
+                    )
+                );
+
+                const detailBtn = document.createElement('button');
+                detailBtn.type = 'button';
+                detailBtn.className =
+                    'text-[10px] px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 font-bold shrink-0 hover:bg-teal-100 transition';
+                detailBtn.textContent = 'Chi tiết';
+                detailBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    openModalSafeFromSpace(space);
+                });
+
+                card.appendChild(left);
+                card.appendChild(detailBtn);
+                listGrid.appendChild(card);
+            });
         }
 
         container.classList.remove('hidden');
-
     } catch (err) {
         console.error('Lỗi:', err);
-        listGrid.innerHTML = '<p class="text-red-500 text-sm">Lỗi kết nối server</p>';
+        DomSafe.clearElement(listGrid);
+        listGrid.appendChild(
+            DomSafe.createTextElement('p', 'text-red-500 text-sm', 'Lỗi kết nối server')
+        );
     }
+}
+
+function openModalSafeFromSpace(space) {
+    openModalSafe(
+        space.Name || '',
+        space.PricePerHour || 0,
+        (space.Images || []).join(','),
+        space.Description || '',
+        space.Capacity || 0,
+        (space.Amenities || []).join(',')
+    );
 }
 
 // ==========================================
@@ -213,8 +248,8 @@ function selectRoomCardDetail(element) {
     
     element.classList.add('border-teal-500', 'bg-teal-50/30');
 
-    selectedSeat = element.getAttribute('data-room-id');
-    const pricePerHour = parseInt(element.getAttribute('data-room-price')) || 0;
+    selectedSeat = element.dataset.roomId || element.getAttribute('data-room-id');
+    const pricePerHour = parseInt(element.dataset.roomPrice || element.getAttribute('data-room-price'), 10) || 0;
     
     if (selectedTimeSlot) {
         const [startStr, endStr] = selectedTimeSlot.split(' - ');
@@ -341,9 +376,13 @@ async function handleFinalSuccess() {
     }
 
     try {
+        const idemKey =
+            (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
+            `pay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const confirmRes = await WorkHubAPI.api('/api/customers/me/booking/confirm', {
             method: 'POST',
-            body: { bookingId: bookingId, paymentType: selectedPaymentType }
+            headers: { 'Idempotency-Key': idemKey },
+            body: { bookingId: bookingId, paymentType: selectedPaymentType },
         });
 
         const confirmData = await confirmRes.json();
@@ -401,10 +440,17 @@ function openRoomModal(name, price, imageUrlsString, description, capacity, amen
     if (capacityEl) capacityEl.textContent = `Sức chứa: ${capacity || 0} người`;
     
     if (amenitiesEl) {
-        const amenitiesArray = amenities ? amenities.split(',').map(item => item.trim()) : [];
-        amenitiesEl.innerHTML = amenitiesArray.map(item => 
-            `<span class="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded-full mr-1">${item}</span>`
-        ).join('');
+        DomSafe.clearElement(amenitiesEl);
+        const amenitiesArray = amenities ? amenities.split(',').map((item) => item.trim()) : [];
+        amenitiesArray.forEach((item) => {
+            amenitiesEl.appendChild(
+                DomSafe.createTextElement(
+                    'span',
+                    'bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded-full mr-1',
+                    item
+                )
+            );
+        });
     }
 
     updateModalImageUI();
@@ -492,42 +538,38 @@ async function loadBranchReviews() {
 
     const branchId = document.querySelector('[data-branch-id]')?.getAttribute('data-branch-id');
     if (!branchId) {
-        container.innerHTML = '<div class="text-red-500 text-sm">Thiếu branchId (không lấy được từ UI).</div>';
+        DomSafe.clearElement(container);
+        container.appendChild(
+            DomSafe.createTextElement('div', 'text-red-500 text-sm', 'Thiếu branchId (không lấy được từ UI).')
+        );
         return;
     }
 
-    container.innerHTML = '<div class="text-slate-500 text-sm">Đang tải đánh giá...</div>';
+    DomSafe.clearElement(container);
+    container.appendChild(DomSafe.createTextElement('div', 'text-slate-500 text-sm', 'Đang tải đánh giá...'));
 
     try {
-        const res = await fetch(`/api/customers/branch/${encodeURIComponent(branchId)}/reviews`);
+        const res = await WorkHubAPI.api(
+            `/api/customers/branch/${encodeURIComponent(branchId)}/reviews`,
+            { redirectOn401: false }
+        );
         const data = await res.json();
 
         if (!res.ok) {
-            container.innerHTML = '<div class="text-red-500 text-sm">Lỗi tải đánh giá</div>';
+            DomSafe.clearElement(container);
+            container.appendChild(
+                DomSafe.createTextElement('div', 'text-red-500 text-sm', 'Lỗi tải đánh giá')
+            );
             return;
         }
 
-        const reviews = data.reviews || [];
-        if (reviews.length === 0) {
-            container.innerHTML = '<div class="text-slate-400 text-sm italic">Chưa có đánh giá nào.</div>';
-            return;
-        }
-
-        container.innerHTML = reviews.map(r => `
-            <div class="border-b border-slate-100 pb-4">
-                <div class="flex justify-between font-bold text-xs text-slate-400">
-                    <span>${escapeHtml(r.customerName || 'Khách hàng')}</span>
-                    <span>${formatDateVN(r.createdAt)}</span>
-                </div>
-                <div class="flex text-amber-500 text-xs my-1">
-                    ${renderStars(r.rating)}
-                </div>
-                ${r.comment ? `<p class="text-sm text-slate-600 italic">"${escapeHtml(r.comment)}"</p>` : ''}
-            </div>
-        `).join('');
+        DomSafe.renderReviews(container, data.reviews || []);
     } catch (e) {
         console.error(e);
-        container.innerHTML = '<div class="text-red-500 text-sm">Lỗi kết nối server</div>';
+        DomSafe.clearElement(container);
+        container.appendChild(
+            DomSafe.createTextElement('div', 'text-red-500 text-sm', 'Lỗi kết nối server')
+        );
     }
 }
 
@@ -546,12 +588,7 @@ function formatDateVN(iso) {
 }
 
 function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '<')
-        .replace(/>/g, '>')
-        .replace(/"/g, '"')
-        .replace(/'/g, '&#039;');
+    return DomSafe.escapeHtml(str);
 }
 
 // ==========================================

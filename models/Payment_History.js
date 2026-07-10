@@ -79,4 +79,13 @@ paymentSchema.index(
   { unique: true, partialFilterExpression: { IdempotencyKey: { $type: 'string' } } }
 );
 
+// At most one pending payment per booking/customer/stage
+paymentSchema.index(
+  { BookingID: 1, CustomerID: 1, PaymentType: 1, Status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { Status: 'pending' },
+  }
+);
+
 module.exports = mongoose.model('PaymentHistory', paymentSchema);

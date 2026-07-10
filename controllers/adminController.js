@@ -197,13 +197,27 @@ async function getPendingHosts(req, res) {
 
 async function verifyHost(req, res) {
   try {
-    const { id } = req.params; 
+    const { id } = req.params;
     const hostProfile = await HostProfile.findById(id);
     if (!hostProfile) return res.status(404).json({ error: 'Không tìm thấy hồ sơ Chủ cơ sở.' });
 
     hostProfile.IsVerified = true;
     await hostProfile.save();
-    await logActivity(req.user.userId, 'VERIFY_HOST', 'HostProfile', hostProfile._id, `Admin đã phê duyệt tài khoản Chủ cơ sở: ${hostProfile.CompanyName || 'Chưa cập nhật tên'}`, 'success');
+
+    // Activate host user and bump tokenVersion so pre-verify tokens die
+    await User.findByIdAndUpdate(hostProfile.UserID, {
+      $set: { Status: 'active' },
+      $inc: { tokenVersion: 1 },
+    });
+
+    await logActivity(
+      req.user.userId,
+      'VERIFY_HOST',
+      'HostProfile',
+      hostProfile._id,
+      `Admin đã phê duyệt tài khoản Chủ cơ sở: ${hostProfile.CompanyName || 'Chưa cập nhật tên'}`,
+      'success'
+    );
     return res.json({ message: 'Đã phê duyệt Chủ cơ sở thành công!' });
   } catch (error) {
     return sendServerError(res, error);

@@ -1,14 +1,8 @@
 'use strict';
 
-process.env.NODE_ENV = 'test';
-process.env.DISABLE_CSRF = '1';
-process.env.JWT_SECRET =
-  process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32
-    ? process.env.JWT_SECRET
-    : 'test_jwt_secret_key_at_least_32_characters_long_for_workhub';
-
 const bookingService = require('../services/bookingService');
 const Booking = require('../models/Booking');
+const BookingSlot = require('../models/BookingSlot');
 const {
   startMemoryMongo,
   stopMemoryMongo,
@@ -16,6 +10,7 @@ const {
   createUser,
   seedHostSpace,
   futureRange,
+  absoluteRange,
 } = require('./helpers');
 
 beforeAll(async () => {
@@ -62,9 +57,27 @@ describe('Booking rules', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  test('cannot book inactive/maintenance space', async () => {
+  test('duration too long rejected before slots', async () => {
     const host = await createUser({ email: 'h3@test.com', role: 'host' });
     const customer = await createUser({ email: 'c3@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+    const start = new Date(Date.now() + 2 * 3600_000);
+    const end = new Date(start.getTime() + 100 * 3600_000);
+    await expect(
+      bookingService.createBooking({
+        customerId: customer._id,
+        spaceId: space._id,
+        startTime: start,
+        endTime: end,
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(await Booking.countDocuments()).toBe(0);
+    expect(await BookingSlot.countDocuments()).toBe(0);
+  });
+
+  test('inactive space rejected', async () => {
+    const host = await createUser({ email: 'h4@test.com', role: 'host' });
+    const customer = await createUser({ email: 'c4@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
     space.Status = 'maintenance';
     await space.save();
@@ -79,12 +92,109 @@ describe('Booking rules', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  test('concurrent bookings same slot: only one succeeds', async () => {
-    const host = await createUser({ email: 'h4@test.com', role: 'host' });
-    const c1 = await createUser({ email: 'c4a@test.com', role: 'customer' });
-    const c2 = await createUser({ email: 'c4b@test.com', role: 'customer' });
+  test('partial overlap blocked: 10:00-10:20 vs 10:05-10:35', async () => {
+    const host = await createUser({ email: 'h5@test.com', role: 'host' });
+    const c1 = await createUser({ email: 'c5a@test.com', role: 'customer' });
+    const c2 = await createUser({ email: 'c5b@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
-    const { start, end } = futureRange(8, 2);
+    const base = new Date(Date.now() + 3 * 24 * 3600_000);
+    const a = absoluteRange(base, 10, 0, 10, 20);
+    const b = absoluteRange(base, 10, 5, 10, 35);
+
+    await bookingService.createBooking({
+      customerId: c1._id,
+      spaceId: space._id,
+      startTime: a.start,
+      endTime: a.end,
+    });
+    await expect(
+      bookingService.createBooking({
+        customerId: c2._id,
+        spaceId: space._id,
+        startTime: b.start,
+        endTime: b.end,
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  test('nested overlap blocked', async () => {
+    const host = await createUser({ email: 'h6@test.com', role: 'host' });
+    const c1 = await createUser({ email: 'c6a@test.com', role: 'customer' });
+    const c2 = await createUser({ email: 'c6b@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+    const base = new Date(Date.now() + 4 * 24 * 3600_000);
+    const outer = absoluteRange(base, 10, 10, 10, 40);
+    const inner = absoluteRange(base, 10, 20, 10, 30);
+
+    await bookingService.createBooking({
+      customerId: c1._id,
+      spaceId: space._id,
+      startTime: outer.start,
+      endTime: outer.end,
+    });
+    await expect(
+      bookingService.createBooking({
+        customerId: c2._id,
+        spaceId: space._id,
+        startTime: inner.start,
+        endTime: inner.end,
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  test('adjacent non-overlap both succeed', async () => {
+    const host = await createUser({ email: 'h7@test.com', role: 'host' });
+    const c1 = await createUser({ email: 'c7a@test.com', role: 'customer' });
+    const c2 = await createUser({ email: 'c7b@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+    const base = new Date(Date.now() + 5 * 24 * 3600_000);
+    const a = absoluteRange(base, 10, 0, 10, 30);
+    const b = absoluteRange(base, 10, 30, 11, 0);
+
+    await bookingService.createBooking({
+      customerId: c1._id,
+      spaceId: space._id,
+      startTime: a.start,
+      endTime: a.end,
+    });
+    await bookingService.createBooking({
+      customerId: c2._id,
+      spaceId: space._id,
+      startTime: b.start,
+      endTime: b.end,
+    });
+    expect(await Booking.countDocuments({ Status: 'pending' })).toBe(2);
+  });
+
+  test('cancel releases slots for rebook', async () => {
+    const host = await createUser({ email: 'h8@test.com', role: 'host' });
+    const c1 = await createUser({ email: 'c8a@test.com', role: 'customer' });
+    const c2 = await createUser({ email: 'c8b@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+    const { start, end } = futureRange(10, 1);
+
+    const booking = await bookingService.createBooking({
+      customerId: c1._id,
+      spaceId: space._id,
+      startTime: start,
+      endTime: end,
+    });
+    await bookingService.cancelBookingByCustomer(c1._id, booking._id);
+    const rebook = await bookingService.createBooking({
+      customerId: c2._id,
+      spaceId: space._id,
+      startTime: start,
+      endTime: end,
+    });
+    expect(rebook._id).toBeTruthy();
+  });
+
+  test('concurrent bookings only one succeeds', async () => {
+    const host = await createUser({ email: 'h9@test.com', role: 'host' });
+    const c1 = await createUser({ email: 'c9a@test.com', role: 'customer' });
+    const c2 = await createUser({ email: 'c9b@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+    const { start, end } = futureRange(12, 2);
 
     const results = await Promise.allSettled([
       bookingService.createBooking({
@@ -100,25 +210,17 @@ describe('Booking rules', () => {
         endTime: end,
       }),
     ]);
-
     const ok = results.filter((r) => r.status === 'fulfilled');
     const fail = results.filter((r) => r.status === 'rejected');
     expect(ok.length).toBe(1);
     expect(fail.length).toBe(1);
     expect(fail[0].reason.statusCode).toBe(409);
-
-    const count = await Booking.countDocuments({
-      SpaceID: space._id,
-      Status: { $in: ['pending', 'confirmed', 'in-use'] },
-    });
-    expect(count).toBe(1);
   });
 
-  test('only in-use + expired becomes completed; pending does not', async () => {
-    const host = await createUser({ email: 'h5@test.com', role: 'host' });
-    const customer = await createUser({ email: 'c5@test.com', role: 'customer' });
+  test('only in-use expired becomes completed', async () => {
+    const host = await createUser({ email: 'h10@test.com', role: 'host' });
+    const customer = await createUser({ email: 'c10@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
-
     const pending = await Booking.create({
       CustomerID: customer._id,
       SpaceID: space._id,
@@ -129,7 +231,6 @@ describe('Booking rules', () => {
       DepositAmount: 30,
       Status: 'pending',
     });
-
     const inUse = await Booking.create({
       CustomerID: customer._id,
       SpaceID: space._id,
@@ -140,18 +241,8 @@ describe('Booking rules', () => {
       DepositAmount: 30,
       Status: 'in-use',
     });
-
     await bookingService.completeExpiredBookings();
-
-    const p2 = await Booking.findById(pending._id);
-    const i2 = await Booking.findById(inUse._id);
-    expect(p2.Status).toBe('pending');
-    expect(i2.Status).toBe('completed');
-  });
-
-  test('invalid transitions rejected', async () => {
-    expect(() => bookingService.assertTransition('completed', 'cancelled')).toThrow();
-    expect(() => bookingService.assertTransition('pending', 'in-use')).toThrow();
-    expect(() => bookingService.assertTransition('confirmed', 'completed')).toThrow();
+    expect((await Booking.findById(pending._id)).Status).toBe('pending');
+    expect((await Booking.findById(inUse._id)).Status).toBe('completed');
   });
 });

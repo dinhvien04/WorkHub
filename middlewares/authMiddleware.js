@@ -3,6 +3,7 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const User = require('../models/User');
+const HostProfile = require('../models/Host_Profile');
 const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
 
 function parseCookies(cookieHeader = '') {
@@ -103,6 +104,27 @@ const authorizeRole = (...allowedRoles) => (req, res, next) => {
 const requireAdmin = (req, res, next) => authorizeRole('admin')(req, res, next);
 
 /**
+ * Host must be active AND HostProfile.IsVerified === true.
+ */
+async function requireVerifiedHost(req, res, next) {
+  try {
+    if (!req.user || req.user.role !== 'host') {
+      return next(new ForbiddenError('Chỉ host mới được truy cập.'));
+    }
+    const profile = await HostProfile.findOne({ UserID: req.user.userId }).select('IsVerified');
+    if (!profile || !profile.IsVerified) {
+      return next(
+        new ForbiddenError('Tài khoản host chưa được admin phê duyệt. Vui lòng chờ xác minh.')
+      );
+    }
+    req.hostVerified = true;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
  * Page-level host auth: redirect to login instead of JSON.
  */
 async function requireHostPage(req, res, next) {
@@ -115,6 +137,12 @@ async function requireHostPage(req, res, next) {
     const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
     const dbVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
     if (tokenVersion !== dbVersion) return res.redirect('/login');
+
+    const profile = await HostProfile.findOne({ UserID: user._id }).select('IsVerified');
+    if (!profile || !profile.IsVerified) {
+      return res.status(403).send('Tài khoản host chưa được admin phê duyệt.');
+    }
+
     req.user = {
       userId: user._id.toString(),
       role: user.Role,
@@ -136,5 +164,6 @@ module.exports = {
   authorizeRole,
   requireAdmin,
   requireHostPage,
+  requireVerifiedHost,
   extractToken,
 };

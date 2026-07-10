@@ -4,7 +4,9 @@
  */
 (function (global) {
   function getCookie(name) {
-    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+    const m = document.cookie.match(
+      new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)')
+    );
     return m ? decodeURIComponent(m[1]) : null;
   }
 
@@ -22,12 +24,19 @@
     return token;
   }
 
+  /**
+   * @param {string} url
+   * @param {RequestInit & { redirectOn401?: boolean }} options
+   */
   async function api(url, options = {}) {
-    const method = (options.method || 'GET').toUpperCase();
-    const headers = Object.assign({}, options.headers || {});
+    const { redirectOn401 = true, headers: optHeaders, body: optBody, method: optMethod, ...rest } =
+      options;
 
-    if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
-      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+    const method = (optMethod || 'GET').toUpperCase();
+    const headers = Object.assign({}, optHeaders || {});
+
+    if (!headers['Content-Type'] && !(optBody instanceof FormData)) {
+      if (optBody && typeof optBody === 'object' && !(optBody instanceof FormData)) {
         headers['Content-Type'] = 'application/json';
       }
     }
@@ -37,55 +46,41 @@
       if (csrf) headers['X-CSRF-Token'] = csrf;
     }
 
-    let body = options.body;
-    if (body && typeof body === 'object' && !(body instanceof FormData) && headers['Content-Type'] === 'application/json') {
+    let body = optBody;
+    if (
+      body &&
+      typeof body === 'object' &&
+      !(body instanceof FormData) &&
+      headers['Content-Type'] === 'application/json'
+    ) {
       body = JSON.stringify(body);
     }
 
     const res = await fetch(url, {
-      ...options,
+      ...rest,
       method,
       headers,
       body,
       credentials: 'same-origin',
     });
 
-    if (res.status === 401) {
+    if (res.status === 401 && redirectOn401) {
       const path = window.location.pathname;
       if (!path.startsWith('/login') && !path.startsWith('/register')) {
-        // Avoid redirect loops
         if (!sessionStorage.getItem('auth_redirecting')) {
           sessionStorage.setItem('auth_redirecting', '1');
           window.location.href = '/login';
         }
       }
-    } else {
+    } else if (res.status !== 401) {
       sessionStorage.removeItem('auth_redirecting');
     }
 
     return res;
   }
 
-  function escapeHtml(str) {
-    return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+  global.WorkHubAPI = { api, ensureCsrf, getCookie };
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { api, ensureCsrf, getCookie };
   }
-
-  function setText(el, text) {
-    if (el) el.textContent = text == null ? '' : String(text);
-  }
-
-  /** Safe text node helper for dynamic lists */
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text != null) node.textContent = text;
-    return node;
-  }
-
-  global.WorkHubAPI = { api, ensureCsrf, getCookie, escapeHtml, setText, el };
-})(window);
+})(typeof window !== 'undefined' ? window : global);

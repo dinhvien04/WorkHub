@@ -373,8 +373,7 @@ function renderLogPagination(p) {
 // =====================================
 async function fetchUsers() {
     const tbody = document.getElementById('user-table-body');
-    if (!token) return;
-    try {
+        try {
         const response = await hostApiFetch('/api/admin/users', { credentials: 'same-origin' });
         if (response.ok) {
             const data = await response.json(); allUsersList = data.users; renderUserTable(allUsersList); 

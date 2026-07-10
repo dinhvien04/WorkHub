@@ -32,33 +32,29 @@ function assertTransition(from, to) {
 }
 
 /**
- * Build slot start times [start, end) stepped by BOOKING_SLOT_MINUTES.
+ * Floor-start slot builder: every overlapping range shares at least one slot.
+ * Cursor = floor(start / step); while cursor < end push cursor.
  */
 function buildSlotStarts(start, end, slotMinutes = env.BOOKING_SLOT_MINUTES) {
-  const slots = [];
   const step = slotMinutes * 60 * 1000;
-  let cursor = new Date(start);
-  // Align to slot boundary
-  const ms = cursor.getTime();
-  const aligned = Math.floor(ms / step) * step;
-  cursor = new Date(aligned);
-  if (cursor < start) cursor = new Date(cursor.getTime() + step);
-
+  const slots = [];
+  let cursor = new Date(Math.floor(start.getTime() / step) * step);
   while (cursor < end) {
     slots.push(new Date(cursor));
     cursor = new Date(cursor.getTime() + step);
   }
   if (slots.length === 0) {
-    // Always at least one slot for short bookings
     slots.push(new Date(Math.floor(start.getTime() / step) * step));
   }
   return slots;
 }
 
+/**
+ * Run work once. Never re-invoke on transaction failure.
+ * ENABLE_TRANSACTIONS=false => non-transaction path only.
+ */
 async function withOptionalTransaction(work) {
-  // Prefer non-transaction path first for standalone Mongo / memory server.
-  // Slot unique index still prevents concurrent double-booking.
-  if (process.env.FORCE_NO_TX === '1' || process.env.NODE_ENV === 'test') {
+  if (!env.ENABLE_TRANSACTIONS) {
     return work(null);
   }
 
@@ -74,20 +70,34 @@ async function withOptionalTransaction(work) {
     } catch {
       /* ignore */
     }
-    // Fallback when replica set / transactions unavailable
-    if (
-      err.message &&
-      (err.message.includes('Transaction numbers') ||
-        err.message.includes('replica set') ||
-        err.message.includes('Transaction') ||
-        err.codeName === 'IllegalOperation' ||
-        err.code === 20)
-    ) {
-      return work(null);
-    }
     throw err;
   } finally {
     session.endSession();
+  }
+}
+
+function validateBookingWindow(start, end) {
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new ValidationError('Ngày/giờ không hợp lệ.');
+  }
+  if (end <= start) throw new ValidationError('EndTime phải lớn hơn StartTime.');
+  if (start.getTime() < Date.now() - 60_000) {
+    throw new ValidationError('Không thể đặt phòng ở thời điểm trong quá khứ.');
+  }
+
+  const durationMs = end - start;
+  const maxDurationMs = env.MAX_BOOKING_HOURS * 60 * 60 * 1000;
+  if (durationMs <= 0 || durationMs > maxDurationMs) {
+    throw new ValidationError(
+      `Thời lượng đặt chỗ không hợp lệ (tối đa ${env.MAX_BOOKING_HOURS} giờ).`
+    );
+  }
+
+  const maxAheadMs = env.MAX_BOOKING_DAYS_AHEAD * 24 * 60 * 60 * 1000;
+  if (start.getTime() - Date.now() > maxAheadMs) {
+    throw new ValidationError(
+      `Chỉ được đặt trước tối đa ${env.MAX_BOOKING_DAYS_AHEAD} ngày.`
+    );
   }
 }
 
@@ -98,13 +108,7 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
 
   const start = new Date(startTime);
   const end = new Date(endTime);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    throw new ValidationError('Ngày/giờ không hợp lệ.');
-  }
-  if (end <= start) throw new ValidationError('EndTime phải lớn hơn StartTime.');
-  if (start.getTime() < Date.now() - 60_000) {
-    throw new ValidationError('Không thể đặt phòng ở thời điểm trong quá khứ.');
-  }
+  validateBookingWindow(start, end);
 
   const space = await Space.findById(spaceId);
   if (!space) throw new NotFoundError('Không tìm thấy phòng.');
@@ -112,120 +116,83 @@ async function createBooking({ customerId, spaceId, startTime, endTime, note = '
     throw new ValidationError('Không gian hiện không khả dụng để đặt.');
   }
 
+  const slotStarts = buildSlotStarts(start, end);
+  const maxSlots = Math.ceil((env.MAX_BOOKING_HOURS * 60) / env.BOOKING_SLOT_MINUTES);
+  if (slotStarts.length > maxSlots) {
+    throw new ValidationError('Số lượng slot vượt giới hạn.');
+  }
+
   const hours = (end - start) / (1000 * 60 * 60);
   const total = Math.round(hours * (space.PricePerHour || 0));
   const deposit =
-    space.DepositAmount > 0
-      ? space.DepositAmount
-      : Math.round(total * 0.3);
+    space.DepositAmount > 0 ? space.DepositAmount : Math.round(total * 0.3);
 
-  const slotStarts = buildSlotStarts(start, end);
-
-  try {
-    return await withOptionalTransaction(async (session) => {
-      // Soft conflict check (slots are the real lock)
-      let conflictQuery = Booking.findOne({
-        SpaceID: spaceId,
-        Status: { $in: ACTIVE_STATUSES },
-        StartTime: { $lt: end },
-        EndTime: { $gt: start },
-      });
-      if (session) conflictQuery = conflictQuery.session(session);
-      const conflict = await conflictQuery;
-
-      if (conflict) {
-        throw new ConflictError('Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!');
-      }
-
-      const doc = {
-        CustomerID: customerId,
-        SpaceID: spaceId,
-        HostID: space.HostID,
-        StartTime: start,
-        EndTime: end,
-        TotalAmount: total,
-        DepositAmount: deposit,
-        Status: 'pending',
-        Note: note || '',
-      };
-
-      let booking;
-      if (session) {
-        [booking] = await Booking.create([doc], { session });
-      } else {
-        booking = await Booking.create(doc);
-      }
-
-      const slotDocs = slotStarts.map((SlotStart) => ({
-        SpaceID: spaceId,
-        BookingID: booking._id,
-        SlotStart,
-      }));
-
-      try {
-        if (session) {
-          await BookingSlot.insertMany(slotDocs, { session, ordered: true });
-        } else {
-          await BookingSlot.insertMany(slotDocs, { ordered: true });
-        }
-      } catch (slotErr) {
-        // Best-effort rollback without transaction
-        if (!session) {
-          await Booking.deleteOne({ _id: booking._id });
-          await BookingSlot.deleteMany({ BookingID: booking._id });
-        }
-        if (slotErr.code === 11000) {
-          throw new ConflictError('Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!');
-        }
-        throw slotErr;
-      }
-
-      await logActivity(
-        customerId,
-        'CREATE_BOOKING',
-        'Booking',
-        booking._id,
-        `Khách hàng tạo đơn đặt chỗ trị giá ${total.toLocaleString('vi-VN')}đ`,
-        'info'
-      );
-
-      return booking;
+  return withOptionalTransaction(async (session) => {
+    let conflictQuery = Booking.findOne({
+      SpaceID: spaceId,
+      Status: { $in: ACTIVE_STATUSES },
+      StartTime: { $lt: end },
+      EndTime: { $gt: start },
     });
-  } catch (err) {
-    if (err.code === 11000) {
+    if (session) conflictQuery = conflictQuery.session(session);
+    const conflict = await conflictQuery;
+    if (conflict) {
       throw new ConflictError('Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!');
     }
-    throw err;
-  }
-}
 
-async function transitionBooking({ bookingId, hostId, customerId, toStatus, actorId, action }) {
-  const filter = { _id: bookingId };
-  if (hostId) filter.HostID = hostId;
-  if (customerId) filter.CustomerID = customerId;
+    const doc = {
+      CustomerID: customerId,
+      SpaceID: spaceId,
+      HostID: space.HostID,
+      StartTime: start,
+      EndTime: end,
+      TotalAmount: total,
+      DepositAmount: deposit,
+      Status: 'pending',
+      Note: note || '',
+    };
 
-  const booking = await Booking.findOne(filter);
-  if (!booking) throw new NotFoundError('Không tìm thấy đơn hàng.');
+    let booking;
+    if (session) {
+      [booking] = await Booking.create([doc], { session });
+    } else {
+      booking = await Booking.create(doc);
+    }
 
-  assertTransition(booking.Status, toStatus);
+    const slotDocs = slotStarts.map((SlotStart) => ({
+      SpaceID: spaceId,
+      BookingID: booking._id,
+      SlotStart,
+    }));
 
-  booking.Status = toStatus;
-  await booking.save();
+    try {
+      if (session) {
+        await BookingSlot.insertMany(slotDocs, { session, ordered: true });
+      } else {
+        await BookingSlot.insertMany(slotDocs, { ordered: true });
+      }
+    } catch (slotErr) {
+      if (!session) {
+        await Booking.deleteOne({ _id: booking._id });
+        await BookingSlot.deleteMany({ BookingID: booking._id });
+      }
+      if (slotErr.code === 11000) {
+        throw new ConflictError('Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!');
+      }
+      throw slotErr;
+    }
 
-  if (toStatus === 'cancelled') {
-    await BookingSlot.deleteMany({ BookingID: booking._id });
-  }
+    await logActivity(
+      customerId,
+      'CREATE_BOOKING',
+      'Booking',
+      booking._id,
+      `Khách hàng tạo đơn đặt chỗ trị giá ${total.toLocaleString('vi-VN')}đ`,
+      'info'
+    );
 
-  await logActivity(
-    actorId || hostId || customerId,
-    action || `BOOKING_${toStatus.toUpperCase()}`,
-    'Booking',
-    booking._id,
-    `Chuyển booking sang ${toStatus}`,
-    toStatus === 'cancelled' ? 'warning' : 'info'
-  );
-
-  return booking;
+    return booking;
+  });
 }
 
 async function confirmBooking(hostId, bookingId) {
@@ -250,33 +217,7 @@ async function confirmBooking(hostId, bookingId) {
       throw new ValidationError('Đơn hàng không ở trạng thái chờ xác nhận.');
     }
 
-    let pendingQ = PaymentHistory.find({
-      BookingID: bookingId,
-      HostID: hostId,
-      Status: 'pending',
-    });
-    let successQ = PaymentHistory.find({
-      BookingID: bookingId,
-      Status: 'successful',
-    });
-    if (session) {
-      pendingQ = pendingQ.session(session);
-      successQ = successQ.session(session);
-    }
-    const pending = await pendingQ;
-    const successful = await successQ;
-    let paid = successful.reduce((s, p) => s + p.Amount, 0);
-
-    for (const p of pending) {
-      if (paid + p.Amount > booking.TotalAmount) continue;
-      p.Status = 'successful';
-      p.PaidAt = new Date();
-      p.VerifiedAt = new Date();
-      p.VerifiedBy = hostId;
-      await p.save(session ? { session } : undefined);
-      paid += p.Amount;
-    }
-
+    // Do not auto-mark all payments; host verifies payments explicitly
     await logActivity(hostId, 'CONFIRM_BOOKING', 'Booking', booking._id, 'Chủ cơ sở xác nhận đơn', 'success');
     return booking;
   });
@@ -311,7 +252,6 @@ async function cancelBookingByHost(hostId, bookingId) {
   await booking.save();
   await BookingSlot.deleteMany({ BookingID: booking._id });
 
-  // Do NOT auto-mark as refunded without real refund processing
   await PaymentHistory.updateMany(
     { BookingID: bookingId, HostID: hostId, Status: 'pending' },
     { $set: { Status: 'failed', FailureReason: 'Booking cancelled by host' } }
@@ -338,18 +278,13 @@ async function cancelBookingByCustomer(customerId, bookingId) {
   return booking;
 }
 
-/**
- * Complete only in-use bookings past EndTime.
- */
 async function completeExpiredBookings({ hostId = null } = {}) {
   const filter = {
     Status: 'in-use',
     EndTime: { $lt: new Date() },
   };
   if (hostId) filter.HostID = hostId;
-
-  const result = await Booking.updateMany(filter, { $set: { Status: 'completed' } });
-  return result;
+  return Booking.updateMany(filter, { $set: { Status: 'completed' } });
 }
 
 module.exports = {
@@ -362,6 +297,6 @@ module.exports = {
   cancelBookingByHost,
   cancelBookingByCustomer,
   completeExpiredBookings,
-  transitionBooking,
   ACTIVE_STATUSES,
+  validateBookingWindow,
 };
