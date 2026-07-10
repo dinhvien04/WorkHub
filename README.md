@@ -140,7 +140,14 @@ npm run backup
 npm run sbom
 npm run build:css
 docker compose up -d   # optional infra
+npm run smoke          # requires running server
+npm run load:smoke
 ```
+
+### Observability
+
+- `GET /metrics` — Prometheus text format  
+- `GET /health/details` — JSON snapshot (db, metrics, version)
 
 ## Roles
 

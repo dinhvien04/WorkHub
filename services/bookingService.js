@@ -430,6 +430,11 @@ async function createBooking({
       `Khách hàng tạo đơn đặt chỗ trị giá ${total.toLocaleString('vi-VN')}đ`,
       'info'
     );
+    try {
+      require('../utils/metrics').incBookingsCreated();
+    } catch {
+      /* ignore */
+    }
 
     try {
       const { notifyUser } = require('./notificationService');

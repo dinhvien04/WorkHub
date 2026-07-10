@@ -211,6 +211,11 @@ async function verifyPayment(hostId, paymentId) {
     'Host xác minh thanh toán',
     'success'
   );
+  try {
+    require('../utils/metrics').incPaymentsVerified();
+  } catch {
+    /* ignore */
+  }
   return stillOk;
 }
 

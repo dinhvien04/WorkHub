@@ -1,6 +1,7 @@
 'use strict';
 
 const logger = require('../utils/logger');
+const metrics = require('../utils/metrics');
 
 /**
  * Record request duration; set Server-Timing header (no PII).
@@ -11,9 +12,14 @@ function requestTiming(req, res, next) {
     const ns = Number(process.hrtime.bigint() - start);
     const ms = Math.round(ns / 1e6);
     try {
-      res.setHeader('Server-Timing', `app;dur=${ms}`);
+      metrics.observeHttpRequest({
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        durationMs: ms,
+      });
     } catch {
-      /* headers may be sent */
+      /* ignore */
     }
     if (ms >= 800 || res.statusCode >= 500) {
       logger.warn(
@@ -28,7 +34,6 @@ function requestTiming(req, res, next) {
       );
     }
   });
-  // Also try set header before finish via interceptor
   const origEnd = res.end;
   res.end = function endWithTiming(...args) {
     const ns = Number(process.hrtime.bigint() - start);

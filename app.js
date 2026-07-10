@@ -147,6 +147,27 @@ function createApp() {
       res.status(503).json({ status: 'not_ready' });
     }
   });
+  app.get('/health/details', async (req, res) => {
+    const mongoose = require('mongoose');
+    const metrics = require('./utils/metrics');
+    const pkg = require('./package.json');
+    res.json({
+      status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
+      version: pkg.version,
+      node: process.version,
+      uptimeSec: Math.round(process.uptime()),
+      db: { readyState: mongoose.connection.readyState },
+      redisConfigured: Boolean(process.env.REDIS_URL),
+      metrics: metrics.snapshot(),
+      timestamp: new Date().toISOString(),
+    });
+  });
+  // Prometheus scrape (no auth — scrape via network policy / internal only in prod)
+  app.get('/metrics', (req, res) => {
+    const metrics = require('./utils/metrics');
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(metrics.renderPrometheus());
+  });
 
   app.use(seoRoutes);
 

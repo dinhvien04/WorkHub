@@ -104,6 +104,11 @@ async function processNextJob() {
     job.CompletedAt = new Date();
     job.Error = '';
     await job.save();
+    try {
+      require('../utils/metrics').incJobsProcessed();
+    } catch {
+      /* ignore */
+    }
     return job;
   } catch (err) {
     job.Status = 'failed';
