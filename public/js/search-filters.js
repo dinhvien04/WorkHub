@@ -49,12 +49,85 @@
       if (!items.length) {
         if (zero) {
           zero.classList.remove('hidden');
+          const zr = data.zeroResult || {};
           const tips = zero.querySelector('[data-zero-tips]');
-          if (tips && data.zeroResult?.tips) {
+          if (tips) {
             tips.replaceChildren();
-            data.zeroResult.tips.forEach((t) =>
+            (zr.tips || ['Thử nới bộ lọc hoặc đổi từ khóa.']).forEach((t) =>
               tips.appendChild(DomSafe.createTextElement('li', '', t))
             );
+          }
+          const cities = zero.querySelector('[data-zero-cities]');
+          if (cities) {
+            cities.replaceChildren();
+            (zr.popularCities || []).forEach((c) => {
+              const a = document.createElement('a');
+              a.href = '/khong-gian/' + encodeURIComponent(c.citySlug);
+              a.className =
+                'text-xs font-bold px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-900 no-underline';
+              a.textContent = (c.label || c.citySlug) + (c.count ? ` (${c.count})` : '');
+              cities.appendChild(a);
+            });
+            (zr.nearbyDistricts || []).forEach((d) => {
+              const a = document.createElement('a');
+              a.href =
+                '/khong-gian/' +
+                encodeURIComponent(d.citySlug) +
+                '/' +
+                encodeURIComponent(d.districtSlug);
+              a.className =
+                'text-xs font-bold px-2.5 py-1 rounded-full bg-white border border-amber-100 text-slate-700 no-underline';
+              a.textContent = d.label;
+              cities.appendChild(a);
+            });
+          }
+          const actions = zero.querySelector('[data-zero-actions]');
+          if (actions) {
+            actions.replaceChildren();
+            (zr.suggestedActions || []).forEach((act) => {
+              if (act.href) {
+                const a = document.createElement('a');
+                a.href = act.href;
+                a.className =
+                  'text-xs font-black uppercase px-3 py-1.5 rounded-xl bg-teal-600 text-white no-underline';
+                a.textContent = act.label || act.action;
+                actions.appendChild(a);
+              } else if (act.action === 'clear_filters') {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className =
+                  'text-xs font-black uppercase px-3 py-1.5 rounded-xl border border-amber-300 text-amber-900 bg-white';
+                btn.textContent = act.label || 'Xóa bộ lọc';
+                btn.addEventListener('click', () => {
+                  const form = document.querySelector('[data-search-form], #search-filters');
+                  if (form) {
+                    form.reset();
+                    const p = new URLSearchParams();
+                    writeParams(p, { replace: true });
+                    runSearch(p);
+                  } else {
+                    window.location.href = '/search';
+                  }
+                });
+                actions.appendChild(btn);
+              } else if (act.action === 'expand_radius') {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className =
+                  'text-xs font-black uppercase px-3 py-1.5 rounded-xl border border-amber-300 text-amber-900 bg-white';
+                btn.textContent = act.label || 'Mở rộng bán kính';
+                btn.addEventListener('click', () => {
+                  const p = readParams();
+                  const r = Number(p.get('radiusKm') || 10);
+                  p.set('radiusKm', String(Math.min(100, r * 2 || 20)));
+                  writeParams(p);
+                  const form = document.querySelector('[data-search-form], #search-filters');
+                  if (form) applyParamsToForm(form, p);
+                  runSearch(p);
+                });
+                actions.appendChild(btn);
+              }
+            });
           }
         } else {
           box.appendChild(

@@ -451,6 +451,40 @@ async function createBooking({
       /* ignore */
     }
 
+    // Transactional emails (best-effort)
+    try {
+      const User = require('../models/User');
+      const emailService = require('./emailService');
+      const [customer, host] = await Promise.all([
+        User.findById(customerId).select('Email FullName NotifyEmail').lean(),
+        User.findById(space.HostID).select('Email FullName NotifyEmail').lean(),
+      ]);
+      if (customer?.Email && customer.NotifyEmail !== false) {
+        emailService.safeSendTemplate('booking_created', {
+          to: customer.Email,
+          customerName: customer.FullName,
+          spaceName: snapshot.SpaceName,
+          startTime: booking.StartTime,
+          endTime: booking.EndTime,
+          totalAmount: booking.TotalAmount,
+          bookingId: booking._id,
+        });
+      }
+      if (host?.Email && host.NotifyEmail !== false) {
+        emailService.safeSendTemplate('host_new_booking', {
+          to: host.Email,
+          hostName: host.FullName,
+          spaceName: snapshot.SpaceName,
+          startTime: booking.StartTime,
+          endTime: booking.EndTime,
+          totalAmount: booking.TotalAmount,
+          bookingId: booking._id,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
     return booking;
   })
   );
@@ -484,6 +518,37 @@ async function confirmBooking(hostId, bookingId) {
 
     // Do not auto-mark all payments; host verifies payments explicitly
     await logActivity(hostId, 'CONFIRM_BOOKING', 'Booking', booking._id, 'Chủ cơ sở xác nhận đơn', 'success');
+
+    try {
+      const User = require('../models/User');
+      const emailService = require('./emailService');
+      const { notifyUser } = require('./notificationService');
+      const customer = await User.findById(booking.CustomerID)
+        .select('Email FullName NotifyEmail')
+        .lean();
+      await notifyUser({
+        userId: booking.CustomerID,
+        title: 'Booking đã xác nhận',
+        body: booking.Snapshot?.SpaceName || String(booking._id),
+        type: 'booking',
+        entityType: 'Booking',
+        entityId: booking._id,
+        link: '/dashboard',
+      });
+      if (customer?.Email && customer.NotifyEmail !== false) {
+        emailService.safeSendTemplate('booking_confirmed', {
+          to: customer.Email,
+          customerName: customer.FullName,
+          spaceName: booking.Snapshot?.SpaceName,
+          startTime: booking.StartTime,
+          endTime: booking.EndTime,
+          bookingId: booking._id,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
     return booking;
   });
 }
@@ -569,6 +634,37 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = '') {
       entityId: booking._id,
       link: '/host/bookings',
     });
+  } catch {
+    /* ignore */
+  }
+  try {
+    const User = require('../models/User');
+    const emailService = require('./emailService');
+    const [customer, host] = await Promise.all([
+      User.findById(customerId).select('Email FullName NotifyEmail').lean(),
+      User.findById(booking.HostID).select('Email FullName NotifyEmail').lean(),
+    ]);
+    const payload = {
+      spaceName: booking.Snapshot?.SpaceName,
+      startTime: booking.StartTime,
+      reason: booking.CancelReason,
+      bookingId: booking._id,
+    };
+    if (customer?.Email && customer.NotifyEmail !== false) {
+      emailService.safeSendTemplate('booking_cancelled', {
+        to: customer.Email,
+        customerName: customer.FullName,
+        ...payload,
+      });
+    }
+    if (host?.Email && host.NotifyEmail !== false) {
+      emailService.safeSendTemplate('booking_cancelled', {
+        to: host.Email,
+        customerName: host.FullName,
+        ...payload,
+        reason: payload.reason || 'customer_cancelled',
+      });
+    }
   } catch {
     /* ignore */
   }

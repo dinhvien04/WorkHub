@@ -127,6 +127,9 @@ npm run seed:extras  # coupons + feature flags demo
 - Host inbox quick confirm/check-in/cancel; finance export job poll + download
 - Customer dashboard check-in QR (mint token + code); booking-detail QR
 - i18n VI/EN switcher + cookie; notification prefs lang/timezone
+- Email templates (booking/payment/reset) + HTML; auto-send on create/confirm/cancel
+- Search zero-result: city chips, clear filters / expand radius actions
+- Host onboarding step CTAs + stats
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
