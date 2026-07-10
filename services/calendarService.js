@@ -110,9 +110,54 @@ function calendarDeepLinks(booking) {
       .replace(/[-:]/g, "")
       .replace(/\.\d{3}/, "");
   const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gFmt(start)}/${gFmt(end)}&details=${details}&location=${location}`;
-  // Outlook web
+  // Outlook web (Microsoft 365 / Live)
   const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=${title}&startdt=${encodeURIComponent(start.toISOString())}&enddt=${encodeURIComponent(end.toISOString())}&body=${details}&location=${location}`;
-  return { google, outlook, icsPath: `/api/me/bookings/${booking._id}/ics` };
+  const office365 = `https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=${title}&startdt=${encodeURIComponent(start.toISOString())}&enddt=${encodeURIComponent(end.toISOString())}&body=${details}&location=${location}`;
+  return {
+    google,
+    outlook,
+    microsoft: office365,
+    icsPath: `/api/me/bookings/${booking._id}/ics`,
+    providers: ['ics', 'google', 'microsoft_outlook', 'microsoft_365'],
+  };
 }
 
-module.exports = { getHostCalendar, bookingToIcs, calendarDeepLinks };
+/**
+ * Host subscription feed (iCal) for external calendars P2.
+ */
+function hostFeedIcs(events, hostId) {
+  const dt = (d) =>
+    new Date(d)
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//WorkHub//HostFeed//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:WorkHub Host ${hostId}`,
+  ];
+  for (const ev of events || []) {
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${ev.id || ev._id}@workhub`,
+      `DTSTAMP:${dt(new Date())}`,
+      `DTSTART:${dt(ev.start || ev.StartTime)}`,
+      `DTEND:${dt(ev.end || ev.EndTime)}`,
+      `SUMMARY:${String(ev.title || 'Booking').replace(/\n/g, ' ')}`,
+      `STATUS:${ev.status === 'cancelled' ? 'CANCELLED' : 'CONFIRMED'}`,
+      'END:VEVENT'
+    );
+  }
+  lines.push('END:VCALENDAR', '');
+  return lines.join('\r\n');
+}
+
+module.exports = {
+  getHostCalendar,
+  bookingToIcs,
+  calendarDeepLinks,
+  hostFeedIcs,
+};

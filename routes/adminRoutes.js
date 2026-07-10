@@ -10,6 +10,9 @@ router.use(verifyToken, requireAdmin, requireAdmin2faIfEnabled);
 
 router.get('/stats', adminController.getAdminDashboard);
 router.get('/metrics/conversion', adminController.getConversionMetrics);
+router.get('/metrics/funnel', adminController.getConversionMetrics);
+router.get('/alerts', adminController.getAlerts);
+router.get('/finance/recon-export', adminController.getPaymentReconExport);
 router.get('/users', adminController.listUsers);
 router.patch('/users/:id/toggle-status', adminController.toggleUserStatus);
 

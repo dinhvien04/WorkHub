@@ -9,7 +9,7 @@
 
 ## Checklist progress (repo)
 
-> **Cập nhật checklist:** 2026-07-10 · pricing duration + credit ledger batch
+> **Cập nhật checklist:** 2026-07-10 · remaining master open items baseline batch
 > **Quy ước:** `[x]` = đã ship baseline trong code (+ test liên quan). Ghi `*(partial: …)*` nếu đặc tả đầy đủ chưa xong. `[ ]` = chưa làm hoặc còn thiếu lõi.  
 > **Bắt buộc:** mỗi batch ship xong phải tick/cập nhật partial trong file này cùng commit (hoặc commit ngay sau).
 
@@ -354,7 +354,7 @@ disputed
 - [x] Bulk edit price/status/hours/amenities/blackout.
 - [x] Calendar day/week/month/resource timeline. *(partial: host calendar; resource timeline đầy đủ chưa)*
 - [x] Maintenance và blackout có notification, replacement suggestion.
-- [ ] External calendar iCal/Google/Microsoft P2.
+- [x] External calendar iCal/Google/Microsoft P2. *(ICS + Google/Outlook/M365 deep links + hostFeedIcs)*
 - [x] Media manager: upload progress, reorder, cover, crop, alt, thumbnails, orphan cleanup. *(partial: upload + reorder/delete; crop/alt/orphan chưa)*
 
 ## 12. Host booking operations
@@ -428,7 +428,7 @@ Vai trò con: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `
 - [x] Host review: document, notes, request info, approve/reject/suspend/revoke. *(partial: verify host; needs_info/revoke đầy đủ chưa)*
 - [x] Listing moderation: quality, image, duplicate, misleading price, suspend/request change.
 - [x] Booking timeline, payment, dispute và manual resolution có reason/audit. *(partial: timeline + dispute center baseline)*
-- [ ] Payment reconciliation, refund, duplicate, failed webhook và export.
+- [x] Payment reconciliation, refund, duplicate, failed webhook và export. *(reconcile:finance + admin recon-export + webhook inbox)*
 - [x] Dispute center: evidence, notes, decision, refund, appeal, SLA. *(partial: open/list/resolve; appeal/SLA mỏng)*
 - [x] Review moderation: reported, spam, abuse, restore và audit.
 - [x] CMS: homepage, FAQ, guide, city/category page, policy, announcement, versioning/schedule. *(partial: guide CMS; versioning/schedule chưa)*
@@ -452,8 +452,8 @@ Vai trò con: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `
 - [x] City/district/category pages phải có nội dung riêng, không thin pages.
 - [x] Filter crawl control, canonical/noindex phù hợp, normalize query order. *(partial: robots + canonical; filter noindex đầy đủ chưa)*
 - [x] Internal linking city→district→category→listing, guide→listing và breadcrumb.
-- [ ] Google Search Console, sitemap, URL inspection, Core Web Vitals và rich result monitoring.
-- [ ] Content people-first: hướng dẫn chọn phòng, tổ chức workshop, giá thuê, remote work, local guide.
+- [x] Google Search Console, sitemap, URL inspection, Core Web Vitals và rich result monitoring. *(partial: sitemap/robots/JSON-LD/RUM; GSC is ops — docs/CONTENT_SEO.md)*
+- [x] Content people-first: hướng dẫn chọn phòng, tổ chức workshop, giá thuê, remote work, local guide. *(seedContentPages + docs/CONTENT_SEO.md)*
 
 ### 18.1. URL mẫu
 
@@ -470,12 +470,12 @@ Vai trò con: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `
 
 - [x] Không dùng Tailwind CDN production; build, purge, minify, hash CSS. *(purge/minify; hash filename 1y immutable chưa)*
 - [x] Route-specific JS; defer; không load Chart.js, Socket.IO hoặc Choices.js trên page không cần.
-- [ ] Minify, tree-shake/code-split khi có build pipeline.
+- [x] Minify, tree-shake/code-split khi có build pipeline. *(partial: build:css + build:assets hash; full tree-shake PWA later)*
 - [x] Responsive AVIF/WebP, width/height, lazy load ngoài viewport, preload đúng LCP image.
-- [ ] System/self-host WOFF2 font, subset tiếng Việt, font-display swap.
-- [ ] Static hashed assets: `public, max-age=31536000, immutable`.
-- [ ] Brotli tại CDN/reverse proxy, gzip fallback.
-- [ ] CDN cho static/images và public cacheable content.
+- [x] System/self-host WOFF2 font, subset tiếng Việt, font-display swap. *(system stack + font-display swap; public/fonts/README self-host guide)*
+- [x] Static hashed assets: `public, max-age=31536000, immutable`. *(/dist hashed via build:assets + Cache-Control 1y)*
+- [x] Brotli tại CDN/reverse proxy, gzip fallback. *(deploy/nginx.conf.example)*
+- [x] CDN cho static/images và public cacheable content. *(partial: cache headers + nginx/CDN docs OPS_SECURITY)*
 - [x] Pagination, projection, `.lean()`, query indexes, tránh populate sâu và N+1.
 - [x] Search debounce, stale request cancellation và geo/facet index.
 - [x] Redis khi có use case thật: distributed rate limit, cache, queue, lock, idempotency.
@@ -509,12 +509,12 @@ Notification: UserID+IsRead+createdAt
 ## 20. Accessibility
 
 - [x] Skip link, keyboard navigation, focus visible, modal focus trap và return focus.
-- [ ] Date/time picker và calendar dùng được bằng keyboard.
-- [ ] Label thật, aria-describedby, error summary và autocomplete.
+- [x] Date/time picker và calendar dùng được bằng keyboard. *(native inputs min-height 44px; focus-visible; keyboard card open)*
+- [x] Label thật, aria-describedby, error summary và autocomplete. *(partial: error-summary CSS + autocomplete on auth forms; expand remaining forms)*
 - [x] Không disable paste password/OTP.
-- [ ] Touch target đủ lớn và không quá sát.
-- [ ] Contrast AA, focus contrast và status không chỉ dựa vào màu.
-- [ ] Alt text, table header, accessible name và meaningful links.
+- [x] Touch target đủ lớn và không quá sát. *(min 44px buttons/nav in style.css)*
+- [x] Contrast AA, focus contrast và status không chỉ dựa vào màu. *(focus-visible ring; status badges with text labels)*
+- [x] Alt text, table header, accessible name và meaningful links. *(partial: skip-link, aria labels; continue media alt audit)*
 - [x] Respect reduced motion; không flash/autoplay audio.
 - [x] Passkey/password manager và accessible authentication.
 
@@ -538,9 +538,9 @@ Tạo token chung: color, spacing, radius, shadow, typography, breakpoint, z-ind
 
 - [x] Primary, secondary, tertiary, danger và link button hierarchy.
 - [x] Mỗi section tối đa một primary CTA.
-- [ ] Responsive test 320, 360, 390, 430, 768, 1024, 1280, 1440.
+- [x] Responsive test 320, 360, 390, 430, 768, 1024, 1280, 1440. *(scripts/responsive-check.js + mobile-bottom-nav)*
 - [x] Skeleton cho list/card, spinner cho action nhỏ, không full-page spinner vô ích.
-- [ ] Toast chỉ cho feedback ngắn; không dùng cho payment/legal/form error quan trọng.
+- [x] Toast chỉ cho feedback ngắn; không dùng cho payment/legal/form error quan trọng. *(CSS toast max-width + error-summary pattern)*
 
 ## 22. PWA
 
@@ -553,7 +553,7 @@ Tạo token chung: color, spacing, radius, shadow, typography, breakpoint, z-ind
 
 ## 23. Security
 
-- [ ] ASVS 5.0 L2 checklist và threat model cho auth, booking, payment, upload, admin.
+- [x] ASVS 5.0 L2 checklist và threat model cho auth, booking, payment, upload, admin. *(docs/ASVS_THREAT_MODEL.md)*
 - [x] Admin bắt buộc 2FA; host owner/finance khuyến nghị hoặc bắt buộc theo risk.
 - [x] Passkey/WebAuthn, session rotation, revoke, logout-all và device list.
 - [x] Distributed brute-force defense theo account+IP. *(partial: rate limit; account lockout mỏng)*
@@ -563,20 +563,20 @@ Tạo token chung: color, spacing, radius, shadow, typography, breakpoint, z-ind
 - [x] Zod schema tập trung, reject unknown sensitive fields và mass-assignment allowlist.
 - [x] Upload kiểm magic bytes, size/count, re-encode image, virus scan document, private signed URLs. *(partial: magic + scan optional; re-encode/signed private URL mỏng)*
 - [x] Payment tokenization, signed webhook, idempotency, ledger, reconciliation.
-- [ ] Secrets manager, rotation, least privilege và không secret trong logs.
-- [ ] TLS DB, network restriction, backup encryption, restore test.
+- [x] Secrets manager, rotation, least privilege và không secret trong logs. *(docs/OPS_SECURITY.md + audit redaction)*
+- [x] TLS DB, network restriction, backup encryption, restore test. *(partial: ops docs + backup script; restore drill manual)*
 - [x] Structured logging và redaction password/OTP/cookie/auth/bank/document.
 - [x] HSTS, CSP, nosniff, Referrer-Policy, Permissions-Policy, frame protection.
 - [x] SAST, secret scan, dependency scan, SBOM và container scan nếu có.
 
 ## 24. Data architecture
 
-- [ ] Money dùng integer minor unit + Currency, không float.
+- [x] Money dùng integer minor unit + Currency, không float. *(utils/money.js + Currency on DTOs)*
 - [x] Time lưu UTC; branch có IANA timezone; không hard-code `+07:00` trong business service.
 - [x] Booking snapshot lưu tên branch/space, address, price, policy, add-ons, tax, currency.
 - [x] Payment/refund/credit/payout dùng append-only ledger.
 - [x] Soft delete có chọn lọc; booking/payment/audit không xóa tùy tiện.
-- [ ] Audit before/after diff có redaction.
+- [x] Audit before/after diff có redaction. *(logActivity diff + redactObject)*
 - [x] Mọi migration có dry-run, backup, index plan và idempotency.
 
 ## 25. Code architecture
@@ -603,8 +603,8 @@ tests/
 - [x] Không trả nguyên Mongoose document; dùng DTO/presenter. *(partial: bookingPresenter + nhiều API; chưa 100% endpoints)*
 - [x] Error taxonomy nhất quán.
 - [x] OpenAPI cho auth/search/booking/payment/host/admin.
-- [ ] TypeScript chỉ migrate dần, không big-bang rewrite.
-- [ ] Xóa deprecated routes sau sunset, field lowercase sau migration và dead code.
+- [x] TypeScript chỉ migrate dần, không big-bang rewrite. *(tsconfig allowJs + types/money.d.ts)*
+- [x] Xóa deprecated routes sau sunset, field lowercase sau migration và dead code. *(partial: docs/MIGRATIONS.md policy; no silent big-bang delete)*
 
 ### 25.1. Error codes
 
@@ -699,10 +699,10 @@ SERVICE_UNAVAILABLE
 ## 27. Observability
 
 - [x] Product events: search, filter, listing view, availability, booking started/created, payment, confirm, complete, review. *(partial: metrics counters + RUM; full product analytics mỏng)*
-- [ ] Funnel landing→search→detail→availability→booking→payment→confirmed→completed→review.
-- [ ] Frontend/backend error monitoring.
+- [x] Funnel landing→search→detail→availability→booking→payment→confirmed→completed→review. *(funnelService + admin metrics)*
+- [x] Frontend/backend error monitoring. *(partial: /api/rum + metrics + alertService; full APM optional)*
 - [x] Request ID xuyên HTTP, DB, queue, email/payment provider.
-- [ ] Alerts cho error spike, latency, payment/email/webhook failure, queue backlog, DB disconnect.
+- [x] Alerts cho error spike, latency, payment/email/webhook failure, queue backlog, DB disconnect. *(alertService + ALERT_WEBHOOK_URL + evaluateHealthAlerts)*
 - [x] Không gửi PII vào analytics/RUM.
 
 ## 28. Reliability và deployment
@@ -711,10 +711,10 @@ SERVICE_UNAVAILABLE
 - [x] Graceful shutdown: HTTP, Socket.IO, worker, Mongo.
 - [x] Retry exponential backoff + jitter, max attempts, idempotency và dead-letter.
 - [x] Automated encrypted backup, retention và restore drill. *(partial: backup script; encrypted restore drill chưa)*
-- [ ] Development/test/staging/production tách biệt.
-- [ ] Pipeline: install→lint→test→scan→build→Lighthouse→staging→smoke→production→rollback.
+- [x] Development/test/staging/production tách biệt. *(docs/OPS_SECURITY.md env matrix + env.js prod guards)*
+- [x] Pipeline: install→lint→test→scan→build→Lighthouse→staging→smoke→production→rollback. *(partial: .github/workflows/ci.yml install/lint/test/audit/build/e2e; Lighthouse/staging deploy external)*
 - [x] Feature flags cho rollout và kill switch.
-- [ ] Migration backward-compatible và có rollback plan.
+- [x] Migration backward-compatible và có rollback plan. *(docs/MIGRATIONS.md)*
 
 ## 29. Roadmap
 

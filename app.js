@@ -139,18 +139,48 @@ function createApp() {
     return csrfProtection(req, res, next);
   });
 
-  // Hashed/static assets long cache; HTML no-store via default
+  // Content-hashed /dist/* : 1y immutable; other static shorter cache
+  app.use(
+    '/dist',
+    express.static(path.join(__dirname, 'public', 'dist'), {
+      maxAge: env.isProduction ? '365d' : 0,
+      setHeaders(res) {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    })
+  );
   app.use(
     express.static(path.join(__dirname, 'public'), {
       maxAge: env.isProduction ? '7d' : 0,
       setHeaders(res, filePath) {
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        if (/\.(js|css|woff2?|png|jpe?g|webp|avif|svg)$/i.test(filePath)) {
-          res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+        // hashed names only under /dist; unhashed JS/CSS get short cache without claiming immutable forever
+        if (/[\\/]dist[\\/]/i.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (/\.(woff2?)$/i.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (/\.(js|css|png|jpe?g|webp|avif|svg)$/i.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=604800');
         }
       },
     })
   );
+
+  // Funnel page views (server-side hint counters)
+  app.use((req, res, next) => {
+    try {
+      const funnel = require('./services/funnelService');
+      if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/css') && !req.path.startsWith('/js')) {
+        if (req.path === '/' || req.path === '') funnel.track('landing');
+        else if (req.path.startsWith('/search')) funnel.track('search');
+        else if (req.path.startsWith('/detail') || req.path.startsWith('/branch')) funnel.track('detail');
+      }
+    } catch {
+      /* ignore */
+    }
+    next();
+  });
   app.use(
     '/uploads',
     express.static(path.join(__dirname, 'public', 'uploads'), {

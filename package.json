@@ -29,7 +29,12 @@
     "test:e2e": "node scripts/playwright-e2e.js",
     "reconcile:finance": "node scripts/reconcile-finance.js",
     "jobs:expire-holds": "node scripts/expire-holds.js",
-    "worker": "node scripts/expire-holds.js"
+    "worker": "node scripts/expire-holds.js",
+    "build:assets": "node scripts/build-assets.js",
+    "build": "npm run build:css && npm run build:assets",
+    "seed:content": "node scripts/seedContentPages.js",
+    "indexes:verify": "node scripts/indexes-verify.js",
+    "test:responsive": "node scripts/responsive-check.js"
   },
   "keywords": [
     "coworking",

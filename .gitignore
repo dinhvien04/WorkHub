@@ -44,3 +44,6 @@ build/
 .history/
 
 .env.save
+
+public/dist/
+

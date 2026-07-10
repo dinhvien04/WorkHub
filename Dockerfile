@@ -11,6 +11,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build:css
+RUN npm run build:assets
 RUN test -s public/css/app.min.css
 
 FROM base AS runner

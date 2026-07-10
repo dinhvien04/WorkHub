@@ -20,22 +20,12 @@ function sendServerError(res, error) {
 async function getConversionMetrics(req, res) {
   try {
     const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
-    const since = new Date(Date.now() - days * 86400000);
-    const match = { createdAt: { $gte: since } };
+    const funnelService = require('../services/funnelService');
+    const report = await funnelService.funnelReport({ days });
 
-    const [
-      usersNew,
-      bookingsCreated,
-      bookingsConfirmed,
-      bookingsCompleted,
-      paymentsSuccess,
-      paymentsPending,
-      gmvAgg,
-    ] = await Promise.all([
-      User.countDocuments({ ...match, Role: 'customer' }),
-      Booking.countDocuments(match),
-      Booking.countDocuments({ ...match, Status: { $in: ['confirmed', 'in-use', 'completed'] } }),
-      Booking.countDocuments({ ...match, Status: 'completed' }),
+    const since = new Date(report.since);
+    const match = { createdAt: { $gte: since } };
+    const [paymentsSuccess, paymentsPending, gmvAgg] = await Promise.all([
       PaymentHistory.countDocuments({ ...match, Status: 'successful' }),
       PaymentHistory.countDocuments({ ...match, Status: 'pending' }),
       PaymentHistory.aggregate([
@@ -43,12 +33,7 @@ async function getConversionMetrics(req, res) {
         { $group: { _id: null, gmv: { $sum: '$Amount' } } },
       ]),
     ]);
-
     const gmv = gmvAgg[0]?.gmv || 0;
-    const bookingToConfirm =
-      bookingsCreated > 0 ? Math.round((bookingsConfirmed / bookingsCreated) * 1000) / 10 : 0;
-    const confirmToComplete =
-      bookingsConfirmed > 0 ? Math.round((bookingsCompleted / bookingsConfirmed) * 1000) / 10 : 0;
     const paySuccessRate =
       paymentsSuccess + paymentsPending > 0
         ? Math.round((paymentsSuccess / (paymentsSuccess + paymentsPending)) * 1000) / 10
@@ -56,22 +41,66 @@ async function getConversionMetrics(req, res) {
 
     return res.json({
       windowDays: days,
-      since: since.toISOString(),
+      since: report.since,
       funnel: {
-        newCustomers: usersNew,
-        bookingsCreated,
-        bookingsConfirmed,
-        bookingsCompleted,
+        path: report.path,
+        newCustomers: report.stages.newCustomers,
+        bookingsCreated: report.stages.bookingsCreated,
+        bookingsConfirmed: report.stages.bookingsConfirmed,
+        bookingsCompleted: report.stages.bookingsCompleted,
         paymentsSuccess,
         paymentsPending,
+        reviews: report.stages.reviews,
       },
       rates: {
-        bookingToConfirmPercent: bookingToConfirm,
-        confirmToCompletePercent: confirmToComplete,
+        bookingToConfirmPercent: report.conversion.bookingToConfirmed,
+        confirmToCompletePercent: report.conversion.confirmedToCompleted,
         paymentSuccessPercent: paySuccessRate,
+        completedToReviewPercent: report.conversion.completedToReview,
       },
+      processCounters: report.processCounters,
       gmv,
       currency: 'VND',
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function getAlerts(req, res) {
+  try {
+    const alertService = require('../services/alertService');
+    return res.json({ alerts: alertService.listRecent(Number(req.query.limit) || 20) });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function getPaymentReconExport(req, res) {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+    const since = new Date(Date.now() - days * 86400000);
+    const payments = await PaymentHistory.find({
+      createdAt: { $gte: since },
+      Status: { $in: ['successful', 'pending', 'failed', 'refunded', 'partially_refunded'] },
+    })
+      .select('BookingID HostID CustomerID Amount Status TransactionCode RefundedAmount createdAt')
+      .sort({ createdAt: -1 })
+      .limit(2000)
+      .lean();
+    const Refund = require('../models/Refund');
+    const refunds = await Refund.find({
+      createdAt: { $gte: since },
+      Status: { $in: ['completed', 'failed', 'requested'] },
+    })
+      .select('BookingID Amount Status createdAt')
+      .limit(1000)
+      .lean();
+    return res.json({
+      since: since.toISOString(),
+      payments,
+      refunds,
+      note: 'Use with npm run reconcile:finance for ledger projection diffs',
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -521,6 +550,8 @@ async function listFlaggedListings(req, res) {
 }
 
 module.exports = {
+  getAlerts,
+  getPaymentReconExport,
   getAdminDashboard,
   listUsers,
   toggleUserStatus,
