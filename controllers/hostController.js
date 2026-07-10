@@ -712,6 +712,51 @@ async function deleteBranchImage(req, res) {
   }
 }
 
+/**
+ * Reorder gallery images (cover = first). Body: { images: string[] } subset/permutation of current.
+ */
+async function reorderBranchImages(req, res) {
+  try {
+    const hostId = getHostIdFromToken(req);
+    const { branchId } = req.params;
+    const ordered = Array.isArray(req.body.images) ? req.body.images.map(String) : [];
+    if (!ordered.length) return res.status(400).json({ error: 'Thiếu danh sách images.' });
+    const branch = await Branch.findOne({ _id: branchId, HostID: hostId });
+    if (!branch) return res.status(404).json({ error: 'Không tìm thấy cơ sở.' });
+    const current = (branch.Images || []).map((img) => (typeof img === 'string' ? img : img.url));
+    const set = new Set(current);
+    if (ordered.some((u) => !set.has(u)) || ordered.length !== current.length) {
+      return res.status(400).json({ error: 'Danh sách ảnh phải là hoán vị đầy đủ gallery hiện tại.' });
+    }
+    branch.Images = ordered;
+    await branch.save();
+    return res.json({ message: 'Đã sắp xếp lại ảnh.', images: branch.Images });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function reorderSpaceImages(req, res) {
+  try {
+    const hostId = getHostIdFromToken(req);
+    const { spaceId } = req.params;
+    const ordered = Array.isArray(req.body.images) ? req.body.images.map(String) : [];
+    if (!ordered.length) return res.status(400).json({ error: 'Thiếu danh sách images.' });
+    const space = await Space.findOne({ _id: spaceId, HostID: hostId });
+    if (!space) return res.status(404).json({ error: 'Không tìm thấy không gian.' });
+    const current = (space.Images || []).map((img) => (typeof img === 'string' ? img : img.url));
+    const set = new Set(current);
+    if (ordered.some((u) => !set.has(u)) || ordered.length !== current.length) {
+      return res.status(400).json({ error: 'Danh sách ảnh phải là hoán vị đầy đủ gallery hiện tại.' });
+    }
+    space.Images = ordered;
+    await space.save();
+    return res.json({ message: 'Đã sắp xếp lại ảnh.', images: space.Images });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
 async function getHostSpaces(req, res) {
   try {
     const hostId = getHostIdFromToken(req);
@@ -995,6 +1040,8 @@ module.exports = {
   createBranch,
   updateBranch,
   deleteBranchImage,
+  reorderBranchImages,
+  reorderSpaceImages,
   getHostSpaces,
   getBranchSpaces,
   createSpace,

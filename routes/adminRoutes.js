@@ -9,6 +9,7 @@ const { requireAdmin2faIfEnabled } = require('../middlewares/admin2fa');
 router.use(verifyToken, requireAdmin, requireAdmin2faIfEnabled);
 
 router.get('/stats', adminController.getAdminDashboard);
+router.get('/metrics/conversion', adminController.getConversionMetrics);
 router.get('/users', adminController.listUsers);
 router.patch('/users/:id/toggle-status', adminController.toggleUserStatus);
 

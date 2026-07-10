@@ -175,6 +175,13 @@ function createApp() {
     res.locals.req = req;
     res.locals.branches = [];
     res.locals.keyword = '';
+    // Expose for layout EJS (avoid relying on process in template)
+    res.locals.useTailwindCdn =
+      process.env.USE_TAILWIND_CDN === '1' || process.env.USE_TAILWIND_CDN === 'true'
+        ? true
+        : process.env.USE_TAILWIND_CDN === '0' || process.env.USE_TAILWIND_CDN === 'false'
+          ? false
+          : process.env.NODE_ENV !== 'production';
     res.locals.lang = detectLang(req);
     res.locals.t = (key, fb) => t(res.locals.lang, key, fb);
     res.locals.csrfToken = res.locals.csrfToken || (req.cookies && req.cookies.csrfToken) || '';

@@ -227,9 +227,58 @@ async function autocomplete(q) {
   };
 }
 
+/**
+ * Facets for filter UI (city counts, amenities, price range).
+ */
+async function getSearchFacets() {
+  const [cities, amenities, priceAgg] = await Promise.all([
+    Branch.aggregate([
+      { $match: { Status: 'active', CitySlug: { $exists: true, $nin: [null, ''] } } },
+      { $group: { _id: '$CitySlug', count: { $sum: 1 }, label: { $first: '$City' } } },
+      { $sort: { count: -1 } },
+      { $limit: 20 },
+    ]),
+    Space.aggregate([
+      { $match: { Status: 'available' } },
+      { $unwind: { path: '$Amenities', preserveNullAndEmptyArrays: false } },
+      { $group: { _id: '$Amenities', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 30 },
+    ]),
+    Space.aggregate([
+      { $match: { Status: 'available', PricePerHour: { $gt: 0 } } },
+      {
+        $group: {
+          _id: null,
+          minPrice: { $min: '$PricePerHour' },
+          maxPrice: { $max: '$PricePerHour' },
+          avgPrice: { $avg: '$PricePerHour' },
+        },
+      },
+    ]),
+  ]);
+
+  return {
+    cities: cities.map((c) => ({
+      citySlug: c._id,
+      label: c.label || c._id,
+      count: c.count,
+    })),
+    amenities: amenities.map((a) => ({ name: a._id, count: a.count })),
+    price: priceAgg[0]
+      ? {
+          min: Math.round(priceAgg[0].minPrice),
+          max: Math.round(priceAgg[0].maxPrice),
+          avg: Math.round(priceAgg[0].avgPrice),
+        }
+      : { min: 0, max: 0, avg: 0 },
+  };
+}
+
 module.exports = {
   searchBranches,
   autocomplete,
   buildZeroResultSuggestions,
   haversineKm,
+  getSearchFacets,
 };

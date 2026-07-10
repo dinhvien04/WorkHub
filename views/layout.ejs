@@ -14,7 +14,11 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
+    <% if (typeof useTailwindCdn === 'undefined' || useTailwindCdn) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdn.tailwindcss.com"></script>
+    <% } else { %>
+    <link rel="stylesheet" href="/css/utilities.css">
+    <% } %>
     <% if (typeof loadChartJs !== 'undefined' && loadChartJs) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>
     <% } %>

@@ -14,6 +14,70 @@ function sendServerError(res, error) {
   return res.status(500).json({ error: 'Lỗi máy chủ, vui lòng thử lại sau.' });
 }
 
+/**
+ * Funnel conversion metrics for admin (bookings created → paid → completed).
+ */
+async function getConversionMetrics(req, res) {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+    const since = new Date(Date.now() - days * 86400000);
+    const match = { createdAt: { $gte: since } };
+
+    const [
+      usersNew,
+      bookingsCreated,
+      bookingsConfirmed,
+      bookingsCompleted,
+      paymentsSuccess,
+      paymentsPending,
+      gmvAgg,
+    ] = await Promise.all([
+      User.countDocuments({ ...match, Role: 'customer' }),
+      Booking.countDocuments(match),
+      Booking.countDocuments({ ...match, Status: { $in: ['confirmed', 'in-use', 'completed'] } }),
+      Booking.countDocuments({ ...match, Status: 'completed' }),
+      PaymentHistory.countDocuments({ ...match, Status: 'successful' }),
+      PaymentHistory.countDocuments({ ...match, Status: 'pending' }),
+      PaymentHistory.aggregate([
+        { $match: { Status: 'successful', createdAt: { $gte: since } } },
+        { $group: { _id: null, gmv: { $sum: '$Amount' } } },
+      ]),
+    ]);
+
+    const gmv = gmvAgg[0]?.gmv || 0;
+    const bookingToConfirm =
+      bookingsCreated > 0 ? Math.round((bookingsConfirmed / bookingsCreated) * 1000) / 10 : 0;
+    const confirmToComplete =
+      bookingsConfirmed > 0 ? Math.round((bookingsCompleted / bookingsConfirmed) * 1000) / 10 : 0;
+    const paySuccessRate =
+      paymentsSuccess + paymentsPending > 0
+        ? Math.round((paymentsSuccess / (paymentsSuccess + paymentsPending)) * 1000) / 10
+        : 0;
+
+    return res.json({
+      windowDays: days,
+      since: since.toISOString(),
+      funnel: {
+        newCustomers: usersNew,
+        bookingsCreated,
+        bookingsConfirmed,
+        bookingsCompleted,
+        paymentsSuccess,
+        paymentsPending,
+      },
+      rates: {
+        bookingToConfirmPercent: bookingToConfirm,
+        confirmToCompletePercent: confirmToComplete,
+        paymentSuccessPercent: paySuccessRate,
+      },
+      gmv,
+      currency: 'VND',
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
 // =====================================
 // API TRẢ VỀ DỮ LIỆU DASHBOARD QUẢN TRỊ
 // =====================================
@@ -354,5 +418,6 @@ module.exports = {
   getPendingHosts, 
   verifyHost,
   getActivityLogs,
-  getEntityDetail    
+  getEntityDetail,
+  getConversionMetrics,
 };

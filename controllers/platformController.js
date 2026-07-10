@@ -33,6 +33,11 @@ const autocomplete = asyncHandler(async (req, res) => {
   res.json(data);
 });
 
+const searchFacets = asyncHandler(async (req, res) => {
+  const data = await searchService.getSearchFacets();
+  res.json(data);
+});
+
 // —— Reschedule ——
 const reschedule = asyncHandler(async (req, res) => {
   const body = schemas.parse(schemas.reschedule, req.body);
@@ -376,6 +381,7 @@ const verifyPaymentWithLedger = asyncHandler(async (req, res) => {
 module.exports = {
   search,
   autocomplete,
+  searchFacets,
   reschedule,
   requestRefund,
   processRefund,

@@ -116,6 +116,9 @@ npm run seed:extras  # coupons + feature flags demo
 - Multi-provider gateway mocks: `workhub_mock` / `stripe_mock` / `momo_mock`
 - Staff confirm + no-show; search filters URL state + near-me
 - Upload content scan (magic + polyglot heuristic); optional `web-push` send
+- Optional Redis rate-limit store (`REDIS_URL` + ioredis/redis)
+- Production CSS mode: no Tailwind CDN by default (`USE_TAILWIND_CDN=0|1`)
+- Search facets API; host gallery reorder; admin conversion funnel metrics
 
 ```bash
 npm run backup
