@@ -22,6 +22,10 @@ const {
   webauthnLoginVerify,
   webauthnList,
   webauthnRevoke,
+  googleStart,
+  googleCallback,
+  googleMock,
+  googleStatus,
 } = require('../controllers/authController');
 
 const authMiddleware = require('../middlewares/authMiddleware');
@@ -62,6 +66,11 @@ router.post('/webauthn/login/options', loginLimiter, webauthnLoginOptions);
 router.post('/webauthn/login/verify', loginLimiter, webauthnLoginVerify);
 router.get('/webauthn/credentials', authMiddleware.verifyToken, webauthnList);
 router.delete('/webauthn/credentials/:credentialId', authMiddleware.verifyToken, webauthnRevoke);
+// Google OIDC
+router.get('/google', googleStart);
+router.get('/google/callback', googleCallback);
+router.get('/google/status', googleStatus);
+router.post('/google/mock', loginLimiter, googleMock);
 router.post('/logout', logoutUser);
 router.get('/me', authMiddleware.verifyToken, getMe);
 router.post('/change-password', authMiddleware.verifyToken, changePassword);

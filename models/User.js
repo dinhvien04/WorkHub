@@ -12,7 +12,22 @@ const userSchema = new mongoose.Schema({
     },
     PasswordHash: {
         type: String,
-        required: true
+        required: function requiredPassword() {
+          // OAuth-only accounts may not have a password
+          return this.AuthProvider === 'local' || !this.AuthProvider;
+        },
+    },
+    AuthProvider: {
+        type: String,
+        enum: ['local', 'google'],
+        default: 'local',
+        index: true,
+    },
+    // Only set for Google-linked accounts (omit field otherwise — unique sparse)
+    GoogleSub: {
+        type: String,
+        sparse: true,
+        unique: true,
     },
     // 2. THÔNG TIN CÁ NHÂN CƠ BẢN
     FullName: {

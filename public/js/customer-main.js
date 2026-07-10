@@ -364,8 +364,10 @@ async function loadServerBookingPrices() {
                     total: currentPrices.total,
                     deposit: currentPrices.deposit,
                     bookingId,
+                    holdExpiresAt: data.booking.HoldExpiresAt || data.booking.holdExpiresAt || null,
                 })
             );
+            startHoldCountdown(data.booking.HoldExpiresAt || data.booking.holdExpiresAt);
         }
         return data;
     } catch {
@@ -409,10 +411,37 @@ async function setPaymentType(type) {
     }
 }
 
+let __holdTimer = null;
+function startHoldCountdown(expiresAt) {
+    const el = document.getElementById('hold-countdown');
+    if (!el || !expiresAt) return;
+    if (__holdTimer) clearInterval(__holdTimer);
+    function tick() {
+        const ms = new Date(expiresAt) - Date.now();
+        if (ms <= 0) {
+            el.textContent = 'Hết thời gian giữ chỗ — đặt lại nếu cần.';
+            el.classList.remove('hidden');
+            el.classList.add('text-red-600');
+            clearInterval(__holdTimer);
+            return;
+        }
+        const m = Math.floor(ms / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        el.textContent = `Giữ chỗ còn ${m}:${String(s).padStart(2, '0')} — thanh toán trước khi hết hạn.`;
+        el.classList.remove('hidden');
+    }
+    tick();
+    __holdTimer = setInterval(tick, 1000);
+}
+
 // Prefetch server prices on payment page
 if (typeof window !== 'undefined' && window.location.pathname === '/payment') {
     document.addEventListener('DOMContentLoaded', () => {
         loadServerBookingPrices();
+        try {
+            const pending = JSON.parse(sessionStorage.getItem('pendingBooking') || '{}');
+            if (pending.holdExpiresAt) startHoldCountdown(pending.holdExpiresAt);
+        } catch (e) { /* ignore */ }
     });
 }
 

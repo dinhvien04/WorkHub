@@ -27,6 +27,30 @@ paths:
       responses:
         '200':
           description: Sets HttpOnly cookie or pending 2FA token
+  /api/auth/google:
+    get:
+      summary: Start Google OIDC (redirect)
+      responses:
+        '302':
+          description: Redirect to Google
+  /api/auth/google/callback:
+    get:
+      summary: Google OIDC callback
+      responses:
+        '302':
+          description: Redirect home with session cookie
+  /api/auth/google/mock:
+    post:
+      summary: Dev/test Google login mock
+      responses:
+        '200':
+          description: Session cookie
+  /api/auth/webauthn/register/options:
+    post:
+      summary: WebAuthn registration options
+      responses:
+        '200':
+          description: PublicKeyCredentialCreationOptions
   /api/auth/2fa/verify:
     post:
       summary: Complete login with TOTP / recovery code

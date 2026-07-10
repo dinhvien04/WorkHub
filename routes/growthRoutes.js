@@ -223,6 +223,13 @@ router.post(
   requireStaffPermission('booking:checkin'),
   g.staffScanCheckIn
 );
+router.get(
+  '/staff/host/calendar',
+  verifyToken,
+  resolveHostContext,
+  requireStaffPermission('calendar:view'),
+  g.staffHostCalendar
+);
 
 // Web Push
 router.get('/push/vapid-public-key', g.pushVapidPublic);

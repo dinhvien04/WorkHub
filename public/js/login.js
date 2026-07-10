@@ -20,6 +20,48 @@ function finishLoginRedirect(data) {
   }, 800);
 }
 
+document.addEventListener('DOMContentLoaded', async () => {
+  // Google status + OAuth 2FA return
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('requires2fa') === '1' && q.get('pendingToken')) {
+      const code = window.prompt('Nhập mã 2FA sau đăng nhập Google:');
+      if (code) {
+        const vRes = await fetch('/api/auth/2fa/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ pendingToken: q.get('pendingToken'), code }),
+        });
+        const vData = await vRes.json();
+        if (vRes.ok) return finishLoginRedirect(vData);
+        showToast(vData.error || 'Mã 2FA sai');
+      }
+    }
+    const st = await fetch('/api/auth/google/status', { credentials: 'same-origin' }).then((r) =>
+      r.json()
+    );
+    const hint = document.getElementById('google-login-hint');
+    const btn = document.getElementById('google-login-btn');
+    if (!st.configured && hint) {
+      hint.classList.remove('hidden');
+      hint.textContent = st.mockAllowed
+        ? 'Google chưa cấu hình — mock API bật (dev/test).'
+        : 'Google OIDC chưa cấu hình trên server.';
+      if (btn && !st.configured) {
+        btn.addEventListener('click', (e) => {
+          if (!st.configured) {
+            e.preventDefault();
+            showToast('Cấu hình GOOGLE_CLIENT_ID / SECRET hoặc bật ALLOW_GOOGLE_MOCK.');
+          }
+        });
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+});
+
 async function handleLogin(event) {
   if (event) event.preventDefault();
 

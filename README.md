@@ -111,6 +111,8 @@ npm run seed:extras  # coupons + feature flags demo
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
+- Google OIDC (`/api/auth/google` + callback; mock in test via `ALLOW_GOOGLE_MOCK`)
+- Staff calendar proxy; payment hold countdown UI
 
 ```bash
 npm run backup

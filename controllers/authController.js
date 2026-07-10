@@ -622,6 +622,78 @@ const webauthnRevoke = asyncHandler(async (req, res) => {
   res.json({ message: 'Đã xóa passkey.' });
 });
 
+// —— Google OIDC ——
+const googleStart = asyncHandler(async (req, res) => {
+  const googleOidc = require('../services/googleOidcService');
+  if (!googleOidc.configured()) {
+    if (googleOidc.mockAllowed()) {
+      return res.status(200).json({
+        mock: true,
+        message: 'Google chưa cấu hình — dùng POST /api/auth/google/mock trong dev/test.',
+      });
+    }
+    throw new ValidationError('Google OIDC chưa được cấu hình trên server.');
+  }
+  const { url } = googleOidc.authorizationUrl(req);
+  return res.redirect(302, url);
+});
+
+const googleCallback = asyncHandler(async (req, res) => {
+  const googleOidc = require('../services/googleOidcService');
+  const user = await googleOidc.handleCallback(req, {
+    code: req.query.code,
+    state: req.query.state,
+  });
+  if (user.TotpEnabled) {
+    const pendingToken = jwt.sign(
+      {
+        userId: user._id.toString(),
+        purpose: '2fa',
+        tokenVersion: user.tokenVersion || 0,
+      },
+      env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    // redirect to login with pending token for 2FA step
+    return res.redirect(
+      `/login?requires2fa=1&pendingToken=${encodeURIComponent(pendingToken)}`
+    );
+  }
+  // Set cookie and redirect home
+  const token = signToken(user);
+  res.cookie(env.AUTH_COOKIE_NAME, token, authCookieOptions());
+  try {
+    const UserSession = require('../models/Session');
+    await UserSession.create({
+      UserID: user._id,
+      TokenVersion: user.tokenVersion || 0,
+      UserAgent: String(req.get('user-agent') || '').slice(0, 300),
+      IP: String(req.ip || '').slice(0, 64),
+      LastSeenAt: new Date(),
+    });
+  } catch {
+    /* ignore */
+  }
+  return res.redirect('/');
+});
+
+const googleMock = asyncHandler(async (req, res) => {
+  const googleOidc = require('../services/googleOidcService');
+  const user = await googleOidc.mockLogin({
+    email: req.body.email,
+    name: req.body.name,
+  });
+  return completeLogin(req, res, user);
+});
+
+const googleStatus = asyncHandler(async (req, res) => {
+  const googleOidc = require('../services/googleOidcService');
+  res.json({
+    configured: googleOidc.configured(),
+    mockAllowed: googleOidc.mockAllowed(),
+  });
+});
+
 module.exports = {
   registerUser,
   loginUser,
@@ -645,4 +717,8 @@ module.exports = {
   webauthnLoginVerify,
   webauthnList,
   webauthnRevoke,
+  googleStart,
+  googleCallback,
+  googleMock,
+  googleStatus,
 };

@@ -21,6 +21,14 @@
             <button onclick="handleLogin(event)" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition uppercase text-xs tracking-widest shadow-lg mt-4">
                 Đăng nhập ngay
             </button>
+            <div class="relative my-4 text-center">
+              <span class="text-[10px] font-black uppercase text-slate-400 bg-white px-2">hoặc</span>
+            </div>
+            <a href="/api/auth/google" id="google-login-btn"
+              class="w-full flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-800 py-3 rounded-xl font-bold hover:bg-slate-50 transition text-xs uppercase tracking-widest">
+              Đăng nhập với Google
+            </a>
+            <p id="google-login-hint" class="text-[10px] text-slate-400 text-center mt-2 hidden"></p>
         </div>
         <p class="text-muted" style="text-align:center; margin-top:16px; font-size:13px;">
             Chưa có tài khoản? <a href="/register" class="text-primary font-bold text-teal-600 hover:underline">Đăng ký ngay</a>

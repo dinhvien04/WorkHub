@@ -731,6 +731,19 @@ const staffScanCheckIn = asyncHandler(async (req, res) => {
   res.json({ booking, message: 'Check-in thành công.', hostOwnerId });
 });
 
+const staffHostCalendar = asyncHandler(async (req, res) => {
+  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const calendarService = require('../services/calendarService');
+  const data = await calendarService.getHostCalendar({
+    hostId: hostOwnerId,
+    from: req.query.from,
+    to: req.query.to,
+    branchId: req.query.branchId || null,
+    spaceId: req.query.spaceId || null,
+  });
+  res.json({ ...data, hostOwnerId });
+});
+
 // —— Web Push ——
 const pushVapidPublic = asyncHandler(async (req, res) => {
   const pushService = require('../services/pushService');
@@ -830,6 +843,7 @@ module.exports = {
   staffHostInbox,
   staffReceptionToday,
   staffScanCheckIn,
+  staffHostCalendar,
   pushVapidPublic,
   pushSubscribe,
   pushUnsubscribe,
