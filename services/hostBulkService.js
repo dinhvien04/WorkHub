@@ -208,10 +208,52 @@ async function setBranchStatus({ actorId, role, branchId, status, note = '' }) {
   return { branch, previousStatus: prev };
 }
 
+const PUBLISH_STATES = ['draft', 'pending_review', 'published', 'suspended', 'archived'];
+
+async function setBranchPublishStatus({ actorId, role, branchId, publishStatus, note = '' }) {
+  if (!PUBLISH_STATES.includes(publishStatus)) {
+    throw new ValidationError(`PublishStatus: ${PUBLISH_STATES.join(', ')}`);
+  }
+  const branch = await Branch.findById(branchId);
+  if (!branch) throw new NotFoundError('Không tìm thấy branch.');
+  if (role !== 'admin' && String(branch.HostID) !== String(actorId)) {
+    throw new ForbiddenError('Không có quyền.');
+  }
+  // Host cannot self-set suspended (admin moderation)
+  if (role !== 'admin' && publishStatus === 'suspended') {
+    throw new ForbiddenError('Chỉ admin mới suspend listing.');
+  }
+  const prev = branch.PublishStatus || 'published';
+  branch.PublishStatus = publishStatus;
+  // Sync operational Status for public visibility
+  if (publishStatus === 'published') {
+    if (branch.Status === 'inactive') branch.Status = 'active';
+  } else if (['draft', 'archived', 'suspended'].includes(publishStatus)) {
+    if (branch.Status === 'active') branch.Status = 'inactive';
+  }
+  await branch.save();
+  try {
+    const logActivity = require('../utils/auditLogger');
+    await logActivity(
+      actorId,
+      'BRANCH_PUBLISH',
+      'Branch',
+      branch._id,
+      `PublishStatus ${prev} → ${publishStatus}${note ? ': ' + note : ''}`,
+      'info'
+    );
+  } catch {
+    /* ignore */
+  }
+  return { branch, previousPublishStatus: prev };
+}
+
 module.exports = {
   bulkUpdateSpaces,
   createBlackoutWithNotify,
   deleteBlackout,
   setBranchStatus,
+  setBranchPublishStatus,
   SPACE_STATUSES,
+  PUBLISH_STATES,
 };

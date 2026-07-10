@@ -9,7 +9,7 @@
 
 ## Checklist progress (repo)
 
-> **Cập nhật checklist:** 2026-07-10 · branch `main` (sau commit notif/reception `b658beb`+)  
+> **Cập nhật checklist:** 2026-07-10 · main verification/publish batch
 > **Quy ước:** `[x]` = đã ship baseline trong code (+ test liên quan). Ghi `*(partial: …)*` nếu đặc tả đầy đủ chưa xong. `[ ]` = chưa làm hoặc còn thiếu lõi.  
 > **Bắt buộc:** mỗi batch ship xong phải tick/cập nhật partial trong file này cùng commit (hoặc commit ngay sau).
 
@@ -338,11 +338,11 @@ disputed
 ## 10. Host onboarding và verification
 
 - [x] Wizard: account → business → document → payout → first branch → preview → submit. *(partial: onboarding checklist + profile/spaces; wizard multi-step full chưa)*
-- [ ] Save draft và resume.
-- [ ] Verification states: pending, needs_info, approved, rejected, suspended, revoked.
+- [x] Save draft và resume. *(partial: onboarding/profile draft; wizard full resume mỏng)*
+- [x] Verification states: pending, needs_info, approved, rejected, suspended, revoked. *(API `PATCH /api/admin/hosts/:id/verification` + IsVerified sync)*
 - [x] Admin có reason, note, request-more-info và audit. *(partial: verify + moderation reason; needs_info flow mỏng)*
 - [x] Onboarding checklist có progress.
-- [ ] Verification document lưu private, signed URL có expiry.
+- [x] Verification document lưu private, signed URL có expiry. *(signed access token + redeem; blob store private thật tùy Cloudinary)*
 - [x] Host chưa verify không truy cập host page/API.
 
 ## 11. Host branch/space management
@@ -350,7 +350,7 @@ disputed
 - [x] Branch: name, slug, address, coordinates, contact, hours, holiday hours, policies, SEO, publish status. *(partial: core fields + slug/geo; holiday hours mỏng)*
 - [x] Space: code, name, category, capacity, duration min/max, price, deposit, amenity, images, floor, status. *(partial: core; duration min/max + floor mỏng)*
 - [x] Instant booking, advance window, buffer/cleanup time, calendar và add-ons. *(partial: instant + buffer/cleanup + calendar + add-ons)*
-- [ ] States: draft, pending_review, published, suspended, archived.
+- [x] States: draft, pending_review, published, suspended, archived. *(PublishStatus trên Branch; space lifecycle mỏng)*
 - [x] Bulk edit price/status/hours/amenities/blackout.
 - [x] Calendar day/week/month/resource timeline. *(partial: host calendar; resource timeline đầy đủ chưa)*
 - [x] Maintenance và blackout có notification, replacement suggestion.
@@ -396,7 +396,7 @@ Mọi financial transition idempotent và audit được.
 - [x] Peak hour, weekend, holiday, last-minute, long-stay và corporate pricing. *(partial: PricingRule peak/weekend; holiday/corporate mỏng)*
 - [ ] Rule priority và preview trước publish.
 - [x] Coupon percentage/fixed, min/max, time range, usage/user limit, branch/space scope.
-- [ ] Platform-funded hoặc host-funded.
+- [x] Platform-funded hoặc host-funded.
 - [x] Membership P2: credits, included hours, discount, priority booking. *(partial: plans/subscribe; credit ledger mỏng)*
 - [ ] Credit ledger, expiry và không sửa balance trực tiếp.
 
@@ -415,8 +415,8 @@ Vai trò con: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `
 
 - [x] Conversation scope theo booking.
 - [x] Text, image/file giới hạn, read status, timestamp và system message. *(partial: text + timestamp; image/read status mỏng)*
-- [ ] Không lộ email/phone nếu không cần.
-- [ ] Report abuse và moderation access có audit.
+- [x] Không lộ email/phone nếu không cần. *(redact email/phone trong messages)*
+- [x] Report abuse và moderation access có audit. *(report message + audit; admin queue chuyên biệt mỏng)*
 - [x] Socket rooms đúng scope: user, host, booking, admin.
 - [x] Không global broadcast.
 - [x] Notification preference và retry.
@@ -708,7 +708,7 @@ SERVICE_UNAVAILABLE
 ## 28. Reliability và deployment
 
 - [x] `/health/live` và `/health/ready`.
-- [ ] Graceful shutdown: HTTP, Socket.IO, worker, Mongo.
+- [x] Graceful shutdown: HTTP, Socket.IO, worker, Mongo.
 - [x] Retry exponential backoff + jitter, max attempts, idempotency và dead-letter.
 - [x] Automated encrypted backup, retention và restore drill. *(partial: backup script; encrypted restore drill chưa)*
 - [ ] Development/test/staging/production tách biệt.

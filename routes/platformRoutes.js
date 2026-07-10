@@ -44,6 +44,7 @@ router.post('/host/blackouts', ...host, c.createBlackout);
 router.delete('/host/blackouts/:blackoutId', ...host, c.deleteBlackout);
 router.post('/host/spaces/bulk', ...host, c.bulkSpaces);
 router.put('/host/branches/:branchId/status', ...host, c.setBranchStatusHost);
+router.put('/host/branches/:branchId/publish', ...host, c.setBranchPublishHost);
 router.post('/host/pricing-rules', ...host, c.createPricingRule);
 router.post('/host/spaces/bulk-status', ...host, c.bulkSpaceStatus);
 router.get('/host/reception/today', ...host, c.receptionToday);

@@ -134,6 +134,8 @@ npm run seed:extras  # coupons + feature flags demo
 - SEO redirects: toggle/delete UI; public `/status` page; smoke checks
 - Notifications: type/unread filters, delete, unread-count badge (header + mobile)
 - Reception: WH-code column, paste/Enter scan, no-show, query prefill
+- Host verification states (needs_info/suspend/revoke) + signed doc access token
+- Branch `PublishStatus` draft→published; message PII redact + report abuse
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities

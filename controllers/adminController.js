@@ -262,27 +262,102 @@ async function getPendingHosts(req, res) {
 async function verifyHost(req, res) {
   try {
     const { id } = req.params;
-    const hostProfile = await HostProfile.findById(id);
-    if (!hostProfile) return res.status(404).json({ error: 'Không tìm thấy hồ sơ Chủ cơ sở.' });
-
-    hostProfile.IsVerified = true;
-    await hostProfile.save();
-
-    // Activate host user and bump tokenVersion so pre-verify tokens die
-    await User.findByIdAndUpdate(hostProfile.UserID, {
-      $set: { Status: 'active' },
-      $inc: { tokenVersion: 1 },
+    // Backward-compatible: PATCH verify = approve
+    const hostVerificationService = require('../services/hostVerificationService');
+    const result = await hostVerificationService.setVerificationStatus({
+      adminId: req.user.userId,
+      hostProfileId: id,
+      status: 'approved',
+      reason: req.body?.reason || 'admin_approved',
+      note: req.body?.note || '',
     });
+    return res.json({ message: 'Đã phê duyệt Chủ cơ sở thành công!', ...result });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    return sendServerError(res, error);
+  }
+}
 
-    await logActivity(
-      req.user.userId,
-      'VERIFY_HOST',
-      'HostProfile',
-      hostProfile._id,
-      `Admin đã phê duyệt tài khoản Chủ cơ sở: ${hostProfile.CompanyName || 'Chưa cập nhật tên'}`,
-      'success'
+async function setHostVerification(req, res) {
+  try {
+    const hostVerificationService = require('../services/hostVerificationService');
+    const result = await hostVerificationService.setVerificationStatus({
+      adminId: req.user.userId,
+      hostProfileId: req.params.id,
+      status: req.body.status,
+      reason: req.body.reason,
+      note: req.body.note,
+    });
+    return res.json({ message: 'Đã cập nhật trạng thái xác minh.', ...result });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    return sendServerError(res, error);
+  }
+}
+
+async function listHostsVerification(req, res) {
+  try {
+    const hostVerificationService = require('../services/hostVerificationService');
+    const hosts = await hostVerificationService.listHostsByVerification({
+      status: req.query.status || null,
+      limit: Number(req.query.limit) || 50,
+    });
+    return res.json({ hosts, states: hostVerificationService.STATES });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function mintHostDocAccess(req, res) {
+  try {
+    const hostVerificationService = require('../services/hostVerificationService');
+    const HostProfile = require('../models/Host_Profile');
+    const profile = await HostProfile.findById(req.params.id).select(
+      'VerificationDocument VerificationDocumentKey UserID'
     );
-    return res.json({ message: 'Đã phê duyệt Chủ cơ sở thành công!' });
+    if (!profile) return res.status(404).json({ error: 'Không tìm thấy host.' });
+    const token = hostVerificationService.mintDocumentAccessToken({
+      hostProfileId: profile._id,
+      actorId: req.user.userId,
+      ttlMinutes: Number(req.body.ttlMinutes) || 15,
+    });
+    const expiresAt = new Date(Date.now() + (Number(req.body.ttlMinutes) || 15) * 60 * 1000);
+    return res.json({
+      accessToken: token,
+      expiresAt,
+      // Document URL only returned with valid token claim (not permanent public)
+      documentUrl: profile.VerificationDocument || null,
+      hasDocument: Boolean(profile.VerificationDocument || profile.VerificationDocumentKey),
+      redeemPath: `/api/admin/hosts/${profile._id}/document?token=${encodeURIComponent(token)}`,
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function redeemHostDocAccess(req, res) {
+  try {
+    const hostVerificationService = require('../services/hostVerificationService');
+    const payload = hostVerificationService.verifyDocumentAccessToken(
+      req.query.token || req.body.token
+    );
+    if (!payload || String(payload.hp) !== String(req.params.id)) {
+      return res.status(403).json({ error: 'Token document không hợp lệ hoặc hết hạn.' });
+    }
+    const HostProfile = require('../models/Host_Profile');
+    const profile = await HostProfile.findById(req.params.id).select(
+      'VerificationDocument CompanyName'
+    );
+    if (!profile) return res.status(404).json({ error: 'Không tìm thấy.' });
+    return res.json({
+      documentUrl: profile.VerificationDocument || '',
+      companyName: profile.CompanyName,
+      expiresAt: new Date(payload.exp).toISOString(),
+    });
   } catch (error) {
     return sendServerError(res, error);
   }
@@ -456,4 +531,8 @@ module.exports = {
   getConversionMetrics,
   moderateListing,
   listFlaggedListings,
+  setHostVerification,
+  listHostsVerification,
+  mintHostDocAccess,
+  redeemHostDocAccess,
 };

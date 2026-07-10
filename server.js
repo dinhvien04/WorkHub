@@ -47,8 +47,20 @@ async function shutdown(signal) {
   stopHoldRemindersJob();
   stopJobWorker();
   stopBookingRemindersJob();
+  // Close Socket.IO before HTTP server
+  try {
+    if (io && typeof io.close === 'function') {
+      await new Promise((resolve) => io.close(() => resolve()));
+    }
+  } catch (err) {
+    logger.warn(`Socket.IO close: ${err.message}`);
+  }
   server.close(async () => {
-    await disconnectDB();
+    try {
+      await disconnectDB();
+    } catch (err) {
+      logger.warn(`DB disconnect: ${err.message}`);
+    }
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 10_000).unref();

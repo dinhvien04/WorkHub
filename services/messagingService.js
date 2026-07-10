@@ -27,14 +27,22 @@ async function getOrCreateConversation(bookingId, userId, role) {
   return conv;
 }
 
+/** Strip accidental PII patterns from message payloads shown in UI */
+function redactContactPii(text) {
+  return String(text || '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email ẩn]')
+    .replace(/(?:\+?84|0)\d{8,10}\b/g, '[sđt ẩn]');
+}
+
 async function listMessages(bookingId, userId, role) {
   const conv = await getOrCreateConversation(bookingId, userId, role);
   return {
     conversationId: conv._id,
+    // Never expose participant emails/phones in conversation payload
     messages: (conv.Messages || []).slice(-100).map((m) => ({
       _id: m._id,
       senderId: m.SenderID,
-      body: m.Body,
+      body: redactContactPii(m.Body),
       isSystem: m.IsSystem,
       createdAt: m.createdAt,
     })),
@@ -60,7 +68,7 @@ async function sendMessage(bookingId, userId, role, body) {
   await notifyUser({
     userId: recipient,
     title: 'Tin nhắn booking mới',
-    body: text.slice(0, 120),
+    body: redactContactPii(text).slice(0, 120),
     type: 'message',
     entityType: 'Booking',
     entityId: bookingId,
@@ -71,9 +79,50 @@ async function sendMessage(bookingId, userId, role, body) {
   return {
     _id: last._id,
     senderId: last.SenderID,
-    body: last.Body,
+    body: redactContactPii(last.Body),
     createdAt: last.createdAt,
   };
 }
 
-module.exports = { listMessages, sendMessage, getOrCreateConversation };
+async function reportMessage({ bookingId, userId, role, messageId, reason = '' }) {
+  const conv = await getOrCreateConversation(bookingId, userId, role);
+  const msg = (conv.Messages || []).id
+    ? conv.Messages.id(messageId)
+    : (conv.Messages || []).find((m) => String(m._id) === String(messageId));
+  if (!msg) throw new NotFoundError('Không tìm thấy tin nhắn.');
+
+  conv.Reports = conv.Reports || [];
+  conv.Reports.push({
+    MessageID: msg._id,
+    ReportedBy: userId,
+    Reason: String(reason || 'abuse').slice(0, 500),
+    CreatedAt: new Date(),
+  });
+  // Cap report list
+  if (conv.Reports.length > 50) conv.Reports = conv.Reports.slice(-50);
+  await conv.save();
+
+  try {
+    const logActivity = require('../utils/auditLogger');
+    await logActivity(
+      userId,
+      'REPORT_MESSAGE',
+      'Conversation',
+      conv._id,
+      `Report message ${msg._id}: ${String(reason || 'abuse').slice(0, 200)}`,
+      'warning'
+    );
+  } catch {
+    /* ignore */
+  }
+
+  return { reported: true, conversationId: conv._id, messageId: msg._id };
+}
+
+module.exports = {
+  listMessages,
+  sendMessage,
+  getOrCreateConversation,
+  reportMessage,
+  redactContactPii,
+};

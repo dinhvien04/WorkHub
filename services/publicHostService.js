@@ -35,6 +35,7 @@ async function getPublicHostProfile(hostId) {
   const branches = await Branch.find({
     HostID: hostId,
     Status: 'active',
+    $or: [{ PublishStatus: 'published' }, { PublishStatus: { $exists: false } }],
   })
     .select(
       'Name Slug CitySlug DistrictSlug Address City District RatingAvg Images OpeningTime ClosingTime'

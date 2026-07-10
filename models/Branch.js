@@ -116,6 +116,16 @@ const branchSchema = new mongoose.Schema({
         index: true
         
     },
+    /**
+     * Listing lifecycle for host publish flow (orthogonal to Status ops).
+     * draft → pending_review → published | suspended | archived
+     */
+    PublishStatus: {
+        type: String,
+        enum: ['draft', 'pending_review', 'published', 'suspended', 'archived'],
+        default: 'published',
+        index: true,
+    },
     // Admin moderation metadata
     Moderation: {
       LastAction: { type: String, default: '' },

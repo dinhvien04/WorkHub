@@ -408,6 +408,18 @@ const setBranchStatusHost = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+const setBranchPublishHost = asyncHandler(async (req, res) => {
+  const hostBulkService = require('../services/hostBulkService');
+  const result = await hostBulkService.setBranchPublishStatus({
+    actorId: req.user.userId,
+    role: req.user.role === 'admin' ? 'admin' : 'host',
+    branchId: req.params.branchId,
+    publishStatus: req.body.publishStatus || req.body.status,
+    note: req.body.note,
+  });
+  res.json(result);
+});
+
 // —— Reception today ——
 const receptionToday = asyncHandler(async (req, res) => {
   const start = new Date();
@@ -496,6 +508,7 @@ module.exports = {
   bulkSpaceStatus,
   bulkSpaces,
   setBranchStatusHost,
+  setBranchPublishHost,
   receptionToday,
   checkout,
   verifyPaymentWithLedger,

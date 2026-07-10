@@ -42,6 +42,19 @@ const hostProfileSchema = new mongoose.Schema({
         default: false,
         index: true
     },
+    /** pending | needs_info | approved | rejected | suspended | revoked */
+    VerificationStatus: {
+        type: String,
+        enum: ['pending', 'needs_info', 'approved', 'rejected', 'suspended', 'revoked'],
+        default: 'pending',
+        index: true,
+    },
+    VerificationReason: { type: String, default: '', maxlength: 500 },
+    VerificationNote: { type: String, default: '', maxlength: 2000 },
+    VerificationUpdatedAt: { type: Date, default: null },
+    VerificationUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    /** Optional private storage key / path for verification document */
+    VerificationDocumentKey: { type: String, default: '' },
 
     // 4. THÔNG TIN TÀI CHÍNH (ĐỂ HỆ THỐNG TRẢ TIỀN)
     BankName: {

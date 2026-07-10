@@ -34,6 +34,12 @@ router.post(
   authorizeRole('customer', 'host', 'admin'),
   ctrl.sendMessage
 );
+router.post(
+  '/bookings/:bookingId/messages/:messageId/report',
+  verifyToken,
+  authorizeRole('customer', 'host', 'admin'),
+  ctrl.reportMessage
+);
 router.get('/bookings/:bookingId/ics', verifyToken, authorizeRole('customer'), ctrl.downloadIcs);
 
 // Privacy

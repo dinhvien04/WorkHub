@@ -25,6 +25,14 @@ const conversationSchema = new mongoose.Schema(
     HostID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     Messages: { type: [messageSchema], default: [] },
     LastMessageAt: { type: Date, default: Date.now, index: true },
+    Reports: [
+      {
+        MessageID: { type: mongoose.Schema.Types.ObjectId },
+        ReportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        Reason: { type: String, default: '', maxlength: 500 },
+        CreatedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { collection: 'conversations', timestamps: true }
 );

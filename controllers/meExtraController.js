@@ -107,6 +107,17 @@ const sendMessage = asyncHandler(async (req, res) => {
   res.status(201).json({ message: msg });
 });
 
+const reportMessage = asyncHandler(async (req, res) => {
+  const result = await messagingService.reportMessage({
+    bookingId: req.params.bookingId,
+    userId: req.user.userId,
+    role: req.user.role,
+    messageId: req.params.messageId,
+    reason: req.body.reason,
+  });
+  res.json({ ...result, message: 'Đã gửi báo cáo tin nhắn.' });
+});
+
 const downloadIcs = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({
     _id: req.params.bookingId,
@@ -211,6 +222,7 @@ module.exports = {
   previewCoupon,
   listMessages,
   sendMessage,
+  reportMessage,
   downloadIcs,
   exportMyData,
   requestDeleteAccount,

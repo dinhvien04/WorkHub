@@ -101,13 +101,26 @@ async function requireVerifiedHost(req, res, next) {
     if (!req.user || req.user.role !== 'host') {
       return next(new ForbiddenError('Chỉ host mới được truy cập.'));
     }
-    const profile = await HostProfile.findOne({ UserID: req.user.userId }).select('IsVerified');
-    if (!profile || !profile.IsVerified) {
+    const profile = await HostProfile.findOne({ UserID: req.user.userId }).select(
+      'IsVerified VerificationStatus'
+    );
+    const approved =
+      profile &&
+      (profile.IsVerified === true || profile.VerificationStatus === 'approved');
+    if (!approved) {
+      const st = profile?.VerificationStatus || (profile?.IsVerified ? 'approved' : 'pending');
       return next(
-        new ForbiddenError('Tài khoản host chưa được admin phê duyệt. Vui lòng chờ xác minh.')
+        new ForbiddenError(
+          st === 'needs_info'
+            ? 'Hồ sơ host cần bổ sung thông tin. Xem /host/onboarding.'
+            : st === 'suspended' || st === 'revoked'
+              ? `Tài khoản host đang ${st}. Liên hệ hỗ trợ.`
+              : 'Tài khoản host chưa được admin phê duyệt. Vui lòng chờ xác minh.'
+        )
       );
     }
     req.hostVerified = true;
+    req.hostVerificationStatus = profile.VerificationStatus || 'approved';
     return next();
   } catch (err) {
     return next(err);
