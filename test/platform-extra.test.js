@@ -60,14 +60,16 @@ describe('Reschedule', () => {
       endTime: end,
     });
     const { start: s2, end: e2 } = futureRange(5, 1);
-    const updated = await rescheduleService.rescheduleBooking({
+    const result = await rescheduleService.rescheduleBooking({
       bookingId: booking._id,
       userId: customer._id,
       role: 'customer',
       startTime: s2,
       endTime: e2,
     });
+    const updated = result.booking || result;
     expect(new Date(updated.StartTime).getTime()).toBe(s2.getTime());
+    expect(result.previous).toBeTruthy();
   });
 });
 

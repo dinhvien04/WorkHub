@@ -21,6 +21,34 @@ async function mergeGuestFavoritesAfterLogin() {
   }
 }
 
+function resolvePostLoginPath(data) {
+  const q = new URLSearchParams(location.search);
+  const returnUrl = q.get('returnUrl') || q.get('next') || '';
+  // Only allow same-origin relative paths
+  if (returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
+    return returnUrl;
+  }
+  if (data.user && data.user.role === 'host') return '/host/dashboard';
+  if (data.user && data.user.role === 'admin') return '/admin/dashboard';
+  // Resume booking wizard draft after guest login
+  if (data.user && data.user.role === 'customer') {
+    try {
+      const raw =
+        sessionStorage.getItem('bookingWizardDraft') ||
+        localStorage.getItem('bookingWizardDraft');
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && (draft.spaceId || draft.branchId || draft.step > 1)) {
+          return '/booking/wizard?restore=1';
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return '/';
+}
+
 function finishLoginRedirect(data) {
   showToast('Đăng nhập thành công! Đang chuyển hướng...');
   localStorage.removeItem('token');
@@ -32,14 +60,9 @@ function finishLoginRedirect(data) {
     sessionStorage.setItem('displayName', data.user.fullName || '');
     sessionStorage.setItem('displayRole', data.user.role || '');
   }
+  const path = resolvePostLoginPath(data);
   const go = () => {
-    if (data.user && data.user.role === 'host') {
-      window.location.href = '/host/dashboard';
-    } else if (data.user && data.user.role === 'admin') {
-      window.location.href = '/admin/dashboard';
-    } else {
-      window.location.href = '/';
-    }
+    window.location.href = path;
   };
   if (data.user && data.user.role === 'customer') {
     mergeGuestFavoritesAfterLogin().finally(() => setTimeout(go, 400));

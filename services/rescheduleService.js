@@ -11,19 +11,122 @@ const {
   ConflictError,
 } = require('../utils/errors');
 
-/**
- * Reschedule: create new slots first, then release old — never free old before new secured.
- */
-async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }) {
+const RESCHEDULABLE = [
+  'hold',
+  'pending',
+  'awaiting_payment',
+  'payment_under_review',
+  'confirmed',
+];
+
+async function loadAuthorizedBooking({ bookingId, userId, role }) {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw new NotFoundError('Không tìm thấy booking.');
-
   const isCustomer = String(booking.CustomerID) === String(userId);
   const isHost = String(booking.HostID) === String(userId);
   if (!isCustomer && !isHost && role !== 'admin') {
     throw new ForbiddenError('Không có quyền đổi lịch.');
   }
-  if (!['pending', 'confirmed', 'awaiting_payment', 'payment_under_review'].includes(booking.Status)) {
+  return { booking, isCustomer, isHost };
+}
+
+/**
+ * Dry-run: conflict + estimated quote for new window (does not mutate slots).
+ */
+async function previewReschedule({ bookingId, userId, role, startTime, endTime }) {
+  const { booking } = await loadAuthorizedBooking({ bookingId, userId, role });
+  if (!RESCHEDULABLE.includes(booking.Status)) {
+    throw new ValidationError('Không thể đổi lịch booking ở trạng thái này.');
+  }
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  bookingService.validateBookingWindow(start, end);
+
+  const conflict = await Booking.findOne({
+    _id: { $ne: booking._id },
+    SpaceID: booking.SpaceID,
+    Status: { $in: bookingService.ACTIVE_STATUSES },
+    StartTime: { $lt: end },
+    EndTime: { $gt: start },
+  })
+    .select('_id Status StartTime EndTime')
+    .lean();
+
+  // Slot-level uniqueness excluding this booking's current slots
+  const slotStarts = bookingService.buildSlotStarts(start, end);
+  const taken = await BookingSlot.find({
+    SpaceID: booking.SpaceID,
+    BookingID: { $ne: booking._id },
+    SlotStart: { $in: slotStarts },
+  })
+    .select('SlotStart')
+    .lean();
+
+  const available = !conflict && taken.length === 0;
+
+  let quote = null;
+  try {
+    const bookingQuoteService = require('./bookingQuoteService');
+    const addOns = (booking.AddOns || []).map((a) => ({
+      addOnId: a.AddOnID || a.addOnId,
+      quantity: a.Quantity || a.quantity || 1,
+    }));
+    quote = await bookingQuoteService.quoteBooking({
+      spaceId: booking.SpaceID,
+      startTime: start,
+      endTime: end,
+      addOns,
+      couponCode: booking.CouponCode || null,
+      userId: booking.CustomerID,
+    });
+    if (quote && quote.ok === false) quote = null;
+  } catch {
+    quote = null;
+  }
+
+  return {
+    bookingId: String(booking._id),
+    current: {
+      startTime: booking.StartTime,
+      endTime: booking.EndTime,
+      status: booking.Status,
+      totalAmount: booking.TotalAmount,
+      depositAmount: booking.DepositAmount,
+    },
+    proposed: {
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+    },
+    available,
+    conflict: conflict
+      ? { bookingId: String(conflict._id), status: conflict.Status }
+      : null,
+    slotConflicts: taken.length,
+    quote: quote
+      ? {
+          totalAmount: quote.totalAmount,
+          depositAmount: quote.depositAmount,
+          baseAmount: quote.baseAmount,
+          hours: quote.hours,
+          priceDelta: quote.totalAmount - (booking.TotalAmount || 0),
+          lines: quote.lines,
+        }
+      : null,
+    canApply: available,
+    note: available
+      ? 'Khung giờ trống — có thể đổi lịch. Giá có thể thay đổi theo thời lượng/rules.'
+      : 'Khung giờ không khả dụng.',
+  };
+}
+
+/**
+ * Reschedule: release old slots only after new secured (restore on failure).
+ * Recalculates price when unpaid (no successful payment yet).
+ */
+async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }) {
+  const { booking, isCustomer } = await loadAuthorizedBooking({ bookingId, userId, role });
+  if (!RESCHEDULABLE.includes(booking.Status)) {
     throw new ValidationError('Không thể đổi lịch booking ở trạng thái này.');
   }
 
@@ -33,19 +136,11 @@ async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }
 
   const slotStarts = bookingService.buildSlotStarts(start, end);
   const oldSlots = await BookingSlot.find({ BookingID: booking._id }).lean();
-
-  // Try insert new slots first (unique index)
   const newDocs = slotStarts.map((SlotStart) => ({
     SpaceID: booking.SpaceID,
     BookingID: booking._id,
     SlotStart,
   }));
-
-  // Temporarily remove old slots in memory plan: insert new excluding times that equal old if same
-  // Strategy: delete old AFTER successful insert of new — but unique is SpaceID+SlotStart.
-  // So for overlapping same booking, we need to delete old first only for slots we're replacing,
-  // OR use a temp booking id. Safer: delete old slots, insert new, on failure re-insert old.
-
   const oldDocs = oldSlots.map((s) => ({
     SpaceID: s.SpaceID,
     BookingID: s.BookingID,
@@ -55,7 +150,6 @@ async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }
   await BookingSlot.deleteMany({ BookingID: booking._id });
 
   try {
-    // conflict with OTHER bookings
     const conflict = await Booking.findOne({
       _id: { $ne: booking._id },
       SpaceID: booking.SpaceID,
@@ -67,7 +161,6 @@ async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }
 
     await BookingSlot.insertMany(newDocs, { ordered: true });
   } catch (err) {
-    // restore old slots
     try {
       await BookingSlot.insertMany(oldDocs, { ordered: false });
     } catch {
@@ -79,9 +172,49 @@ async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }
     throw err;
   }
 
+  const previousStart = booking.StartTime;
+  const previousEnd = booking.EndTime;
   booking.StartTime = start;
   booking.EndTime = end;
-  booking.Status = booking.Status === 'confirmed' ? 'confirmed' : booking.Status;
+  if (booking.Status === 'hold' || booking.Status === 'pending') {
+    // refresh hold window on reschedule of unpaid hold
+    booking.HoldExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  }
+
+  // Re-price only when nothing paid successfully
+  try {
+    const PaymentHistory = require('../models/Payment_History');
+    const paid = await PaymentHistory.countDocuments({
+      BookingID: booking._id,
+      Status: 'successful',
+    });
+    if (paid === 0) {
+      const bookingQuoteService = require('./bookingQuoteService');
+      const addOns = (booking.AddOns || []).map((a) => ({
+        addOnId: a.AddOnID,
+        quantity: a.Quantity || 1,
+      }));
+      const quote = await bookingQuoteService.quoteBooking({
+        spaceId: booking.SpaceID,
+        startTime: start,
+        endTime: end,
+        addOns,
+        couponCode: booking.CouponCode || null,
+        userId: booking.CustomerID,
+      });
+      if (quote && quote.ok !== false) {
+        booking.BaseAmount = quote.baseAmount;
+        booking.AddOnsTotal = quote.addOnsTotal;
+        booking.DiscountAmount = quote.discountAmount;
+        booking.TotalAmount = quote.totalAmount;
+        booking.DepositAmount = quote.depositAmount;
+        booking.AppliedPricingRules = quote.appliedRules || [];
+      }
+    }
+  } catch {
+    /* keep previous amounts */
+  }
+
   await booking.save();
 
   const other = isCustomer ? booking.HostID : booking.CustomerID;
@@ -94,7 +227,14 @@ async function rescheduleBooking({ bookingId, userId, role, startTime, endTime }
     entityId: booking._id,
   });
 
-  return booking;
+  return {
+    booking,
+    previous: { startTime: previousStart, endTime: previousEnd },
+  };
 }
 
-module.exports = { rescheduleBooking };
+module.exports = {
+  rescheduleBooking,
+  previewReschedule,
+  RESCHEDULABLE,
+};

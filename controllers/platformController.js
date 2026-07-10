@@ -48,16 +48,36 @@ const featured = asyncHandler(async (req, res) => {
 });
 
 // —— Reschedule ——
-const reschedule = asyncHandler(async (req, res) => {
-  const body = schemas.parse(schemas.reschedule, req.body);
-  const booking = await rescheduleService.rescheduleBooking({
+const reschedulePreview = asyncHandler(async (req, res) => {
+  const body = schemas.parse(schemas.reschedule, {
+    startTime: req.body.startTime || req.query.startTime,
+    endTime: req.body.endTime || req.query.endTime,
+  });
+  const preview = await rescheduleService.previewReschedule({
     bookingId: req.params.bookingId,
     userId: req.user.userId,
     role: req.user.role,
     startTime: body.startTime,
     endTime: body.endTime,
   });
-  res.json({ message: 'Đã đổi lịch.', booking });
+  res.json({ preview });
+});
+
+const reschedule = asyncHandler(async (req, res) => {
+  const body = schemas.parse(schemas.reschedule, req.body);
+  const result = await rescheduleService.rescheduleBooking({
+    bookingId: req.params.bookingId,
+    userId: req.user.userId,
+    role: req.user.role,
+    startTime: body.startTime,
+    endTime: body.endTime,
+  });
+  const booking = result.booking || result;
+  res.json({
+    message: 'Đã đổi lịch.',
+    booking,
+    previous: result.previous || null,
+  });
 });
 
 // —— Refunds ——
@@ -393,6 +413,7 @@ module.exports = {
   searchFacets,
   featured,
   reschedule,
+  reschedulePreview,
   requestRefund,
   processRefund,
   openDispute,

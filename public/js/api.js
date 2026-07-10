@@ -65,11 +65,12 @@
     });
 
     if (res.status === 401 && redirectOn401) {
-      const path = window.location.pathname;
+      const path = window.location.pathname + window.location.search;
       if (!path.startsWith('/login') && !path.startsWith('/register')) {
         if (!sessionStorage.getItem('auth_redirecting')) {
           sessionStorage.setItem('auth_redirecting', '1');
-          window.location.href = '/login';
+          const ret = encodeURIComponent(path);
+          window.location.href = `/login?returnUrl=${ret}`;
         }
       }
     } else if (res.status !== 401) {

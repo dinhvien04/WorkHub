@@ -18,6 +18,8 @@ router.get('/membership/plans', c.listPlans);
 router.post('/pricing/quote', c.quote);
 
 // Customer authenticated
+router.get('/bookings/:bookingId/reschedule-preview', verifyToken, c.reschedulePreview);
+router.post('/bookings/:bookingId/reschedule-preview', verifyToken, c.reschedulePreview);
 router.put('/bookings/:bookingId/reschedule', verifyToken, c.reschedule);
 router.post('/bookings/:bookingId/refunds', verifyToken, c.requestRefund);
 router.post('/bookings/:bookingId/disputes', verifyToken, c.openDispute);

@@ -11,6 +11,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('bd-id').textContent = bookingId;
 
+  let holdTimer = null;
+  function startHold(expiresAt) {
+    const el = document.getElementById('bd-hold');
+    if (!el || !expiresAt) return;
+    if (holdTimer) clearInterval(holdTimer);
+    function tick() {
+      const ms = new Date(expiresAt) - Date.now();
+      if (ms <= 0) {
+        el.textContent = 'Hết thời gian giữ chỗ — booking có thể hết hạn.';
+        el.classList.remove('hidden');
+        el.classList.add('text-red-700', 'bg-red-50', 'border-red-100');
+        clearInterval(holdTimer);
+        return;
+      }
+      const m = Math.floor(ms / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      el.textContent = `Giữ chỗ còn ${m}:${String(s).padStart(2, '0')} — thanh toán trước khi hết hạn.`;
+      el.classList.remove('hidden');
+    }
+    tick();
+    holdTimer = setInterval(tick, 1000);
+  }
+
+  function toLocalInputValue(d) {
+    if (!d) return '';
+    const x = new Date(d);
+    if (Number.isNaN(x.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
+  }
+
+  function fromLocalInput(val) {
+    if (!val) return null;
+    const d = new Date(val);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
   try {
     const [detailRes, tlRes] = await Promise.all([
       WorkHubAPI.api(`/api/customers/me/bookings/${bookingId}`),
@@ -33,7 +70,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       `Cọc: ${Number(b.DepositAmount || b.depositAmount || 0).toLocaleString('vi-VN')}đ`,
     ].forEach((t) => sum.appendChild(DomSafe.createTextElement('p', '', t)));
 
-    const pol = b.CancellationPolicy || detail.cancelPreview?.policy;
+    const holdAt = b.HoldExpiresAt || b.holdExpiresAt;
+    if (holdAt && ['pending', 'hold', 'awaiting_payment'].includes(b.Status || b.status)) {
+      startHold(holdAt);
+    }
+
+    const pol = b.CancellationPolicy || b.cancellationPolicy || detail.cancelPreview?.policy;
     document.getElementById('bd-policy').textContent =
       pol?.summary || detail.cancelPreview?.processingNote || '';
 
@@ -44,6 +86,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       Number(detail.paymentProgress?.paidAmount || 0).toLocaleString('vi-VN') +
       'đ';
 
+    const payLink = document.getElementById('bd-pay-link');
+    if (
+      payLink &&
+      ['pending', 'hold', 'awaiting_payment', 'payment_under_review'].includes(b.Status || b.status) &&
+      detail.paymentUiStatus !== 'paid_in_full'
+    ) {
+      payLink.href = `/payment?bookingId=${bookingId}`;
+      payLink.classList.remove('hidden');
+    }
+
     const receipt = document.getElementById('bd-receipt');
     receipt.href = `/api/bookings/${bookingId}/receipt`;
     receipt.classList.remove('hidden');
@@ -53,20 +105,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     (tl.events || []).forEach((ev) => {
       const li = document.createElement('li');
       li.className = 'border-l-2 border-teal-400 pl-3';
-      li.appendChild(
-        DomSafe.createTextElement(
-          'p',
-          'font-semibold',
-          ev.label || ev.type
-        )
-      );
+      li.appendChild(DomSafe.createTextElement('p', 'font-semibold', ev.label || ev.type));
       if (ev.at) {
         li.appendChild(
-          DomSafe.createTextElement(
-            'p',
-            'text-xs text-slate-400',
-            new Date(ev.at).toLocaleString('vi-VN')
-          )
+          DomSafe.createTextElement('p', 'text-xs text-slate-400', new Date(ev.at).toLocaleString('vi-VN'))
         );
       }
       ol.appendChild(li);
@@ -94,8 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!confirm('Xác nhận hủy booking?')) return;
       const res = await WorkHubAPI.api(`/api/customers/me/bookings/${bookingId}/cancel`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'customer_request' }),
+        body: { reason: 'customer_request' },
       });
       const data = await res.json().catch(() => ({}));
       const msg = document.getElementById('bd-cancel-msg');
@@ -108,6 +149,91 @@ document.addEventListener('DOMContentLoaded', async () => {
       msg.className = 'text-sm mt-2 text-teal-700 font-bold';
       setTimeout(() => location.reload(), 800);
     });
+
+    // —— Reschedule ——
+    if (detail.canReschedule) {
+      const section = document.getElementById('bd-reschedule-section');
+      section.classList.remove('hidden');
+      const startEl = document.getElementById('bd-rs-start');
+      const endEl = document.getElementById('bd-rs-end');
+      startEl.value = toLocalInputValue(b.StartTime);
+      endEl.value = toLocalInputValue(b.EndTime);
+      const applyBtn = document.getElementById('bd-rs-apply');
+      const box = document.getElementById('bd-rs-preview-box');
+      const rsMsg = document.getElementById('bd-rs-msg');
+      let lastPreview = null;
+
+      document.getElementById('bd-rs-preview').addEventListener('click', async () => {
+        rsMsg.textContent = '';
+        DomSafe.clearElement(box);
+        applyBtn.disabled = true;
+        const startTime = fromLocalInput(startEl.value);
+        const endTime = fromLocalInput(endEl.value);
+        if (!startTime || !endTime) {
+          rsMsg.textContent = 'Chọn thời gian hợp lệ.';
+          rsMsg.className = 'text-sm mt-2 text-red-600';
+          return;
+        }
+        const res = await WorkHubAPI.api(
+          `/api/bookings/${bookingId}/reschedule-preview`,
+          {
+            method: 'POST',
+            body: { startTime, endTime },
+          }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          rsMsg.textContent = data.error || 'Không xem trước được';
+          rsMsg.className = 'text-sm mt-2 text-red-600';
+          return;
+        }
+        lastPreview = data.preview;
+        box.appendChild(
+          DomSafe.createTextElement(
+            'p',
+            lastPreview.available ? 'text-teal-700 font-bold' : 'text-red-600 font-bold',
+            lastPreview.note
+          )
+        );
+        if (lastPreview.quote) {
+          box.appendChild(
+            DomSafe.createTextElement(
+              'p',
+              '',
+              `Giá mới ước tính: ${Number(lastPreview.quote.totalAmount).toLocaleString('vi-VN')}đ (Δ ${Number(lastPreview.quote.priceDelta).toLocaleString('vi-VN')}đ)`
+            )
+          );
+          box.appendChild(
+            DomSafe.createTextElement(
+              'p',
+              'text-xs text-slate-500',
+              `Cọc: ${Number(lastPreview.quote.depositAmount).toLocaleString('vi-VN')}đ · ${lastPreview.quote.hours}h`
+            )
+          );
+        }
+        applyBtn.disabled = !lastPreview.canApply;
+      });
+
+      applyBtn.addEventListener('click', async () => {
+        if (!lastPreview?.canApply) return;
+        if (!confirm('Xác nhận đổi lịch booking?')) return;
+        const startTime = fromLocalInput(startEl.value);
+        const endTime = fromLocalInput(endEl.value);
+        const res = await WorkHubAPI.api(`/api/bookings/${bookingId}/reschedule`, {
+          method: 'PUT',
+          body: { startTime, endTime },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          rsMsg.textContent = data.error || 'Đổi lịch thất bại';
+          rsMsg.className = 'text-sm mt-2 text-red-600';
+          return;
+        }
+        rsMsg.textContent = data.message || 'Đã đổi lịch.';
+        rsMsg.className = 'text-sm mt-2 text-teal-700 font-bold';
+        setTimeout(() => location.reload(), 900);
+      });
+    }
   } catch (e) {
     errEl.textContent = e.message || 'Lỗi';
     errEl.classList.remove('hidden');

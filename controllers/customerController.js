@@ -373,6 +373,8 @@ async function getMyBookingById(req, res) {
       { ...booking, _successfulPaid: progress.paidAmount || 0 },
       { now: new Date() }
     );
+    const rescheduleService = require('../services/rescheduleService');
+    const canReschedule = rescheduleService.RESCHEDULABLE.includes(booking.Status);
     return res.json({
       booking: {
         ...presentBooking(booking, { role: 'customer' }),
@@ -382,6 +384,7 @@ async function getMyBookingById(req, res) {
         EndTime: booking.EndTime,
         TotalAmount: booking.TotalAmount,
         DepositAmount: booking.DepositAmount,
+        HoldExpiresAt: booking.HoldExpiresAt,
         SpaceID: booking.SpaceID,
         Snapshot: booking.Snapshot,
         CancellationPolicy: booking.CancellationPolicy,
@@ -390,6 +393,7 @@ async function getMyBookingById(req, res) {
       paymentProgress: progress,
       pendingPayments,
       cancelPreview,
+      canReschedule,
       calendarLinks: calendarService.calendarDeepLinks(booking),
       // UI guidance: pending is NOT success
       paymentUiStatus: pendingPayments.length

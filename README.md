@@ -116,6 +116,8 @@ npm run seed:extras  # coupons + feature flags demo
 - Booking quote API `GET|POST /api/bookings/quote` (server price breakdown, add-ons, policy)
 - Wizard: add-ons, server quote step 3, localStorage draft, idempotent submit
 - Detail above-the-fold amenities + free-cancel/instant badges + wizard CTA
+- Reschedule preview/apply (`/api/bookings/:id/reschedule-preview`, PUT reschedule) + booking-detail UI
+- Login returnUrl + resume wizard draft; hold countdown on payment & booking detail
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
