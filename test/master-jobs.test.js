@@ -74,8 +74,8 @@ describe('Background jobs', () => {
     const host = await createUser({ email: 'hrm2@test.com', role: 'host' });
     const customer = await createUser({ email: 'crm2@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
-    const start = new Date(Date.now() + 60 * 60 * 1000);
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    // Align to BOOKING_SLOT_MINUTES (30) — raw Date.now()+1h may misalign
+    const { start, end } = futureRange(1, 1);
     const booking = await bookingService.createBooking({
       customerId: customer._id,
       spaceId: space._id,

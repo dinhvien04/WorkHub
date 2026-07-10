@@ -291,7 +291,8 @@ describe("P1.8 Check-in random code + no-show grace", () => {
       actorId: customer._id,
       actorRole: "customer",
     });
-    expect(minted.code).toMatch(/^WH-[A-F0-9]{10}$/i);
+    // 16 hex chars (64-bit entropy) after WH- prefix
+    expect(minted.code).toMatch(/^WH-[A-F0-9]{16}$/i);
     const suffix = String(booking._id).slice(-6).toUpperCase();
     expect(minted.code.includes(suffix)).toBe(false);
 
