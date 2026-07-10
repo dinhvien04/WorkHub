@@ -2,7 +2,7 @@
 
 const Booking = require("../models/Booking");
 const Space = require("../models/Space");
-const { ForbiddenError, ValidationError } = require("../utils/errors");
+const { ValidationError } = require("../utils/errors");
 
 /**
  * Host calendar events in a date range (host-scoped).

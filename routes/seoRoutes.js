@@ -2,7 +2,6 @@
 
 const express = require('express');
 const Branch = require('../models/Branch');
-const Space = require('../models/Space');
 const CmsPage = require('../models/CmsPage');
 const SeoRedirect = require('../models/SeoRedirect');
 const { slugify } = require('../utils/slugify');

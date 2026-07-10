@@ -83,7 +83,7 @@ const templates = {
     spaceName,
     startTime,
     endTime,
-    bookingId,
+    bookingId: _bookingId,
     baseUrl,
   }) {
     const subject = `${BRAND}: host đã xác nhận đơn`;
@@ -105,7 +105,7 @@ const templates = {
     spaceName,
     startTime,
     reason,
-    bookingId,
+    bookingId: _bookingId,
     baseUrl,
   }) {
     const subject = `${BRAND}: đơn đã hủy`;
@@ -127,7 +127,7 @@ const templates = {
     startTime,
     endTime,
     totalAmount,
-    bookingId,
+    bookingId: _bookingId,
     baseUrl,
   }) {
     const subject = `${BRAND}: đơn mới cần xử lý`;

@@ -52,7 +52,6 @@ async function notifyPush(userId, payload) {
   // Optional peer dependency: npm i web-push
   let webpush;
   try {
-    // eslint-disable-next-line import/no-extraneous-dependencies, global-require
     webpush = require("web-push");
   } catch {
     logger.warn(

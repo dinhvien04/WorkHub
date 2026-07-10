@@ -9,7 +9,7 @@
 
 ## Checklist progress (repo)
 
-> **Cập nhật checklist:** 2026-07-10 · remaining master open items baseline batch
+> **Cập nhật checklist:** 2026-07-10 · **0 open `[ ]` items** — all checklist rows shipped as baseline. Rows with `*(partial: …)*` mean full product depth/ops (GSC account, CDN vendor, etc.) may still be refined; core code path exists.
 > **Quy ước:** `[x]` = đã ship baseline trong code (+ test liên quan). Ghi `*(partial: …)*` nếu đặc tả đầy đủ chưa xong. `[ ]` = chưa làm hoặc còn thiếu lõi.  
 > **Bắt buộc:** mỗi batch ship xong phải tick/cập nhật partial trong file này cùng commit (hoặc commit ngay sau).
 

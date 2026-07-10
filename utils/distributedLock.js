@@ -34,7 +34,6 @@ async function getRedis() {
   if (!url || process.env.NODE_ENV === 'test') return null;
   try {
     try {
-      // eslint-disable-next-line import/no-extraneous-dependencies, global-require
       const Redis = require('ioredis');
       redisClient = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true });
       if (redisClient.status !== 'ready') {
@@ -43,7 +42,6 @@ async function getRedis() {
       logger.info('Distributed lock: Redis (ioredis)');
       return redisClient;
     } catch {
-      // eslint-disable-next-line import/no-extraneous-dependencies, global-require
       const { createClient } = require('redis');
       redisClient = createClient({ url });
       redisClient.on('error', (e) => logger.warn(`redis lock: ${e.message}`));

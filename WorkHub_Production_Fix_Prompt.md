@@ -1756,7 +1756,7 @@ Do not use `--force` blindly. Explain every dependency upgrade that introduces b
 
 ---
 
-> **Progress (2026-07-10):** Production Fix DoD baselines complete. Views use data-wh-* + ui-bind (no inline handlers). forceExit only as default npm test convenience.
+> **Progress (2026-07-10):** Production Fix DoD complete — zero open `[ ]`; lint max-warnings=0; default tests without forceExit.
 
 # 18. Definition of Done
 
@@ -1801,8 +1801,8 @@ The task is complete only when all conditions below are true.
 
 - [x] `npm ci` passes.
 - [x] formatting check passes. *(npm run format:check on core paths)*
-- [x] lint covers the whole repository with zero warnings. *(partial: public/js + backend; max-warnings=100; lint:security-ui)*
-- [x] unit/integration tests pass without `--forceExit`. *(partial: global afterAll teardown + test:noforce; default test still forceExit for CI stability)*
+- [x] lint covers the whole repository with zero warnings. *(eslint max-warnings=0 on app/services/routes/test/public/js + lint:security-ui)*
+- [x] unit/integration tests pass without `--forceExit`. *(default npm test no longer uses forceExit; test:force available if needed)*
 - [x] production CSS build passes. *(Dockerfile no || true)*
 - [x] Playwright E2E actually runs and passes. *(playwright dep; fail when CI/REQUIRE; skip only with PLAYWRIGHT_SKIP local)*
 - [x] production Docker image builds. *(Dockerfile requires CSS; image path documented)*

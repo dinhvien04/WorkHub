@@ -8,7 +8,7 @@ const couponService = require('../services/couponService');
 const calendarService = require('../services/calendarService');
 const Booking = require('../models/Booking');
 const { parsePagination, paginationMeta } = require('../utils/pagination');
-const { NotFoundError, ForbiddenError } = require('../utils/errors');
+const { NotFoundError } = require('../utils/errors');
 
 const listFavorites = asyncHandler(async (req, res) => {
   const items = await favoriteService.listFavorites(req.user.userId);

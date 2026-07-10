@@ -222,7 +222,6 @@ function createApp() {
 
   app.get('/health/details', requireMetricsAuth, async (req, res) => {
     const mongoose = require('mongoose');
-    const metrics = require('./utils/metrics');
     const pkg = require('./package.json');
     // Minimal operational detail — no full dependency/topology dump
     res.json({

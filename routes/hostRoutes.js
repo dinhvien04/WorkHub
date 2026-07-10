@@ -9,7 +9,6 @@ const { verifyToken, authorizeRole, requireVerifiedHost } = require('../middlewa
 const { requirePaymentVerify } = require('../middlewares/hostPermission');
 const upload = require('../middlewares/upload');
 const paymentService = require('../services/paymentService');
-const ledgerService = require('../services/ledgerService');
 const asyncHandler = require('../utils/asyncHandler');
 
 // Host API: authenticated + role host + IsVerified

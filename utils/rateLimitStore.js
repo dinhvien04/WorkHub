@@ -85,7 +85,6 @@ async function getRateLimitStore(windowMs = 60_000) {
   try {
     let Redis;
     try {
-      // eslint-disable-next-line import/no-extraneous-dependencies, global-require
       Redis = require('ioredis');
       const client = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true });
       await client.connect().catch(() => client); // ioredis may auto-connect
@@ -95,7 +94,6 @@ async function getRateLimitStore(windowMs = 60_000) {
       cached = redisStore(client, { windowMs });
       return cached;
     } catch {
-      // eslint-disable-next-line import/no-extraneous-dependencies, global-require
       const { createClient } = require('redis');
       const client = createClient({ url });
       client.on('error', (e) => logger.warn(`redis error: ${e.message}`));

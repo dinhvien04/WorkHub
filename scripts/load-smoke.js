@@ -46,8 +46,7 @@ async function main() {
     for (let i = 0; i < concurrency; i++) {
       batch.push(one(paths[i % paths.length]));
     }
-    // eslint-disable-next-line no-await-in-loop
-    const results = await Promise.all(batch);
+        const results = await Promise.all(batch);
     all.push(...results);
   }
   const ok = all.filter((x) => x.ok).length;

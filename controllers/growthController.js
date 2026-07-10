@@ -8,14 +8,13 @@ const membershipService = require('../services/membershipService');
 const recurringService = require('../services/recurringService');
 const fraudService = require('../services/fraudService');
 const jobQueue = require('../services/jobQueue');
-const { detectLang, t } = require('../services/i18n');
+const { detectLang } = require('../services/i18n');
 const ApiKey = require('../models/ApiKey');
 const Booking = require('../models/Booking');
 const User = require('../models/User');
 const Space = require('../models/Space');
 const UserSession = require('../models/Session');
 const calendarService = require('../services/calendarService');
-const { parsePagination, paginationMeta } = require('../utils/pagination');
 const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
 
 // —— Gateway ——

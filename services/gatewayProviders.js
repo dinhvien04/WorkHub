@@ -217,7 +217,7 @@ function signForProvider(provider, body) {
   return `t=${ts},v1=${v1}`;
 }
 
-function verifyForProvider(provider, rawBody, signature, event) {
+function verifyForProvider(provider, rawBody, signature, _event) {
   if (!signature) return false;
   const secret = webhookSecretFor(provider);
   if (!secret) return false;

@@ -9,7 +9,6 @@
  */
 const { sniffImageOrPdf, assertAllowedMagic } = require("../utils/magicBytes");
 const { ValidationError } = require("../utils/errors");
-const logger = require("../utils/logger");
 
 const MAX_BYTES = 5 * 1024 * 1024;
 

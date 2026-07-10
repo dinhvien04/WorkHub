@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const User = require('../models/User');
 const CustomerProfile = require('../models/Customer_Profile');
 const Booking = require('../models/Booking');
@@ -11,7 +10,6 @@ const bookingService = require('../services/bookingService');
 const paymentService = require('../services/paymentService');
 const { safeRegexQuery } = require('../utils/escapeRegex');
 const { parsePagination, paginationMeta } = require('../utils/pagination');
-const { ForbiddenError, NotFoundError, ValidationError } = require('../utils/errors');
 
 
 
@@ -76,7 +74,7 @@ async function searchBranches(req, res){
       }
     }
 
-    const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 50, maxLimit: 100 });
+    const { page: _page, limit, skip } = parsePagination(req.query, { page: 1, limit: 50, maxLimit: 100 });
     const branches = await Branch.find(query).skip(skip).limit(limit).lean();
     
     res.render('customer/search', { 

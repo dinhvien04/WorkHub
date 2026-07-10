@@ -49,12 +49,6 @@ async function requestRefund({
   }
 
   const paid = await getSuccessfulPaid(bookingId);
-  const already = await getRefundedTotal(bookingId);
-  const maxRefund = paid; // net already accounts for partials on payments; requested not completed
-  // Count only completed for max; pending requests shouldn't double-count paid net incorrectly
-  const completedSum = (
-    await Refund.find({ BookingID: bookingId, Status: "completed" })
-  ).reduce((s, r) => s + r.Amount, 0);
   const pendingSum = (
     await Refund.find({
       BookingID: bookingId,

@@ -108,7 +108,7 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
   }
 }
 
-async function processPayout({ payoutId, approve, adminId }) {
+async function processPayout({ payoutId, approve, adminId: _adminId }) {
   const payout = await Payout.findById(payoutId);
   if (!payout) throw new NotFoundError("Không tìm thấy payout.");
   if (payout.Status !== "requested" && payout.Status !== "processing") {

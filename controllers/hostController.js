@@ -5,7 +5,6 @@ const Booking = require('../models/Booking');
 const User = require('../models/User');
 const ExcelJS = require('exceljs');
 const PaymentHistory = require('../models/Payment_History');
-const logActivity = require('../utils/auditLogger');
 const bookingService = require('../services/bookingService');
 const paymentService = require('../services/paymentService');
 const { extractPublicId, imageInResource } = require('../utils/cloudinaryHelper');
