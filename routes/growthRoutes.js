@@ -170,4 +170,30 @@ router.post(
   g.adminForceLogout
 );
 
+// Host notes + space ops
+router.get(
+  '/host/bookings/:bookingId/notes',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.listHostNotes
+);
+router.post(
+  '/host/bookings/:bookingId/notes',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.addHostNote
+);
+router.patch(
+  '/host/spaces/:spaceId/ops',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.patchSpaceOps
+);
+
+// Privacy policy meta (public)
+router.get('/privacy/policy', g.privacyPolicy);
+
 module.exports = router;

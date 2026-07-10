@@ -14,6 +14,7 @@ const menus = {
     { id: 'payment_history', label: 'Lịch sử thanh toán', icon: '💳' },
     { id: 'support', label: 'Hỗ trợ', icon: '🛟' },
     { id: 'security', label: 'Bảo mật', icon: '🔐' },
+    { id: 'consent', label: 'Riêng tư', icon: '📜' },
     { id: 'profile', label: 'Hồ sơ', icon: '👤' },
   ],
   host: [
@@ -58,6 +59,8 @@ function navigateTo(id) {
     membership: '/membership',
     support: '/support',
     security: '/security',
+    consent: '/consent',
+    booking_detail: '/booking/detail',
     login: '/login',
     host_profile: '/host/profile',
     host_dashboard: '/host/dashboard',
@@ -85,14 +88,59 @@ function navigateTo(id) {
   if (routes[id]) window.location.href = routes[id];
 }
 
+let __modalFocusReturn = null;
+let __modalKeyHandler = null;
+
 function openModal(id) {
-  document.getElementById(id).classList.remove('hidden');
-  document.getElementById(id).classList.add('flex');
+  const el = document.getElementById(id);
+  if (!el) return;
+  __modalFocusReturn = document.activeElement;
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  // Focus first focusable
+  const focusable = el.querySelector(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusable) focusable.focus();
+  if (__modalKeyHandler) document.removeEventListener('keydown', __modalKeyHandler);
+  __modalKeyHandler = function (e) {
+    if (e.key === 'Escape') {
+      closeModal(id);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const nodes = el.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!nodes.length) return;
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  document.addEventListener('keydown', __modalKeyHandler);
 }
 
 function closeModal(id) {
-  document.getElementById(id).classList.add('hidden');
-  document.getElementById(id).classList.remove('flex');
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+  if (__modalKeyHandler) {
+    document.removeEventListener('keydown', __modalKeyHandler);
+    __modalKeyHandler = null;
+  }
+  if (__modalFocusReturn && typeof __modalFocusReturn.focus === 'function') {
+    __modalFocusReturn.focus();
+  }
+  __modalFocusReturn = null;
 }
 
 function showToast(msg) {

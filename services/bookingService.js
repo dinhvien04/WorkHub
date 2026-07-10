@@ -314,16 +314,27 @@ async function createBooking({
       }
     }
 
+    // Buffer before + cleanup after: both new and existing bookings expand by same space policy.
+    // Overlap iff existing.Start < end+cleanup+buffer && existing.End > start-buffer-cleanup
+    const bufferBefore = Math.max(0, Number(space.BufferBeforeMinutes) || 0) * 60 * 1000;
+    const cleanupAfter = Math.max(0, Number(space.CleanupAfterMinutes) || 0) * 60 * 1000;
+    const qStart = new Date(start.getTime() - bufferBefore - cleanupAfter);
+    const qEnd = new Date(end.getTime() + cleanupAfter + bufferBefore);
+
     let conflictQuery = Booking.findOne({
       SpaceID: spaceId,
       Status: { $in: ACTIVE_STATUSES },
-      StartTime: { $lt: end },
-      EndTime: { $gt: start },
+      StartTime: { $lt: qEnd },
+      EndTime: { $gt: qStart },
     });
     if (session) conflictQuery = conflictQuery.session(session);
     const conflict = await conflictQuery;
     if (conflict) {
-      throw new ConflictError('Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!');
+      throw new ConflictError(
+        bufferBefore || cleanupAfter
+          ? 'Khung giờ trùng (kể cả buffer/cleanup). Vui lòng chọn giờ khác!'
+          : 'Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!'
+      );
     }
 
     const doc = {

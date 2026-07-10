@@ -343,8 +343,16 @@ async function getMyBookingById(req, res) {
       .sort({ createdAt: -1 })
       .lean();
 
+    const { presentBooking } = require('../presenters/bookingPresenter');
+    const calendarService = require('../services/calendarService');
+    const cancellationPolicyService = require('../services/cancellationPolicyService');
+    const cancelPreview = cancellationPolicyService.evaluateCancellation(
+      { ...booking, _successfulPaid: progress.paidAmount || 0 },
+      { now: new Date() }
+    );
     return res.json({
       booking: {
+        ...presentBooking(booking, { role: 'customer' }),
         _id: booking._id,
         Status: booking.Status,
         StartTime: booking.StartTime,
@@ -352,9 +360,14 @@ async function getMyBookingById(req, res) {
         TotalAmount: booking.TotalAmount,
         DepositAmount: booking.DepositAmount,
         SpaceID: booking.SpaceID,
+        Snapshot: booking.Snapshot,
+        CancellationPolicy: booking.CancellationPolicy,
+        AddOns: booking.AddOns,
       },
       paymentProgress: progress,
       pendingPayments,
+      cancelPreview,
+      calendarLinks: calendarService.calendarDeepLinks(booking),
       // UI guidance: pending is NOT success
       paymentUiStatus: pendingPayments.length
         ? 'awaiting_host_verification'

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: WorkHub API
-  version: 1.2.0
-  description: WorkHub co-working booking platform API (auth cookie + CSRF)
+  version: 1.4.0
+  description: WorkHub co-working booking platform API (HttpOnly auth cookie + signed CSRF)
 servers:
   - url: /
 paths:
@@ -14,7 +14,7 @@ paths:
           description: OK
   /api/auth/login:
     post:
-      summary: Login
+      summary: Login (may return requires2fa)
       requestBody:
         required: true
         content:
@@ -26,17 +26,69 @@ paths:
                 password: { type: string }
       responses:
         '200':
-          description: Sets HttpOnly cookie
+          description: Sets HttpOnly cookie or pending 2FA token
+  /api/auth/2fa/verify:
+    post:
+      summary: Complete login with TOTP / recovery code
+      responses:
+        '200':
+          description: Sets auth cookie
   /api/customers/me/bookings:
     post:
-      summary: Create booking
+      summary: Create booking (addOns, coupon, instant)
       parameters:
         - in: header
           name: X-CSRF-Token
           schema: { type: string }
       responses:
         '201':
-          description: Created
+          description: Created with priceBreakdown
+        '409':
+          description: Conflict + alternatives
+  /api/customers/me/bookings/{bookingId}:
+    get:
+      summary: Booking detail + cancel preview + calendar links
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Detail
+  /api/bookings/{bookingId}/timeline:
+    get:
+      summary: Booking timeline
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Events
+  /api/bookings/{bookingId}/cancel-preview:
+    get:
+      summary: Cancellation policy preview
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Preview
+  /api/bookings/{bookingId}/receipt:
+    get:
+      summary: HTML receipt
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: HTML
   /api/search:
     get:
       summary: Search branches
@@ -50,15 +102,58 @@ paths:
       responses:
         '200':
           description: Results
-  /api/host/calendar:
+  /api/availability/alternatives:
     get:
-      summary: Host calendar (via /api/me/host/calendar)
+      summary: Alternative slots when preferred is full
+      parameters:
+        - in: query
+          name: spaceId
+          schema: { type: string }
+        - in: query
+          name: startTime
+          schema: { type: string }
+        - in: query
+          name: endTime
+          schema: { type: string }
       responses:
         '200':
-          description: Events
+          description: Alternatives
+  /api/host/inbox:
+    get:
+      summary: Host booking inbox buckets
+      parameters:
+        - in: query
+          name: bucket
+          schema: { type: string }
+      responses:
+        '200':
+          description: Inbox
+  /api/host/onboarding:
+    get:
+      summary: Host onboarding checklist
+      responses:
+        '200':
+          description: Progress
+  /api/host/balance:
+    get:
+      summary: Host ledger balance (finance permission)
+      responses:
+        '200':
+          description: Balance
+  /api/host/spaces/{spaceId}/ops:
+    patch:
+      summary: Patch buffer/cleanup/instant/freeCancel
+      parameters:
+        - in: path
+          name: spaceId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Updated space
   /api/hosts/payments/{paymentId}/verify:
     put:
-      summary: Verify payment + ledger
+      summary: Verify payment + ledger (payment:verify)
       parameters:
         - in: path
           name: paymentId
@@ -67,3 +162,38 @@ paths:
       responses:
         '200':
           description: Verified
+  /api/admin/system-health:
+    get:
+      summary: Admin system health
+      responses:
+        '200':
+          description: Health JSON
+  /api/admin/users/{userId}/force-logout:
+    post:
+      summary: Bump tokenVersion / revoke sessions
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Forced logout
+  /api/gateway/webhook:
+    post:
+      summary: Mock payment gateway webhook (signed)
+      responses:
+        '200':
+          description: Processed
+  /api/rum:
+    post:
+      summary: Web vitals beacon (no PII)
+      responses:
+        '204':
+          description: Accepted
+  /sitemap_index.xml:
+    get:
+      summary: Sitemap index
+      responses:
+        '200':
+          description: XML

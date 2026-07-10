@@ -79,6 +79,11 @@ const spaceSchema = new mongoose.Schema({
         default: false,
         index: true,
     },
+    /** Minutes blocked before booking start (setup) */
+    BufferBeforeMinutes: { type: Number, default: 0, min: 0, max: 180 },
+    /** Minutes blocked after booking end (cleanup) */
+    CleanupAfterMinutes: { type: Number, default: 0, min: 0, max: 180 },
+    FreeCancelHours: { type: Number, default: 24, min: 0, max: 168 },
     RatingAvg: { 
         type: Number, 
         default: 0 

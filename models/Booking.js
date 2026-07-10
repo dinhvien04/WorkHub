@@ -91,6 +91,13 @@ const bookingSchema = new mongoose.Schema({
       summary: { type: String, default: '' },
     },
     HoldReminderSent: { type: Boolean, default: false },
+    HostInternalNotes: [
+      {
+        Body: { type: String, maxlength: 2000 },
+        AuthorID: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        CreatedAt: { type: Date, default: Date.now },
+      },
+    ],
 
 }, { 
     // Tự động tạo CreateAt và UpdateAt

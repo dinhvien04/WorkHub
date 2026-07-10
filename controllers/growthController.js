@@ -585,6 +585,77 @@ const hostOnboarding = asyncHandler(async (req, res) => {
   res.json(data);
 });
 
+// —— Host internal notes ——
+const addHostNote = asyncHandler(async (req, res) => {
+  const Booking = require('../models/Booking');
+  const body = String(req.body.body || req.body.note || '').trim().slice(0, 2000);
+  if (!body) throw new ValidationError('Ghi chú trống.');
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    HostID: req.user.userId,
+  });
+  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  booking.HostInternalNotes = booking.HostInternalNotes || [];
+  booking.HostInternalNotes.push({
+    Body: body,
+    AuthorID: req.user.userId,
+    CreatedAt: new Date(),
+  });
+  // Keep last 50 notes
+  if (booking.HostInternalNotes.length > 50) {
+    booking.HostInternalNotes = booking.HostInternalNotes.slice(-50);
+  }
+  await booking.save();
+  res.status(201).json({ notes: booking.HostInternalNotes });
+});
+
+const listHostNotes = asyncHandler(async (req, res) => {
+  const Booking = require('../models/Booking');
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    HostID: req.user.userId,
+  })
+    .select('HostInternalNotes')
+    .lean();
+  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  res.json({ notes: booking.HostInternalNotes || [] });
+});
+
+// —— Host space ops: buffer / cleanup / instant ——
+const patchSpaceOps = asyncHandler(async (req, res) => {
+  const Space = require('../models/Space');
+  const updates = {};
+  if (req.body.bufferBeforeMinutes != null) {
+    updates.BufferBeforeMinutes = Math.max(0, Math.min(180, Number(req.body.bufferBeforeMinutes) || 0));
+  }
+  if (req.body.cleanupAfterMinutes != null) {
+    updates.CleanupAfterMinutes = Math.max(0, Math.min(180, Number(req.body.cleanupAfterMinutes) || 0));
+  }
+  if (typeof req.body.instantBook === 'boolean') {
+    updates.InstantBook = req.body.instantBook;
+  }
+  if (req.body.freeCancelHours != null) {
+    updates.FreeCancelHours = Math.max(0, Math.min(168, Number(req.body.freeCancelHours) || 24));
+  }
+  const space = await Space.findOneAndUpdate(
+    { _id: req.params.spaceId, HostID: req.user.userId },
+    { $set: updates },
+    { new: true }
+  );
+  if (!space) throw new NotFoundError('Không tìm thấy space.');
+  res.json({ space });
+});
+
+// —— Marketing / consent (public policy text) ——
+const privacyPolicy = asyncHandler(async (req, res) => {
+  res.json({
+    version: '2026-07',
+    marketingOptInDefault: false,
+    dataRetention: 'Booking/payment retained for accounting; account soft-delete supported.',
+    contact: 'privacy@workhub.local',
+  });
+});
+
 // —— Admin force logout ——
 const adminForceLogout = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.userId);
@@ -649,4 +720,8 @@ module.exports = {
   hostInbox,
   hostOnboarding,
   adminForceLogout,
+  addHostNote,
+  listHostNotes,
+  patchSpaceOps,
+  privacyPolicy,
 };

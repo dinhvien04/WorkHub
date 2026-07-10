@@ -287,6 +287,18 @@ function createApp() {
       scripts: res.locals.scriptsFrom(['/js/security.js']),
     })
   );
+  app.get('/booking/detail', (req, res) =>
+    res.render('customer/booking-detail', {
+      pageTitle: 'Chi tiết booking — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/booking-detail.js']),
+    })
+  );
+  app.get('/consent', (req, res) =>
+    res.render('customer/consent', {
+      pageTitle: 'Quyền riêng tư — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/consent.js']),
+    })
+  );
   app.get('/payment/gateway/:sessionId', (req, res) =>
     res.render('customer/gateway-checkout', {
       pageTitle: 'Thanh toán — WorkHub',

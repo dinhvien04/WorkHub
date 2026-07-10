@@ -1,0 +1,42 @@
+<div class="max-w-2xl mx-auto">
+  <a href="/history" class="text-teal-700 text-sm font-bold hover:underline">← Lịch sử đặt</a>
+  <h1 class="text-2xl font-black mt-2 mb-1">Chi tiết booking</h1>
+  <p id="bd-id" class="text-xs text-slate-400 font-mono mb-4"></p>
+
+  <div id="bd-error" class="hidden text-red-600 text-sm mb-3" role="alert"></div>
+
+  <section class="bg-white rounded-3xl border p-5 mb-4">
+    <div id="bd-summary" class="space-y-1 text-sm"></div>
+    <div id="bd-policy" class="mt-3 text-xs text-slate-500 border-t pt-3"></div>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Thanh toán</h2>
+    <p id="bd-pay" class="text-sm"></p>
+    <a id="bd-receipt" href="#" class="text-xs font-black uppercase text-teal-700 hidden">Biên lai</a>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Timeline</h2>
+    <ol id="bd-timeline" class="space-y-2 text-sm"></ol>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Lịch</h2>
+    <div class="flex flex-wrap gap-2">
+      <a id="bd-gcal" target="_blank" rel="noopener" class="text-xs font-black uppercase bg-slate-800 text-white px-3 py-2 rounded-xl">Google</a>
+      <a id="bd-outlook" target="_blank" rel="noopener" class="text-xs font-black uppercase border px-3 py-2 rounded-xl">Outlook</a>
+      <a id="bd-ics" class="text-xs font-black uppercase border border-teal-300 text-teal-800 px-3 py-2 rounded-xl">ICS</a>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Hủy đặt chỗ</h2>
+    <p id="bd-cancel-preview" class="text-sm text-slate-600 mb-2"></p>
+    <button type="button" id="bd-cancel-btn"
+      class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+      Hủy booking
+    </button>
+    <p id="bd-cancel-msg" class="text-sm mt-2" role="status"></p>
+  </section>
+</div>

@@ -220,7 +220,7 @@ function renderCustomerBookings(list) {
         }
 
 
-        let actionUI = `<button onclick="openDetailModal('${booking._id}')" class="w-full py-1 rounded-xl border-2 border-slate-200 text-slate-500 font-black text-[10px] uppercase hover:border-slate-400 transition whitespace-nowrap">Xem chi tiết</button>`;
+        let actionUI = `<a href="/booking/detail?id=${booking._id}" class="block w-full text-center py-1 rounded-xl border-2 border-slate-200 text-slate-500 font-black text-[10px] uppercase hover:border-teal-400 hover:text-teal-700 transition whitespace-nowrap">Xem chi tiết</a>`;
         
         if (displayStatus === 'completed') {
             if (booking.canReview) {

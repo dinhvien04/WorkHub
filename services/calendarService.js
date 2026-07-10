@@ -73,4 +73,23 @@ function bookingToIcs(booking) {
   ].join('\r\n');
 }
 
-module.exports = { getHostCalendar, bookingToIcs };
+/**
+ * Deep links for Google Calendar / Outlook web.
+ */
+function calendarDeepLinks(booking) {
+  const title = encodeURIComponent(booking.Snapshot?.SpaceName || 'WorkHub booking');
+  const details = encodeURIComponent(
+    `WorkHub booking ${booking._id}\n${booking.Snapshot?.Address || ''}`
+  );
+  const location = encodeURIComponent(booking.Snapshot?.Address || '');
+  const start = new Date(booking.StartTime);
+  const end = new Date(booking.EndTime);
+  const gFmt = (d) =>
+    d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gFmt(start)}/${gFmt(end)}&details=${details}&location=${location}`;
+  // Outlook web
+  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=${title}&startdt=${encodeURIComponent(start.toISOString())}&enddt=${encodeURIComponent(end.toISOString())}&body=${details}&location=${location}`;
+  return { google, outlook, icsPath: `/api/me/bookings/${booking._id}/ics` };
+}
+
+module.exports = { getHostCalendar, bookingToIcs, calendarDeepLinks };

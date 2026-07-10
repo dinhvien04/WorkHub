@@ -96,6 +96,11 @@ npm run seed:extras  # coupons + feature flags demo
 - Host inbox buckets + onboarding checklist
 - Upload magic-bytes validation, booking DTO presenter
 - Admin force-logout, hold-expiry reminder job
+- Space buffer/cleanup + free-cancel hours ops API
+- Host payment verify gated by `payment:verify` permission
+- Booking detail page (timeline, cancel, Google/Outlook/ICS)
+- Host internal notes; consent/privacy page; modal focus trap
+- OpenAPI 1.4.0
 
 ```bash
 npm run backup

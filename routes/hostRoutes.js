@@ -6,6 +6,7 @@ const hostController = require('../controllers/hostController');
 
 // Import Middleware bảo mật và Upload ảnh
 const { verifyToken, authorizeRole, requireVerifiedHost } = require('../middlewares/authMiddleware');
+const { requirePaymentVerify } = require('../middlewares/hostPermission');
 const upload = require('../middlewares/upload');
 const paymentService = require('../services/paymentService');
 const ledgerService = require('../services/ledgerService');
@@ -50,9 +51,10 @@ router.put('/bookings/:bookingId/confirm', hostController.confirmBooking);
 router.put('/bookings/:bookingId/checkin', hostController.checkinBooking);
 router.put('/bookings/:bookingId/cancel', hostController.cancelBooking);
 
-// Payment verify / reject
+// Payment verify / reject (finance / owner / manager with payment:verify)
 router.put(
   '/payments/:paymentId/verify',
+  requirePaymentVerify(),
   asyncHandler(async (req, res) => {
     const payment = await paymentService.verifyPayment(req.user.userId, req.params.paymentId);
     await ledgerService.postEntry({
@@ -71,6 +73,7 @@ router.put(
 );
 router.put(
   '/payments/:paymentId/reject',
+  requirePaymentVerify(),
   asyncHandler(async (req, res) => {
     const payment = await paymentService.rejectPayment(
       req.user.userId,
