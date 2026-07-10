@@ -91,6 +91,7 @@ const bookingSchema = new mongoose.Schema({
       summary: { type: String, default: '' },
     },
     HoldReminderSent: { type: Boolean, default: false },
+    ReminderSent: { type: Boolean, default: false },
     HostInternalNotes: [
       {
         Body: { type: String, maxlength: 2000 },

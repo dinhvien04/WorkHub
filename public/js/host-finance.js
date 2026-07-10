@@ -125,8 +125,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const exportBtn = document.getElementById('ledger-export-btn');
   if (exportBtn) {
-    exportBtn.addEventListener('click', () => {
+    exportBtn.addEventListener('click', async () => {
+      // Small sync download
       window.location.href = '/api/host/ledger/export.csv';
+    });
+  }
+  const asyncExportBtn = document.getElementById('ledger-export-async-btn');
+  if (asyncExportBtn) {
+    asyncExportBtn.addEventListener('click', async () => {
+      asyncExportBtn.disabled = true;
+      try {
+        const res = await WorkHubAPI.api('/api/host/exports/ledger', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || 'Export job failed');
+        alert('Đã xếp hàng job ' + data.jobId + '. Kiểm tra /api/jobs/' + data.jobId);
+      } catch (e) {
+        alert(e.message || 'Lỗi');
+      } finally {
+        asyncExportBtn.disabled = false;
+      }
     });
   }
 

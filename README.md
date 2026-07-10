@@ -123,6 +123,9 @@ npm run seed:extras  # coupons + feature flags demo
 - Customer dashboard (`/dashboard`, `/api/me/dashboard`)
 - CSS minify: `npm run build:css` → `public/css/app.min.css`
 - Instant-book badge on listing detail
+- Durable background jobs (Mongo claim): export ledger/bookings, email, booking reminders
+- Optional ClamAV TCP scan (`CLAMAV_HOST`)
+- Host “Export nền” for large ledger exports
 
 ```bash
 npm run backup

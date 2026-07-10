@@ -508,6 +508,57 @@ const exportLedgerCsv = asyncHandler(async (req, res) => {
   res.send(csv);
 });
 
+/** Large export via background job */
+const enqueueLedgerExport = asyncHandler(async (req, res) => {
+  const jobQueue = require('../services/jobQueue');
+  const job = await jobQueue.enqueue({
+    type: 'export_ledger',
+    queue: 'exports',
+    ownerUserId: req.user.userId,
+    payload: { hostId: req.user.userId },
+  });
+  res.status(202).json({
+    message: 'Đã xếp hàng export ledger.',
+    jobId: job._id,
+    status: job.Status,
+  });
+});
+
+const enqueueBookingsExport = asyncHandler(async (req, res) => {
+  const jobQueue = require('../services/jobQueue');
+  const job = await jobQueue.enqueue({
+    type: 'export_bookings',
+    queue: 'exports',
+    ownerUserId: req.user.userId,
+    payload: { hostId: req.user.userId },
+  });
+  res.status(202).json({
+    message: 'Đã xếp hàng export bookings.',
+    jobId: job._id,
+    status: job.Status,
+  });
+});
+
+const getJobStatus = asyncHandler(async (req, res) => {
+  const jobQueue = require('../services/jobQueue');
+  const job = await jobQueue.getJob(req.params.jobId);
+  if (!job) throw new NotFoundError('Job not found');
+  if (
+    req.user.role !== 'admin' &&
+    job.OwnerUserID &&
+    String(job.OwnerUserID) !== String(req.user.userId)
+  ) {
+    throw new ForbiddenError('Không có quyền xem job này.');
+  }
+  res.json({ job });
+});
+
+const listMyJobs = asyncHandler(async (req, res) => {
+  const jobQueue = require('../services/jobQueue');
+  const jobs = await jobQueue.listJobsForUser(req.user.userId, { limit: 30 });
+  res.json({ jobs });
+});
+
 // —— Review report / moderate / host reply ——
 const reportReview = asyncHandler(async (req, res) => {
   const Review = require('../models/Review');
@@ -879,6 +930,10 @@ module.exports = {
   publicAddOns,
   bookingReceipt,
   exportLedgerCsv,
+  enqueueLedgerExport,
+  enqueueBookingsExport,
+  getJobStatus,
+  listMyJobs,
   reportReview,
   moderateReview,
   hostReplyReview,

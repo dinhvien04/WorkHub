@@ -35,10 +35,10 @@ function scanBuffer(buffer, { allowPdf = false, fieldname = 'file' } = {}) {
 }
 
 /**
- * Middleware after multer memory storage.
+ * Middleware after multer memory storage (async for optional ClamAV).
  */
 function scanUploadedFiles({ allowPdfFields = ['verificationDocument'] } = {}) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       const files = [];
       if (req.file) files.push(req.file);
@@ -48,14 +48,13 @@ function scanUploadedFiles({ allowPdfFields = ['verificationDocument'] } = {}) {
           if (Array.isArray(arr)) files.push(...arr);
         });
       }
+      const clamav = require('./clamavService');
       for (const f of files) {
         if (!f.buffer) continue;
         const allowPdf = allowPdfFields.includes(f.fieldname);
         const result = scanBuffer(f.buffer, { allowPdf, fieldname: f.fieldname });
         f.detectedMime = result.mime;
-      }
-      if (process.env.CLAMAV_HOST) {
-        logger.info({ host: process.env.CLAMAV_HOST }, 'clamav host set — integrate TCP scan later');
+        await clamav.scanBufferOptional(f.buffer);
       }
       return next();
     } catch (err) {

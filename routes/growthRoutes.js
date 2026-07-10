@@ -135,6 +135,22 @@ router.get(
   requireVerifiedHost,
   g.exportLedgerCsv
 );
+router.post(
+  '/host/exports/ledger',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.enqueueLedgerExport
+);
+router.post(
+  '/host/exports/bookings',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.enqueueBookingsExport
+);
+router.get('/jobs/me', verifyToken, g.listMyJobs);
+router.get('/jobs/:jobId', verifyToken, g.getJobStatus);
 
 // Reviews
 router.post('/reviews/:reviewId/report', verifyToken, g.reportReview);
