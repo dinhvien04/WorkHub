@@ -52,9 +52,55 @@ router.get('/sitemap_index.xml', async (req, res) => {
     `<sitemap><loc>${base}/sitemap.xml</loc><lastmod>${now}</lastmod></sitemap>`,
     `<sitemap><loc>${base}/sitemap-cities.xml</loc><lastmod>${now}</lastmod></sitemap>`,
     `<sitemap><loc>${base}/sitemap-guides.xml</loc><lastmod>${now}</lastmod></sitemap>`,
+    `<sitemap><loc>${base}/sitemap-images.xml</loc><lastmod>${now}</lastmod></sitemap>`,
     '</sitemapindex>',
   ].join('');
   res.type('application/xml').send(xml);
+});
+
+router.get('/sitemap-images.xml', async (req, res) => {
+  try {
+    const base = `${req.protocol}://${req.get('host')}`;
+    const branches = await Branch.find({ Status: 'active' })
+      .select('Slug CitySlug DistrictSlug Name Images updatedAt City District')
+      .lean();
+    const escape = (s) =>
+      String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const urls = [];
+    for (const b of branches) {
+      const imgs = (b.Images || [])
+        .map((img) => (typeof img === 'string' ? img : img?.url))
+        .filter(Boolean)
+        .slice(0, 10);
+      if (!imgs.length) continue;
+      const city = b.CitySlug || slugify(b.City) || 'viet-nam';
+      const district = b.DistrictSlug || slugify(b.District) || 'khu-vuc';
+      const slug = b.Slug || slugify(b.Name) || String(b._id);
+      const pageUrl = `${base}/khong-gian/${city}/${district}/${slug}`;
+      const imageTags = imgs
+        .map(
+          (loc) =>
+            `<image:image><image:loc>${escape(loc)}</image:loc><image:title>${escape(b.Name)}</image:title></image:image>`
+        )
+        .join('');
+      urls.push(
+        `<url><loc>${escape(pageUrl)}</loc>${imageTags}</url>`
+      );
+    }
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+      ...urls,
+      '</urlset>',
+    ].join('');
+    res.type('application/xml').send(xml);
+  } catch {
+    res.status(500).type('text/plain').send('sitemap error');
+  }
 });
 
 router.get('/sitemap.xml', async (req, res) => {

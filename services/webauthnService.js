@@ -81,14 +81,40 @@ async function registrationOptions({ userId, email, host }) {
   };
 }
 
-async function registerCredential({ userId, challenge, credentialId, publicKey, transports, deviceName }) {
+async function registerCredential({
+  userId,
+  challenge,
+  credentialId,
+  publicKey,
+  transports,
+  deviceName,
+  clientDataJSON,
+}) {
   if (!credentialId) throw new ValidationError('Thiếu credentialId.');
+  if (clientDataJSON && !assertClientDataChallenge(clientDataJSON, challenge)) {
+    // register type is webauthn.create — allow either in helper after fix
+    try {
+      const json = JSON.parse(Buffer.from(String(clientDataJSON), 'base64url').toString('utf8'));
+      if (json.type === 'webauthn.create') {
+        const ch = json.challenge;
+        if (ch !== challenge) throw new UnauthorizedError('clientDataJSON challenge không khớp.');
+      } else if (!assertClientDataChallenge(clientDataJSON, challenge)) {
+        throw new UnauthorizedError('clientDataJSON challenge không khớp.');
+      }
+    } catch (e) {
+      if (e.statusCode) throw e;
+      throw new UnauthorizedError('clientDataJSON không hợp lệ.');
+    }
+  }
+  if (process.env.WEBAUTHN_REQUIRE_PUBLIC_KEY === '1' && !publicKey) {
+    throw new ValidationError('Thiếu publicKey credential.');
+  }
   await consumeChallenge({ challenge, purpose: 'register', userId });
   try {
     const doc = await WebAuthnCredential.create({
       UserID: userId,
       CredentialId: String(credentialId),
-      PublicKey: String(publicKey || '').slice(0, 4000),
+      PublicKey: String(publicKey || '').slice(0, 8000),
       Transports: Array.isArray(transports) ? transports.slice(0, 8) : [],
       DeviceName: String(deviceName || 'Passkey').slice(0, 100),
     });
@@ -129,20 +155,64 @@ async function loginOptions({ email, host }) {
 }
 
 /**
- * Assertion verify (credential presence + challenge).
- * Production should verify signature against PublicKey.
+ * Parse browser clientDataJSON (base64url) and ensure challenge matches.
  */
-async function verifyLoginAssertion({ challenge, credentialId, signature }) {
-  if (!credentialId) throw new ValidationError('Thiếu credentialId.');
-  // signature required from client navigator (we store for audit trail only in stub)
-  if (signature === undefined) {
-    // allow empty string in tests but presence of field is enough for stub
+function assertClientDataChallenge(clientDataJSON, expectedChallenge) {
+  if (!clientDataJSON) return false;
+  try {
+    const json = JSON.parse(Buffer.from(String(clientDataJSON), 'base64url').toString('utf8'));
+    if (json.type !== 'webauthn.get' && json.type !== 'webauthn.create') return false;
+    // Browser stores challenge as base64url of the raw challenge bytes we supplied
+    const ch = json.challenge;
+    if (!ch) return false;
+    return ch === expectedChallenge || Buffer.from(ch, 'base64url').toString('base64url') === expectedChallenge;
+  } catch {
+    return false;
   }
-  await consumeChallenge({ challenge, purpose: 'login' });
+}
+
+/**
+ * Assertion verify:
+ * - consume challenge (bound to user when issued at login options)
+ * - credential must exist
+ * - if clientDataJSON provided, challenge must match (real browser flow)
+ * - signature required when WEBAUTHN_REQUIRE_SIGNATURE=1
+ * Full COSE/public-key verify can use @simplewebauthn/server when added.
+ */
+async function verifyLoginAssertion({
+  challenge,
+  credentialId,
+  signature,
+  clientDataJSON,
+  authenticatorData,
+  counter,
+}) {
+  if (!credentialId) throw new ValidationError('Thiếu credentialId.');
+  if (process.env.WEBAUTHN_REQUIRE_SIGNATURE === '1' && !signature) {
+    throw new ValidationError('Thiếu chữ ký WebAuthn.');
+  }
+  if (clientDataJSON && !assertClientDataChallenge(clientDataJSON, challenge)) {
+    throw new UnauthorizedError('clientDataJSON challenge không khớp.');
+  }
+
+  const challengeDoc = await consumeChallenge({ challenge, purpose: 'login' });
   const cred = await WebAuthnCredential.findOne({ CredentialId: String(credentialId) });
   if (!cred) throw new UnauthorizedError('Passkey không hợp lệ.');
+
+  // Challenge was issued for a specific user — must match credential owner
+  if (challengeDoc.UserID && String(challengeDoc.UserID) !== String(cred.UserID)) {
+    throw new UnauthorizedError('Passkey không khớp tài khoản challenge.');
+  }
+
+  // Counter must not go backwards (clone detection)
+  if (counter != null && Number(counter) < (cred.Counter || 0)) {
+    throw new UnauthorizedError('WebAuthn counter rollback — từ chối.');
+  }
   cred.LastUsedAt = new Date();
-  cred.Counter = (cred.Counter || 0) + 1;
+  cred.Counter = counter != null ? Number(counter) : (cred.Counter || 0) + 1;
+  if (authenticatorData) {
+    cred.PublicKey = cred.PublicKey || ''; // keep
+  }
   await cred.save();
   const user = await User.findById(cred.UserID);
   if (!user || user.Status !== 'active') throw new UnauthorizedError('Tài khoản không khả dụng.');
@@ -173,4 +243,5 @@ module.exports = {
   listCredentials,
   revokeCredential,
   rpIdFromHost,
+  assertClientDataChallenge,
 };

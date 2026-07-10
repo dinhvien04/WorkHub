@@ -36,12 +36,19 @@ function sendServerError(res, error) {
 // ==========================================
 async function getHomePage(req, res) {
   try {
-    const branches = await Branch.find({ Status: 'active' }).lean();
+    const featuredService = require('../services/featuredService');
+    let branches = await featuredService.getFeaturedListings({ limit: 12 });
+    if (!branches.length) {
+      branches = await Branch.find({ Status: 'active' })
+        .sort({ RatingAvg: -1, createdAt: -1 })
+        .limit(12)
+        .lean();
+    }
     res.render('customer/home', { 
       branches,
       pageTitle: 'WorkHub — Đặt chỗ Co-working',
       scripts: res.locals.scriptsFrom
-        ? res.locals.scriptsFrom(['/js/customer-main.js'])
+        ? res.locals.scriptsFrom(['/js/customer-main.js', '/js/home-featured.js'])
         : '<script src="/js/customer-main.js"></script>',
     });
   } catch (error) {

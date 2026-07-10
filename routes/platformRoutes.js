@@ -9,6 +9,7 @@ const router = express.Router();
 // Public search
 router.get('/search', c.search);
 router.get('/search/facets', c.searchFacets);
+router.get('/featured', c.featured);
 router.get('/autocomplete', c.autocomplete);
 router.get('/cms', c.listCms);
 router.get('/cms/:slug', c.getCms);

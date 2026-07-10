@@ -150,6 +150,8 @@ npm run build:css      # purge unused utility classes + minify → public/css/ap
 - `GET /metrics` — Prometheus text format  
 - `GET /health/details` — JSON snapshot (db, metrics, version)  
 - W3C `traceparent` propagation + optional OTLP export (`OTEL_EXPORTER_OTLP_ENDPOINT`)
+- Featured listings API + image sitemap; homepage uses real popularity/rating
+- WebAuthn clientDataJSON challenge binding + counter rollback protection
 
 ## Roles
 

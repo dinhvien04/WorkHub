@@ -75,10 +75,21 @@
                         <div class="flex items-center gap-1 text-amber-500 text-sm mt-2 font-semibold">
                             ⭐ <%= branch.RatingAvg || 0 %>/5
                         </div>
+                        <% if (branch.priceFrom != null) { %>
+                        <p class="text-sm font-black text-teal-700 mt-2">Từ <%= Number(branch.priceFrom).toLocaleString('vi-VN') %>đ/giờ</p>
+                        <% } %>
+                        <% if (branch.hasInstantBook) { %>
+                        <span class="wh-badge mt-2">Instant book</span>
+                        <% } %>
 
                     </div>
 
-                    <a href="/detail?branchId=<%= branch._id %>"
+                    <% 
+                      const _href = branch.Slug
+                        ? '/khong-gian/' + (branch.CitySlug || 'viet-nam') + '/' + (branch.DistrictSlug || 'khu-vuc') + '/' + branch.Slug
+                        : '/detail?branchId=' + branch._id;
+                    %>
+                    <a href="<%= _href %>"
                     class="w-full py-3 bg-teal-50 text-teal-600 font-bold rounded-xl text-sm text-center mt-4 hover:bg-teal-100 transition">
                         Xem chi tiết
                     </a>
@@ -98,3 +109,8 @@
         <% } %>
 
     </div>
+
+    <section id="home-newest" class="hidden mt-12">
+      <h3 class="text-xl font-bold mb-4 text-slate-800 uppercase tracking-tighter">Mới trên WorkHub</h3>
+      <div data-newest-list class="flex gap-3 overflow-x-auto pb-2"></div>
+    </section>

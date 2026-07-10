@@ -39,9 +39,12 @@ async function main() {
     await check('/search'),
     await check('/api/search?limit=5'),
     await check('/api/search/facets'),
+    await check('/api/featured'),
     await check('/api/gateway/providers'),
     await check('/robots.txt'),
     await check('/sitemap_index.xml'),
+    await check('/sitemap-images.xml'),
+    await check('/metrics'),
     await check('/api/auth/google/status'),
   ];
 

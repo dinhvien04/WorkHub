@@ -38,6 +38,15 @@ const searchFacets = asyncHandler(async (req, res) => {
   res.json(data);
 });
 
+const featured = asyncHandler(async (req, res) => {
+  const featuredService = require('../services/featuredService');
+  const [items, newest] = await Promise.all([
+    featuredService.getFeaturedListings({ limit: req.query.limit }),
+    featuredService.getNewListings({ limit: req.query.newLimit || 6 }),
+  ]);
+  res.json({ featured: items, newest });
+});
+
 // —— Reschedule ——
 const reschedule = asyncHandler(async (req, res) => {
   const body = schemas.parse(schemas.reschedule, req.body);
@@ -382,6 +391,7 @@ module.exports = {
   search,
   autocomplete,
   searchFacets,
+  featured,
   reschedule,
   requestRefund,
   processRefund,
