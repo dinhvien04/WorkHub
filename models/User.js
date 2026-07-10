@@ -37,7 +37,20 @@ const userSchema = new mongoose.Schema({
     tokenVersion: {
         type: Number,
         default: 0
-    }
+    },
+
+    // TOTP 2FA (secret never returned in public DTOs)
+    TotpEnabled: { type: Boolean, default: false },
+    TotpSecret: { type: String, default: null, select: false },
+    TotpRecoveryHashes: { type: [String], default: [], select: false },
+
+    // Notification preferences
+    NotifyEmail: { type: Boolean, default: true },
+    NotifyPush: { type: Boolean, default: true },
+    NotifySms: { type: Boolean, default: false },
+    MarketingOptIn: { type: Boolean, default: false },
+    PreferredLang: { type: String, default: 'vi', maxlength: 8 },
+    Timezone: { type: String, default: 'Asia/Ho_Chi_Minh', maxlength: 64 },
 
 }, {
     collection: 'users',

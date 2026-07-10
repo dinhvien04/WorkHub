@@ -162,11 +162,31 @@ const loginUser = asyncHandler(async (req, res) => {
   const isMatch = await bcrypt.compare(String(password), user.PasswordHash);
   if (!isMatch) throw new UnauthorizedError('Tài khoản hoặc mật khẩu không chính xác.');
 
-  const token = signToken(user);
+  // Step-up: if TOTP enabled, issue short-lived pending token (no auth cookie yet)
+  if (user.TotpEnabled) {
+    const pendingToken = jwt.sign(
+      {
+        userId: user._id.toString(),
+        purpose: '2fa',
+        tokenVersion: user.tokenVersion || 0,
+      },
+      env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    return res.status(200).json({
+      message: 'Cần xác thực 2FA.',
+      requires2fa: true,
+      pendingToken,
+    });
+  }
 
+  return completeLogin(req, res, user);
+});
+
+async function completeLogin(req, res, user) {
+  const token = signToken(user);
   res.cookie(env.AUTH_COOKIE_NAME, token, authCookieOptions());
 
-  // Track device session for logout-all / security page (best-effort)
   try {
     const UserSession = require('../models/Session');
     await UserSession.create({
@@ -189,16 +209,123 @@ const loginUser = asyncHandler(async (req, res) => {
     'info'
   );
 
-  // Do NOT return token in JSON body (HttpOnly cookie only)
   return res.status(200).json({
     message: 'Đăng nhập thành công.',
+    requires2fa: false,
     user: {
       id: user._id,
       email: user.Email,
       fullName: user.FullName,
       role: user.Role,
       status: user.Status,
+      totpEnabled: !!user.TotpEnabled,
     },
+  });
+}
+
+const verify2faLogin = asyncHandler(async (req, res) => {
+  const { pendingToken, code } = req.body;
+  if (!pendingToken || !code) throw new ValidationError('Thiếu pendingToken hoặc mã 2FA.');
+
+  let decoded;
+  try {
+    decoded = jwt.verify(pendingToken, env.JWT_SECRET);
+  } catch {
+    throw new UnauthorizedError('Phiên 2FA hết hạn. Đăng nhập lại.');
+  }
+  if (decoded.purpose !== '2fa') throw new UnauthorizedError('Token 2FA không hợp lệ.');
+
+  const totpService = require('../services/totpService');
+  const user = await User.findById(decoded.userId).select(
+    '+TotpSecret +TotpRecoveryHashes TotpEnabled tokenVersion Role Status Email FullName'
+  );
+  if (!user || !user.TotpEnabled) throw new UnauthorizedError('2FA chưa bật.');
+  if (user.Status !== 'active') throw new ForbiddenError('Tài khoản chưa được kích hoạt.');
+
+  let ok = totpService.verifyTotp(user.TotpSecret, code);
+  if (!ok) {
+    const consumed = await totpService.consumeRecoveryCode(user.TotpRecoveryHashes, code);
+    if (consumed.ok) {
+      user.TotpRecoveryHashes = consumed.remaining;
+      await user.save();
+      ok = true;
+    }
+  }
+  if (!ok) throw new UnauthorizedError('Mã 2FA không đúng.');
+
+  return completeLogin(req, res, user);
+});
+
+const setup2fa = asyncHandler(async (req, res) => {
+  const totpService = require('../services/totpService');
+  const user = await User.findById(req.user.userId).select('+TotpSecret TotpEnabled Email');
+  if (!user) throw new NotFoundError('User not found');
+  if (user.TotpEnabled) throw new ValidationError('2FA đã được bật.');
+
+  const secret = totpService.generateSecret();
+  user.TotpSecret = secret;
+  await user.save();
+
+  res.json({
+    secret,
+    otpauthUrl: totpService.otpauthUrl({ secret, email: user.Email }),
+    message: 'Quét QR/secret bằng app Authenticator, rồi gọi /api/auth/2fa/enable với mã.',
+  });
+});
+
+const enable2fa = asyncHandler(async (req, res) => {
+  const totpService = require('../services/totpService');
+  const { code } = req.body;
+  const user = await User.findById(req.user.userId).select(
+    '+TotpSecret +TotpRecoveryHashes TotpEnabled Email'
+  );
+  if (!user) throw new NotFoundError('User not found');
+  if (!user.TotpSecret) throw new ValidationError('Gọi setup 2FA trước.');
+  if (!totpService.verifyTotp(user.TotpSecret, code)) {
+    throw new ValidationError('Mã xác nhận không đúng.');
+  }
+
+  const recovery = totpService.generateRecoveryCodes(8);
+  user.TotpRecoveryHashes = await totpService.hashRecoveryCodes(recovery);
+  user.TotpEnabled = true;
+  await user.save();
+
+  await logActivity(user._id, 'ENABLE_2FA', 'User', user._id, 'Bật TOTP 2FA', 'success');
+
+  res.json({
+    message: 'Đã bật 2FA.',
+    recoveryCodes: recovery,
+    warning: 'Lưu recovery codes ngay; chỉ hiện một lần.',
+  });
+});
+
+const disable2fa = asyncHandler(async (req, res) => {
+  const totpService = require('../services/totpService');
+  const { code, password } = req.body;
+  const user = await User.findById(req.user.userId).select(
+    '+TotpSecret +TotpRecoveryHashes TotpEnabled PasswordHash'
+  );
+  if (!user) throw new NotFoundError('User not found');
+  if (!user.TotpEnabled) throw new ValidationError('2FA chưa bật.');
+
+  const passOk = password && (await bcrypt.compare(String(password), user.PasswordHash));
+  const totpOk = totpService.verifyTotp(user.TotpSecret, code);
+  if (!passOk || !totpOk) throw new UnauthorizedError('Mật khẩu hoặc mã 2FA không đúng.');
+
+  user.TotpEnabled = false;
+  user.TotpSecret = null;
+  user.TotpRecoveryHashes = [];
+  await user.save();
+  await logActivity(user._id, 'DISABLE_2FA', 'User', user._id, 'Tắt TOTP 2FA', 'warning');
+  res.json({ message: 'Đã tắt 2FA.' });
+});
+
+const get2faStatus = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.userId).select('TotpEnabled Role');
+  res.json({
+    totpEnabled: !!user?.TotpEnabled,
+    recommended: user?.Role === 'admin' || user?.Role === 'host',
+    requiredForAdmin: false,
   });
 });
 
@@ -381,4 +508,9 @@ module.exports = {
   resetPassword,
   signToken,
   authCookieOptions,
+  verify2faLogin,
+  setup2fa,
+  enable2fa,
+  disable2fa,
+  get2faStatus,
 };

@@ -284,8 +284,30 @@ const myMembership = asyncHandler(async (req, res) => {
 
 // —— Feature flags ——
 const flags = asyncHandler(async (req, res) => {
-  const items = await FeatureFlag.find({ Enabled: true }).select('Key Description').lean();
-  res.json({ flags: items.map((f) => f.Key) });
+  const featureFlagService = require('../services/featureFlagService');
+  const map = await featureFlagService.listPublicFlags({
+    userId: req.user?.userId || null,
+    role: req.user?.role || null,
+  });
+  res.json({ flags: map });
+});
+
+const adminListFlags = asyncHandler(async (req, res) => {
+  const featureFlagService = require('../services/featureFlagService');
+  res.json({ flags: await featureFlagService.listAllFlags() });
+});
+
+const adminUpsertFlag = asyncHandler(async (req, res) => {
+  const featureFlagService = require('../services/featureFlagService');
+  const flag = await featureFlagService.upsertFlag({
+    key: req.body.key,
+    enabled: req.body.enabled,
+    description: req.body.description || '',
+    percentage: req.body.percentage,
+    roles: req.body.roles || [],
+    environments: req.body.environments || [],
+  });
+  res.json({ flag });
 });
 
 // —— Bulk space status ——
@@ -381,6 +403,8 @@ module.exports = {
   listPlans,
   myMembership,
   flags,
+  adminListFlags,
+  adminUpsertFlag,
   bulkSpaceStatus,
   receptionToday,
   checkout,

@@ -9,6 +9,11 @@ const {
   forgotPassword,
   resetPassword,
   getMe,
+  verify2faLogin,
+  setup2fa,
+  enable2fa,
+  disable2fa,
+  get2faStatus,
 } = require('../controllers/authController');
 
 const authMiddleware = require('../middlewares/authMiddleware');
@@ -28,6 +33,11 @@ router.get('/csrf', ensureCsrfCookie, (req, res) => {
 
 router.post('/register', registerLimiter, upload.single('verificationDocument'), registerUser);
 router.post('/login', loginLimiter, loginUser);
+router.post('/2fa/verify', loginLimiter, verify2faLogin);
+router.get('/2fa/status', authMiddleware.verifyToken, get2faStatus);
+router.post('/2fa/setup', authMiddleware.verifyToken, setup2fa);
+router.post('/2fa/enable', authMiddleware.verifyToken, enable2fa);
+router.post('/2fa/disable', authMiddleware.verifyToken, disable2fa);
 router.post('/logout', logoutUser);
 router.get('/me', authMiddleware.verifyToken, getMe);
 router.post('/change-password', authMiddleware.verifyToken, changePassword);

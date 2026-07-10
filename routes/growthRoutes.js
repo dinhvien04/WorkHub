@@ -84,4 +84,34 @@ router.get(
   g.hostAdvancedReport
 );
 
+// QR check-in + no-show
+router.post(
+  '/bookings/:bookingId/check-in-token',
+  verifyToken,
+  g.mintCheckIn
+);
+router.post(
+  '/host/check-in/scan',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.scanCheckIn
+);
+router.post(
+  '/host/bookings/:bookingId/no-show',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.markNoShow
+);
+
+// Notification preferences
+router.get('/me/notification-prefs', verifyToken, g.getNotifyPrefs);
+router.put('/me/notification-prefs', verifyToken, g.updateNotifyPrefs);
+
+// Admin system + SEO redirects
+router.get('/admin/system-health', verifyToken, requireAdmin, g.systemHealth);
+router.get('/admin/seo/redirects', verifyToken, requireAdmin, g.listSeoRedirects);
+router.put('/admin/seo/redirects', verifyToken, requireAdmin, g.upsertSeoRedirect);
+
 module.exports = router;

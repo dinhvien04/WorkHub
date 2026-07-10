@@ -48,5 +48,7 @@ router.put('/host/refunds/:refundId/process', ...host, c.processRefund);
 router.put('/admin/disputes/:disputeId/resolve', verifyToken, requireAdmin, c.resolveDispute);
 router.put('/admin/refunds/:refundId/process', verifyToken, requireAdmin, c.processRefund);
 router.post('/admin/cms', verifyToken, requireAdmin, c.upsertCms);
+router.get('/admin/flags', verifyToken, requireAdmin, c.adminListFlags);
+router.put('/admin/flags', verifyToken, requireAdmin, c.adminUpsertFlag);
 
 module.exports = router;

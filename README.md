@@ -80,6 +80,12 @@ npm run seed:extras  # coupons + feature flags demo
 - Privacy export / delete request (`/security`, `/api/me/privacy/*`)
 - RUM web-vitals beacon (`POST /api/rum`)
 - Host iCal feed, dead-letter queue, backup script
+- TOTP 2FA + recovery codes (`/security`, `/api/auth/2fa/*`)
+- Signed QR check-in + booking code + no-show
+- Blackout blocks booking; pricing rules applied server-side
+- Feature flags (percentage/role/env) + admin upsert
+- SEO: sitemap index, cities/guides sitemaps, redirects, rich LocalBusiness JSON-LD
+- Notification prefs + admin system-health
 
 ```bash
 npm run backup

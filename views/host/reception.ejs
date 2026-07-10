@@ -1,6 +1,18 @@
 <div class="max-w-5xl mx-auto">
   <h1 class="text-2xl font-black mb-2">Reception — Hôm nay</h1>
-  <p class="text-sm text-slate-500 mb-4">Check-in / check-out nhanh</p>
+  <p class="text-sm text-slate-500 mb-4">Check-in / check-out nhanh · quét mã QR hoặc mã WH-xxxxxx</p>
+  <div class="bg-white rounded-2xl border p-4 mb-4 flex flex-wrap gap-2 items-end">
+    <div class="flex-1 min-w-[200px]">
+      <label for="rx-code" class="block text-[10px] font-black uppercase text-slate-400 mb-1">Mã QR token hoặc booking code</label>
+      <input id="rx-code" type="text" placeholder="WH-ABC123 hoặc token"
+        class="w-full border rounded-xl px-3 py-2 text-sm font-semibold" />
+    </div>
+    <button type="button" id="rx-scan-btn"
+      class="bg-teal-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+      Quét / Check-in
+    </button>
+    <p id="rx-scan-msg" class="text-sm w-full" role="status"></p>
+  </div>
   <div id="rx-error" class="error-state hidden mb-4"></div>
   <div class="bg-white rounded-3xl border overflow-hidden">
     <table class="w-full text-sm">

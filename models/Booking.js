@@ -70,6 +70,8 @@ const bookingSchema = new mongoose.Schema({
     CheckInAt: { type: Date, default: null },
     CheckOutAt: { type: Date, default: null },
     InstantBook: { type: Boolean, default: false },
+    NoShow: { type: Boolean, default: false },
+    AppliedPricingRules: [{ name: String, type: String, multiplier: Number }],
 
 }, { 
     // Tự động tạo CreateAt và UpdateAt

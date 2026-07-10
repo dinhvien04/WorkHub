@@ -90,6 +90,7 @@ function createApp() {
     // External webhooks / partner API keys authenticate via signature or X-API-Key.
     const skip =
       (req.path === '/api/auth/login' && req.method === 'POST') ||
+      (req.path === '/api/auth/2fa/verify' && req.method === 'POST') ||
       (req.path === '/api/auth/register' && req.method === 'POST') ||
       (req.path === '/api/auth/forgot-password' && req.method === 'POST') ||
       (req.path === '/api/auth/reset-password' && req.method === 'POST') ||

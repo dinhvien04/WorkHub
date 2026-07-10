@@ -20,7 +20,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <% if (typeof jsonLd !== 'undefined' && jsonLd) { %>
-    <script type="application/ld+json" nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>"><%- JSON.stringify(jsonLd) %></script>
+      <% const _ld = Array.isArray(jsonLd) ? jsonLd : [jsonLd]; %>
+      <% _ld.forEach(function(block) { %>
+    <script type="application/ld+json" nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>"><%- JSON.stringify(block) %></script>
+      <% }); %>
     <% } %>
 </head>
 <body class="antialiased text-slate-800">

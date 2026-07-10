@@ -141,6 +141,23 @@ async function createBooking({
     throw new ValidationError('Không gian hiện không khả dụng để đặt.');
   }
 
+  // Blackout / maintenance windows
+  try {
+    const Blackout = require('../models/Blackout');
+    const blocked = await Blackout.findOne({
+      SpaceID: space._id,
+      StartTime: { $lt: end },
+      EndTime: { $gt: start },
+    }).lean();
+    if (blocked) {
+      throw new ValidationError(
+        `Không gian đang bảo trì/blackout: ${blocked.Reason || 'maintenance'}.`
+      );
+    }
+  } catch (err) {
+    if (err.statusCode) throw err;
+  }
+
   // Fraud pre-check (rule-based)
   try {
     const User = require('../models/User');
@@ -170,8 +187,27 @@ async function createBooking({
     throw new ValidationError('Số lượng slot vượt giới hạn.');
   }
 
-  const hours = (end - start) / (1000 * 60 * 60);
-  let total = Math.round(hours * (space.PricePerHour || 0));
+  // Server-side pricing rules (peak/weekend/long-stay …)
+  let appliedPricingRules = [];
+  let total;
+  let depositFromQuote = null;
+  try {
+    const pricingService = require('./pricingService');
+    const quote = await pricingService.quotePrice({
+      hostId: space.HostID,
+      spaceId: space._id,
+      branchId: space.BranchID?._id || space.BranchID,
+      start,
+      end,
+      basePricePerHour: space.PricePerHour || 0,
+    });
+    total = quote.totalAmount;
+    depositFromQuote = quote.depositAmount;
+    appliedPricingRules = quote.appliedRules || [];
+  } catch {
+    const hours = (end - start) / (1000 * 60 * 60);
+    total = Math.round(hours * (space.PricePerHour || 0));
+  }
   let discountAmount = 0;
   let appliedCoupon = null;
 
@@ -193,7 +229,9 @@ async function createBooking({
   const deposit =
     space.DepositAmount > 0
       ? Math.min(space.DepositAmount, total)
-      : Math.round(total * 0.3);
+      : depositFromQuote != null
+        ? Math.min(depositFromQuote, total)
+        : Math.round(total * 0.3);
 
   const holdMs = Math.min(Math.max(Number(holdMinutes) || 15, 5), 60) * 60 * 1000;
   const holdExpires = new Date(Date.now() + holdMs);
@@ -255,6 +293,7 @@ async function createBooking({
       CouponCode: appliedCoupon ? appliedCoupon.Code : '',
       DiscountAmount: discountAmount,
       Snapshot: snapshot,
+      AppliedPricingRules: appliedPricingRules,
     };
 
     let booking;
@@ -364,7 +403,7 @@ async function confirmBooking(hostId, bookingId) {
 async function checkInBooking(hostId, bookingId) {
   const booking = await Booking.findOneAndUpdate(
     { _id: bookingId, HostID: hostId, Status: 'confirmed' },
-    { $set: { Status: 'in-use' } },
+    { $set: { Status: 'in-use', CheckInAt: new Date() } },
     { returnDocument: 'after', runValidators: true }
   );
 

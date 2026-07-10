@@ -54,4 +54,39 @@ async function loadReception() {
     if (err) { err.textContent = 'Lỗi kết nối'; err.classList.remove('hidden'); }
   }
 }
-document.addEventListener('DOMContentLoaded', loadReception);
+document.addEventListener('DOMContentLoaded', () => {
+  loadReception();
+  const scanBtn = document.getElementById('rx-scan-btn');
+  const codeInput = document.getElementById('rx-code');
+  const scanMsg = document.getElementById('rx-scan-msg');
+  if (scanBtn) {
+    scanBtn.addEventListener('click', async () => {
+      const raw = (codeInput && codeInput.value || '').trim();
+      if (!raw) {
+        if (scanMsg) scanMsg.textContent = 'Nhập mã.';
+        return;
+      }
+      const body = raw.includes('.') ? { token: raw } : { code: raw };
+      try {
+        const res = await WorkHubAPI.api('/api/host/check-in/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || data.message || 'Check-in thất bại');
+        if (scanMsg) {
+          scanMsg.textContent = data.message || 'OK';
+          scanMsg.className = 'text-sm w-full text-teal-700 font-bold';
+        }
+        if (codeInput) codeInput.value = '';
+        loadReception();
+      } catch (e) {
+        if (scanMsg) {
+          scanMsg.textContent = e.message || 'Lỗi';
+          scanMsg.className = 'text-sm w-full text-red-600';
+        }
+      }
+    });
+  }
+});

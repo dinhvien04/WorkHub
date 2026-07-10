@@ -312,6 +312,114 @@ const hostAdvancedReport = asyncHandler(async (req, res) => {
   });
 });
 
+// —— QR check-in / no-show ——
+const mintCheckIn = asyncHandler(async (req, res) => {
+  const checkInService = require('../services/checkInService');
+  const result = await checkInService.mintCheckInToken({
+    bookingId: req.params.bookingId,
+    actorId: req.user.userId,
+    actorRole: req.user.role,
+  });
+  res.json(result);
+});
+
+const scanCheckIn = asyncHandler(async (req, res) => {
+  const checkInService = require('../services/checkInService');
+  const booking = await checkInService.checkInWithToken({
+    hostId: req.user.userId,
+    token: req.body.token,
+    code: req.body.code,
+  });
+  res.json({ booking, message: 'Check-in thành công.' });
+});
+
+const markNoShow = asyncHandler(async (req, res) => {
+  const checkInService = require('../services/checkInService');
+  const booking = await checkInService.markNoShow({
+    hostId: req.user.userId,
+    bookingId: req.params.bookingId,
+    reason: req.body.reason,
+  });
+  res.json({ booking, message: 'Đã đánh dấu no-show.' });
+});
+
+// —— Notification preferences ——
+const getNotifyPrefs = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.userId)
+    .select('NotifyEmail NotifyPush NotifySms MarketingOptIn PreferredLang Timezone')
+    .lean();
+  res.json({
+    prefs: {
+      email: user?.NotifyEmail !== false,
+      push: user?.NotifyPush !== false,
+      sms: !!user?.NotifySms,
+      marketing: !!user?.MarketingOptIn,
+      lang: user?.PreferredLang || 'vi',
+      timezone: user?.Timezone || 'Asia/Ho_Chi_Minh',
+    },
+  });
+});
+
+const updateNotifyPrefs = asyncHandler(async (req, res) => {
+  const updates = {};
+  if (typeof req.body.email === 'boolean') updates.NotifyEmail = req.body.email;
+  if (typeof req.body.push === 'boolean') updates.NotifyPush = req.body.push;
+  if (typeof req.body.sms === 'boolean') updates.NotifySms = req.body.sms;
+  if (typeof req.body.marketing === 'boolean') updates.MarketingOptIn = req.body.marketing;
+  if (req.body.lang) updates.PreferredLang = String(req.body.lang).slice(0, 8);
+  if (req.body.timezone) updates.Timezone = String(req.body.timezone).slice(0, 64);
+  const user = await User.findByIdAndUpdate(req.user.userId, { $set: updates }, { new: true })
+    .select('NotifyEmail NotifyPush NotifySms MarketingOptIn PreferredLang Timezone')
+    .lean();
+  res.json({ prefs: user });
+});
+
+// —— System health (admin) ——
+const systemHealth = asyncHandler(async (req, res) => {
+  const mongoose = require('mongoose');
+  const pkg = require('../package.json');
+  const mem = process.memoryUsage();
+  res.json({
+    status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
+    version: pkg.version,
+    node: process.version,
+    uptimeSec: Math.round(process.uptime()),
+    db: { readyState: mongoose.connection.readyState },
+    memory: {
+      rss: mem.rss,
+      heapUsed: mem.heapUsed,
+    },
+    env: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// —— SEO redirect admin ——
+const upsertSeoRedirect = asyncHandler(async (req, res) => {
+  const SeoRedirect = require('../models/SeoRedirect');
+  const from = String(req.body.fromPath || '').trim();
+  const to = String(req.body.toPath || '').trim();
+  if (!from || !to) throw new ValidationError('fromPath và toPath bắt buộc.');
+  const doc = await SeoRedirect.findOneAndUpdate(
+    { FromPath: from },
+    {
+      $set: {
+        ToPath: to,
+        StatusCode: req.body.statusCode === 302 ? 302 : 301,
+        Active: req.body.active !== false,
+        Note: req.body.note || '',
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+  res.json({ redirect: doc });
+});
+
+const listSeoRedirects = asyncHandler(async (req, res) => {
+  const SeoRedirect = require('../models/SeoRedirect');
+  res.json({ redirects: await SeoRedirect.find().sort({ FromPath: 1 }).lean() });
+});
+
 module.exports = {
   createCheckout,
   gatewayWebhook,
@@ -338,4 +446,12 @@ module.exports = {
   createGroupBooking,
   hostAdvancedReport,
   rumBeacon,
+  mintCheckIn,
+  scanCheckIn,
+  markNoShow,
+  getNotifyPrefs,
+  updateNotifyPrefs,
+  systemHealth,
+  upsertSeoRedirect,
+  listSeoRedirects,
 };
