@@ -25,87 +25,77 @@ function extractToken(req) {
   return cookies[env.AUTH_COOKIE_NAME] || cookies.authToken || null;
 }
 
-/**
- * Verify JWT, reload user from DB, enforce active status + tokenVersion.
- * Sets req.user = { userId, role, status, tokenVersion, email, fullName }
- */
-async function verifyToken(req, res, next) {
-  try {
-    const token = extractToken(req);
-    if (!token) {
-      return next(new UnauthorizedError('Không tìm thấy token xác thực. Vui lòng đăng nhập.'));
-    }
+async function attachUserFromToken(token) {
+  const decoded = jwt.verify(token, env.JWT_SECRET);
+  const userId = decoded.userId || decoded.id || decoded._id;
+  if (!userId) throw new UnauthorizedError('Token không chứa userId.');
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, env.JWT_SECRET);
-    } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        return next(new UnauthorizedError('Token đã hết hạn. Vui lòng đăng nhập lại.'));
-      }
-      return next(new UnauthorizedError('Token không hợp lệ.'));
-    }
+  const user = await User.findById(userId).select('_id Role Status Email FullName tokenVersion');
+  if (!user) throw new UnauthorizedError('Tài khoản không tồn tại.');
+  if (user.Status === 'banned') throw new ForbiddenError('Tài khoản của bạn đã bị khóa.');
+  if (user.Status !== 'active') throw new ForbiddenError('Tài khoản chưa được kích hoạt.');
 
-    const userId = decoded.userId || decoded.id || decoded._id;
-    if (!userId) {
-      return next(new UnauthorizedError('Token không chứa userId.'));
-    }
+  const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
+  const dbVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
+  if (tokenVersion !== dbVersion) {
+    throw new UnauthorizedError('Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.');
+  }
 
-    const user = await User.findById(userId).select('_id Role Status Email FullName tokenVersion');
-    if (!user) {
-      return next(new UnauthorizedError('Tài khoản không tồn tại.'));
-    }
-    if (user.Status === 'banned') {
-      return next(new ForbiddenError('Tài khoản của bạn đã bị khóa.'));
-    }
-    if (user.Status !== 'active') {
-      return next(new ForbiddenError('Tài khoản chưa được kích hoạt.'));
-    }
-
-    const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
-    const dbVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
-    if (tokenVersion !== dbVersion) {
-      return next(new UnauthorizedError('Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.'));
-    }
-
-    req.user = {
+  return {
+    reqUser: {
       userId: user._id.toString(),
       role: user.Role,
       status: user.Status,
       tokenVersion: dbVersion,
       email: user.Email,
       fullName: user.FullName,
-    };
-    req.currentUser = user;
-    return next();
+    },
+    user,
+  };
+}
+
+async function verifyToken(req, res, next) {
+  try {
+    const token = extractToken(req);
+    if (!token) {
+      return next(new UnauthorizedError('Không tìm thấy token xác thực. Vui lòng đăng nhập.'));
+    }
+    try {
+      const { reqUser, user } = await attachUserFromToken(token);
+      req.user = reqUser;
+      req.currentUser = user;
+      return next();
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return next(new UnauthorizedError('Token đã hết hạn. Vui lòng đăng nhập lại.'));
+      }
+      if (error.isOperational) return next(error);
+      return next(new UnauthorizedError('Token không hợp lệ.'));
+    }
   } catch (err) {
     return next(err);
   }
 }
 
-/**
- * Optional auth: attach user if token present, otherwise continue as guest.
- */
 async function optionalAuth(req, res, next) {
   const token = extractToken(req);
   if (!token) return next();
   return verifyToken(req, res, next);
 }
 
-const authorizeRole = (...allowedRoles) => (req, res, next) => {
-  if (!req.user) return next(new UnauthorizedError('Bạn cần đăng nhập để thực hiện thao tác này.'));
-  if (!req.user.role) return next(new ForbiddenError('Không tìm thấy thông tin phân quyền.'));
-  if (!allowedRoles.includes(req.user.role)) {
-    return next(new ForbiddenError('Bạn không có quyền truy cập tài nguyên này.'));
-  }
-  return next();
-};
+const authorizeRole =
+  (...allowedRoles) =>
+  (req, res, next) => {
+    if (!req.user) return next(new UnauthorizedError('Bạn cần đăng nhập để thực hiện thao tác này.'));
+    if (!req.user.role) return next(new ForbiddenError('Không tìm thấy thông tin phân quyền.'));
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(new ForbiddenError('Bạn không có quyền truy cập tài nguyên này.'));
+    }
+    return next();
+  };
 
 const requireAdmin = (req, res, next) => authorizeRole('admin')(req, res, next);
 
-/**
- * Host must be active AND HostProfile.IsVerified === true.
- */
 async function requireVerifiedHost(req, res, next) {
   try {
     if (!req.user || req.user.role !== 'host') {
@@ -124,33 +114,36 @@ async function requireVerifiedHost(req, res, next) {
   }
 }
 
-/**
- * Page-level host auth: redirect to login instead of JSON.
- */
 async function requireHostPage(req, res, next) {
   try {
     const token = extractToken(req);
     if (!token) return res.redirect('/login');
-    const decoded = jwt.verify(token, env.JWT_SECRET);
-    const user = await User.findById(decoded.userId || decoded.id);
-    if (!user || user.Role !== 'host' || user.Status !== 'active') return res.redirect('/login');
-    const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
-    const dbVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
-    if (tokenVersion !== dbVersion) return res.redirect('/login');
-
+    const { reqUser, user } = await attachUserFromToken(token);
+    if (user.Role !== 'host') return res.redirect('/login');
     const profile = await HostProfile.findOne({ UserID: user._id }).select('IsVerified');
     if (!profile || !profile.IsVerified) {
       return res.status(403).send('Tài khoản host chưa được admin phê duyệt.');
     }
+    req.user = reqUser;
+    req.currentUser = user;
+    return next();
+  } catch {
+    return res.redirect('/login');
+  }
+}
 
-    req.user = {
-      userId: user._id.toString(),
-      role: user.Role,
-      status: user.Status,
-      tokenVersion: dbVersion,
-      email: user.Email,
-      fullName: user.FullName,
-    };
+/**
+ * Page-level admin auth — protects HTML routes, not only API.
+ */
+async function requireAdminPage(req, res, next) {
+  try {
+    const token = extractToken(req);
+    if (!token) return res.redirect('/login');
+    const { reqUser, user } = await attachUserFromToken(token);
+    if (user.Role !== 'admin') {
+      return res.status(403).send('Chỉ admin mới được truy cập.');
+    }
+    req.user = reqUser;
     req.currentUser = user;
     return next();
   } catch {
@@ -165,5 +158,6 @@ module.exports = {
   requireAdmin,
   requireHostPage,
   requireVerifiedHost,
+  requireAdminPage,
   extractToken,
 };

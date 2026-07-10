@@ -37,7 +37,9 @@ router.get(
       currentUser: req.currentUser,
       payments: safePayments,
       pagination: paginationMeta(total, page, limit),
-      scripts: '<script src="/js/host-spaces.js"></script>',
+      scripts: res.locals.scriptsFrom
+        ? res.locals.scriptsFrom(['/js/host-spaces.js', '/js/host-payments.js'])
+        : '',
     });
   })
 );

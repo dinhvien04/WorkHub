@@ -15,6 +15,25 @@ const branchSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    Slug: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        index: true,
+        sparse: true,
+    },
+    CitySlug: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        index: true,
+    },
+    DistrictSlug: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        index: true,
+    },
     Address: { // Địa chỉ chi tiết (Số nhà, tên đường)
         type: String,
         required: true,
@@ -30,6 +49,13 @@ const branchSchema = new mongoose.Schema({
         trim: true,
         index: true
     },
+    Timezone: {
+        type: String,
+        default: 'Asia/Ho_Chi_Minh',
+        trim: true,
+    },
+    MetaTitle: { type: String, trim: true, default: '' },
+    MetaDescription: { type: String, trim: true, default: '' },
     Description: {
         type: String,
         trim: true,
@@ -81,5 +107,9 @@ const branchSchema = new mongoose.Schema({
     collection: 'branches',
     timestamps: true // Tự động bật đầy đủ cả CreatedAt và UpdatedAt
 });
+
+branchSchema.index({ Status: 1, CitySlug: 1, DistrictSlug: 1 });
+branchSchema.index({ HostID: 1, Status: 1 });
+branchSchema.index({ Slug: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Branch', branchSchema);

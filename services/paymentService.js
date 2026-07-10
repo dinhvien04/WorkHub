@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const PaymentHistory = require('../models/Payment_History');
 const Booking = require('../models/Booking');
 const logActivity = require('../utils/auditLogger');
@@ -22,13 +23,13 @@ function validateIdempotencyKey(key) {
   return k;
 }
 
-async function getSuccessfulPaidAmount(bookingId) {
-  const rows = await PaymentHistory.find({
+async function getSuccessfulPaidAmount(bookingId, session = null) {
+  const q = PaymentHistory.find({
     BookingID: bookingId,
     Status: 'successful',
-  })
-    .select('Amount')
-    .lean();
+  }).select('Amount');
+  if (session) q.session(session);
+  const rows = await q.lean();
   return rows.reduce((sum, p) => sum + (p.Amount || 0), 0);
 }
 
@@ -75,9 +76,7 @@ async function createPendingPayment({
     CustomerID: customerId,
     IdempotencyKey: key,
   });
-  if (existing) {
-    return { payment: existing, duplicate: true };
-  }
+  if (existing) return { payment: existing, duplicate: true };
 
   const typeStr = String(paymentType || 'deposit').toLowerCase().trim();
   let actualPaymentType = 'deposit';
@@ -89,9 +88,6 @@ async function createPendingPayment({
   } else if (typeStr === 'remaining' || typeStr === 'remaining_balance') {
     actualPaymentType = 'remaining_balance';
     amountToPay = await getRemainingAmount(bookingId);
-  } else {
-    actualPaymentType = 'deposit';
-    amountToPay = booking.DepositAmount;
   }
 
   if (!amountToPay || amountToPay <= 0) {
@@ -109,9 +105,7 @@ async function createPendingPayment({
     PaymentType: actualPaymentType,
     Status: 'pending',
   });
-  if (pendingSameType) {
-    return { payment: pendingSameType, duplicate: true };
-  }
+  if (pendingSameType) return { payment: pendingSameType, duplicate: true };
 
   const txn = `TXN-${booking._id}-${crypto.randomBytes(4).toString('hex')}-${Date.now()}`;
 
@@ -160,7 +154,8 @@ async function createPendingPayment({
 }
 
 /**
- * Atomic verify: only pending -> successful if paid+amount <= TotalAmount.
+ * Atomic verify with invariant: successfulPaid <= TotalAmount always.
+ * Uses compare-and-set on pending + post-check rollback if race exceeds total.
  */
 async function verifyPayment(hostId, paymentId) {
   const payment = await PaymentHistory.findOne({ _id: paymentId, HostID: hostId });
@@ -169,20 +164,21 @@ async function verifyPayment(hostId, paymentId) {
     throw new ValidationError('Chỉ có thể xác minh giao dịch đang pending.');
   }
 
-  const booking = await Booking.findById(payment.BookingID);
+  const booking = await Booking.findOne({ _id: payment.BookingID, HostID: hostId });
   if (!booking) throw new NotFoundError('Không tìm thấy đơn hàng.');
-  if (String(booking.HostID) !== String(hostId)) {
-    throw new ForbiddenError('Bạn không có quyền xác minh giao dịch này.');
-  }
 
-  const paid = await getSuccessfulPaidAmount(payment.BookingID);
-  if (paid + payment.Amount > booking.TotalAmount) {
+  const paidBefore = await getSuccessfulPaidAmount(payment.BookingID);
+  if (paidBefore + payment.Amount > booking.TotalAmount) {
     throw new ValidationError('Xác minh sẽ làm vượt tổng đơn hàng.');
   }
 
   const now = new Date();
   const updated = await PaymentHistory.findOneAndUpdate(
-    { _id: paymentId, HostID: hostId, Status: 'pending' },
+    {
+      _id: paymentId,
+      HostID: hostId,
+      Status: 'pending',
+    },
     {
       $set: {
         Status: 'successful',
@@ -198,24 +194,46 @@ async function verifyPayment(hostId, paymentId) {
     throw new ConflictError('Giao dịch đã được xử lý bởi request khác.');
   }
 
-  // Re-check total after atomic update (race with concurrent verifies)
-  const paidAfter = await getSuccessfulPaidAmount(payment.BookingID);
-  if (paidAfter > booking.TotalAmount) {
-    await PaymentHistory.updateOne(
-      { _id: paymentId },
-      {
-        $set: {
-          Status: 'failed',
-          FailureReason: 'Overpayment race — rolled back',
-          PaidAt: null,
-        },
-      }
-    );
+  // Reconcile: keep earliest successful payments until TotalAmount; demote the rest.
+  // Handles concurrent verify races without dropping ALL payments.
+  await reconcileSuccessfulCap(payment.BookingID, booking.TotalAmount);
+
+  const stillOk = await PaymentHistory.findById(paymentId);
+  if (!stillOk || stillOk.Status !== 'successful') {
     throw new ConflictError('Không thể xác minh: vượt tổng đơn hàng do race condition.');
   }
 
-  await logActivity(hostId, 'VERIFY_PAYMENT', 'PaymentHistory', updated._id, 'Host xác minh thanh toán', 'success');
-  return updated;
+  await logActivity(
+    hostId,
+    'VERIFY_PAYMENT',
+    'PaymentHistory',
+    updated._id,
+    'Host xác minh thanh toán',
+    'success'
+  );
+  return stillOk;
+}
+
+/**
+ * Ensure sum(successful) <= total by demoting later payments to failed.
+ */
+async function reconcileSuccessfulCap(bookingId, totalAmount) {
+  const successful = await PaymentHistory.find({
+    BookingID: bookingId,
+    Status: 'successful',
+  }).sort({ VerifiedAt: 1, createdAt: 1 });
+
+  let sum = 0;
+  for (const p of successful) {
+    if (sum + (p.Amount || 0) <= totalAmount) {
+      sum += p.Amount || 0;
+    } else {
+      p.Status = 'failed';
+      p.FailureReason = 'Overpayment race — demoted to preserve successfulPaid <= TotalAmount';
+      p.PaidAt = null;
+      await p.save();
+    }
+  }
 }
 
 async function rejectPayment(hostId, paymentId, reason = '') {
@@ -243,7 +261,14 @@ async function rejectPayment(hostId, paymentId, reason = '') {
     throw new ValidationError('Chỉ có thể từ chối giao dịch đang pending.');
   }
 
-  await logActivity(hostId, 'REJECT_PAYMENT', 'PaymentHistory', updated._id, 'Host từ chối thanh toán', 'warning');
+  await logActivity(
+    hostId,
+    'REJECT_PAYMENT',
+    'PaymentHistory',
+    updated._id,
+    'Host từ chối thanh toán',
+    'warning'
+  );
   return updated;
 }
 
@@ -255,7 +280,7 @@ async function listHostPayments(hostId, { page = 1, limit = 20, status } = {}) {
     PaymentHistory.find(filter)
       .select('-__v')
       .populate('CustomerID', 'FullName Email')
-      .populate('BookingID', 'Status TotalAmount StartTime EndTime')
+      .populate('BookingID', 'Status TotalAmount DepositAmount StartTime EndTime')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -265,19 +290,20 @@ async function listHostPayments(hostId, { page = 1, limit = 20, status } = {}) {
   return { payments, total, page, limit };
 }
 
-/**
- * Host-scoped revenue metrics from PaymentHistory only.
- */
 async function getHostRevenueMetrics(hostId, { spaceIds = null, from = null, to = null } = {}) {
-  const match = { HostID: hostId };
+  const match = {
+    HostID:
+      hostId instanceof mongoose.Types.ObjectId
+        ? hostId
+        : new mongoose.Types.ObjectId(String(hostId)),
+  };
   if (from || to) {
     match.PaidAt = {};
     if (from) match.PaidAt.$gte = from;
     if (to) match.PaidAt.$lte = to;
   }
 
-  const payments = await PaymentHistory.find(match).lean();
-  let filtered = payments;
+  let payments = await PaymentHistory.find(match).lean();
   if (spaceIds) {
     const bookings = await Booking.find({
       HostID: hostId,
@@ -286,13 +312,13 @@ async function getHostRevenueMetrics(hostId, { spaceIds = null, from = null, to 
       .select('_id')
       .lean();
     const set = new Set(bookings.map((b) => String(b._id)));
-    filtered = payments.filter((p) => set.has(String(p.BookingID)));
+    payments = payments.filter((p) => set.has(String(p.BookingID)));
   }
 
   let actualRevenue = 0;
   let pendingAmount = 0;
   let refundedAmount = 0;
-  for (const p of filtered) {
+  for (const p of payments) {
     if (p.Status === 'successful') actualRevenue += p.Amount || 0;
     if (p.Status === 'pending') pendingAmount += p.Amount || 0;
     if (p.Status === 'refunded') refundedAmount += p.Amount || 0;

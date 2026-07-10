@@ -345,15 +345,47 @@ function goBackToDetail() {
     window.location.href = branchId ? `/detail?branchId=${branchId}` : '/';
 }
 
-function setPaymentType(type) {
+async function loadServerBookingPrices() {
+    const bookingId = new URLSearchParams(window.location.search).get('bookingId');
+    if (!bookingId || !window.WorkHubAPI) return null;
+    try {
+        const res = await WorkHubAPI.api(`/api/customers/me/bookings/${bookingId}`, {
+            redirectOn401: true,
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.booking) {
+            currentPrices.total = Number(data.booking.TotalAmount) || 0;
+            currentPrices.deposit = Number(data.booking.DepositAmount) || 0;
+            sessionStorage.setItem(
+                'pendingBooking',
+                JSON.stringify({
+                    ...(JSON.parse(sessionStorage.getItem('pendingBooking') || '{}')),
+                    total: currentPrices.total,
+                    deposit: currentPrices.deposit,
+                    bookingId,
+                })
+            );
+        }
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+async function setPaymentType(type) {
     const area = document.getElementById('qr-area');
     if (!area) return;
 
     selectedPaymentType = type;
 
-    const pending = JSON.parse(sessionStorage.getItem('pendingBooking') || '{}');
-    currentPrices.deposit = pending.deposit || 0;
-    currentPrices.total = pending.total || 0;
+    // Server is source of truth for amounts
+    await loadServerBookingPrices();
+    if (!currentPrices.total) {
+        const pending = JSON.parse(sessionStorage.getItem('pendingBooking') || '{}');
+        currentPrices.deposit = pending.deposit || 0;
+        currentPrices.total = pending.total || 0;
+    }
 
     area.classList.remove('hidden');
     document.getElementById('qr-placeholder')?.classList.add('hidden');
@@ -362,10 +394,26 @@ function setPaymentType(type) {
 
     const amount = type === 'deposit' ? currentPrices.deposit : currentPrices.total;
     const priceEl = document.getElementById('qr-price-val');
-    if (priceEl) priceEl.innerText = amount.toLocaleString('vi-VN') + 'đ';
+    if (priceEl) priceEl.textContent = amount.toLocaleString('vi-VN') + 'đ';
 
     const qrImg = document.getElementById('qr-img');
-    if (qrImg) qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=PAY_${amount}`;
+    if (qrImg) {
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=PAY_${amount}`;
+        qrImg.alt = 'Mã QR thanh toán';
+    }
+
+    const note = document.getElementById('payment-status-note');
+    if (note) {
+        note.textContent =
+            'Sau khi bấm xác nhận, thanh toán ở trạng thái chờ host xác minh — chưa phải thành công.';
+    }
+}
+
+// Prefetch server prices on payment page
+if (typeof window !== 'undefined' && window.location.pathname === '/payment') {
+    document.addEventListener('DOMContentLoaded', () => {
+        loadServerBookingPrices();
+    });
 }
 
 async function handleFinalSuccess() {
@@ -392,8 +440,13 @@ async function handleFinalSuccess() {
         }
 
         sessionStorage.removeItem('pendingBooking');
-        alert('Thanh toán thành công! Chuyển về trang lịch sử...');
-        setTimeout(() => window.location.href = '/history', 1000);
+        // Payment is pending host verification — never claim success yet
+        alert(
+          confirmData.duplicate
+            ? 'Yêu cầu thanh toán đã được ghi nhận trước đó. Đang chờ host xác minh.'
+            : 'Đã gửi báo cáo thanh toán. Đang chờ chủ cơ sở xác minh — chưa phải thanh toán thành công.'
+        );
+        setTimeout(() => { window.location.href = '/history'; }, 1000);
 
     } catch (err) {
         console.error('Lỗi:', err);

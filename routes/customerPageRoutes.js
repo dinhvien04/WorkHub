@@ -11,21 +11,24 @@ const { verifyToken, authorizeRole } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
-// Public guest pages
+function pageScripts(res, files) {
+  return res.locals.scriptsFrom ? res.locals.scriptsFrom(files) : files.map((f) => `<script src="${f}"></script>`).join('');
+}
+
 router.get('/', getHomePage);
 router.get('/search', searchBranches);
 router.get('/detail', detailPage);
 
-// Customer pages (auth checked client-side for UX; payment_history needs token)
 router.get('/payment', (req, res) => {
   res.render('customer/payment', {
-    scripts: '<script src="/js/customer-main.js"></script>',
+    pageTitle: 'Thanh toán — WorkHub',
+    scripts: pageScripts(res, ['/js/customer-main.js']),
   });
 });
 router.get('/history', (req, res) => {
   res.render('customer/history', {
-    scripts:
-      '<script src="/js/customer-main.js"></script><script src="/js/customer-history.js"></script>',
+    pageTitle: 'Lịch sử đặt chỗ — WorkHub',
+    scripts: pageScripts(res, ['/js/customer-main.js', '/js/customer-history.js']),
   });
 });
 router.get(
@@ -36,7 +39,8 @@ router.get(
 );
 router.get('/profile', (req, res) => {
   res.render('customer/profile', {
-    scripts: '<script src="/js/customer-main.js"></script>',
+    pageTitle: 'Hồ sơ — WorkHub',
+    scripts: pageScripts(res, ['/js/customer-main.js']),
   });
 });
 

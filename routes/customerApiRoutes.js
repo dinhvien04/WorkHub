@@ -15,6 +15,7 @@ const {
   submitReview,
   getReview,
   getBranchReviews,
+  getMyBookingById,
 } = require('../controllers/customerController');
 
 const { verifyToken, authorizeRole } = require('../middlewares/authMiddleware');
@@ -34,6 +35,7 @@ const protectCustomer = [verifyToken, authorizeRole('customer')];
 router.get('/me/profile', ...protectCustomer, getMyProfile);
 router.put('/me/profile', ...protectCustomer, upload.single('customerAvatar'), updateMyProfile);
 router.get('/me/bookings', ...protectCustomer, getCustomerBookings);
+router.get('/me/bookings/:bookingId', ...protectCustomer, getMyBookingById);
 router.post('/me/bookings', ...protectCustomer, bookingLimiter, createBooking);
 router.post('/me/bookings/:bookingId/review', ...protectCustomer, submitReview);
 router.put('/me/bookings/:bookingId/cancel', ...protectCustomer, cancelBooking);

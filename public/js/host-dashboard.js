@@ -1,168 +1,159 @@
-﻿async function hostApiFetch(url, options = {}) {
-  if (window.WorkHubAPI && WorkHubAPI.api) return WorkHubAPI.api(url, options);
-  options = options || {};
-  options.credentials = 'same-origin';
-  return fetch(url, options);
-}
-let currentSelectedBranch = 'all';
-let myChart = null; // Dùng 1 biến duy nhất quản lý Chart
+'use strict';
 
-document.addEventListener("DOMContentLoaded", function () {
-    loadDashboardData('all');
+/**
+ * Host dashboard — safe DOM rendering (no user data via innerHTML).
+ */
+let currentSelectedBranch = 'all';
+
+async function loadHostDashboard() {
+  if (!window.WorkHubAPI || !window.DomSafe) return;
+
+  const url =
+    currentSelectedBranch && currentSelectedBranch !== 'all'
+      ? `/api/hosts/dashboard-stats?branchId=${encodeURIComponent(currentSelectedBranch)}`
+      : '/api/hosts/dashboard-stats?branchId=all';
+
+  try {
+    const res = await WorkHubAPI.api(url, { redirectOn401: true });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error(data.error || 'Dashboard error');
+      return;
+    }
+    renderBranchTabs(data.branches || []);
+    renderStats(data.stats || {});
+    renderFloorPlan(data.liveFloorPlan || []);
+    renderRecentBookings(data.recentBookings || []);
+    renderChart(data.chartData || { labels: [], bookings: [], revenue: [] });
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderBranchTabs(branches) {
+  const tabContainer = document.getElementById('branch-tabs') || document.querySelector('.branch-tabs');
+  if (!tabContainer) return;
+  DomSafe.clearElement(tabContainer);
+
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = `branch-tab px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+    currentSelectedBranch === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600'
+  }`;
+  allBtn.textContent = 'Tất cả';
+  allBtn.addEventListener('click', () => switchBranch('all'));
+  tabContainer.appendChild(allBtn);
+
+  branches.forEach((b) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `branch-tab px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+      currentSelectedBranch === String(b._id) ? 'bg-indigo-600 text-white' : 'text-slate-600'
+    }`;
+    btn.textContent = b.Name || 'Chi nhánh';
+    btn.addEventListener('click', () => switchBranch(String(b._id)));
+    tabContainer.appendChild(btn);
+  });
+}
+
+function switchBranch(id) {
+  currentSelectedBranch = id;
+  loadHostDashboard();
+}
+
+function setTextById(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text == null ? '' : String(text);
+}
+
+function renderStats(stats) {
+  setTextById('stat-revenue', Number(stats.revenue || 0).toLocaleString('vi-VN') + 'đ');
+  setTextById('stat-paid', Number(stats.paidAmount || 0).toLocaleString('vi-VN') + 'đ');
+  setTextById('stat-pending', Number(stats.pendingAmount || 0).toLocaleString('vi-VN') + 'đ');
+  setTextById('stat-refunded', Number(stats.refundedAmount || 0).toLocaleString('vi-VN') + 'đ');
+  setTextById('stat-bookings', String(stats.totalBookings || 0));
+  setTextById('stat-occupied', String(stats.totalOccupiedGuests || 0));
+  setTextById('stat-rooms', String(stats.activeRoomsCount || 0));
+}
+
+function renderFloorPlan(items) {
+  const floorPlanContainer =
+    document.getElementById('floor-plan') || document.getElementById('live-floor-plan');
+  if (!floorPlanContainer) return;
+  DomSafe.clearElement(floorPlanContainer);
+  items.forEach((item) => {
+    const d = document.createElement('div');
+    const status = item.LiveStatus || 'available';
+    d.className = `floor-plan-item status-${status === 'occupied' ? 'occupied' : status === 'upcoming' ? 'booked' : status === 'maintenance' ? 'maintenance' : 'available'}`;
+    d.title = `${item.SpaceCode || ''} — ${status}`;
+    d.textContent = item.SpaceCode || '?';
+    floorPlanContainer.appendChild(d);
+  });
+}
+
+function renderRecentBookings(bookings) {
+  const tableBody =
+    document.querySelector('#recent-bookings-body') ||
+    document.querySelector('#recent-bookings tbody');
+  if (!tableBody) return;
+  DomSafe.clearElement(tableBody);
+  if (!bookings.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 4;
+    td.className = 'p-4 text-center text-slate-400';
+    td.textContent = 'Chưa có đơn đặt chỗ nào.';
+    tr.appendChild(td);
+    tableBody.appendChild(tr);
+    return;
+  }
+  bookings.forEach((b) => {
+    const tr = document.createElement('tr');
+    const cells = [
+      b.CustomerID?.FullName || b.CustomerID?.Email || 'Khách',
+      b.SpaceID?.SpaceCode || b.SpaceID?.Name || '—',
+      b.Status || '—',
+      b.StartTime ? new Date(b.StartTime).toLocaleString('vi-VN') : '—',
+    ];
+    cells.forEach((text) => {
+      const td = document.createElement('td');
+      td.className = 'p-3 text-sm';
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+    tableBody.appendChild(tr);
+  });
+}
+
+let chartInstance = null;
+function renderChart(chartData) {
+  const canvas = document.getElementById('host-revenue-chart') || document.getElementById('revenueChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: chartData.labels || [],
+      datasets: [
+        {
+          label: 'Doanh thu đã xác minh (đ)',
+          data: chartData.revenue || [],
+          borderColor: '#0d9488',
+          tension: 0.3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: true } },
+    },
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadHostDashboard();
 });
 
-async function loadDashboardData(branchId) {
-    
-
-    try {
-        // Đã sửa đường dẫn URL chuẩn
-        const response = await hostApiFetch(`/api/hosts/dashboard-stats?branchId=${branchId}`, {
-            method: 'GET',
-            credentials: 'same-origin'
-        });
-
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Lỗi tải dữ liệu");
-
-        // 1. Cập nhật số liệu
-        document.getElementById('stat-revenue').innerText = result.stats.revenue.toLocaleString('vi-VN') + 'đ';
-        document.getElementById('stat-bookings').innerText = result.stats.totalBookings;
-        document.getElementById('stat-occupied').innerText = result.stats.totalOccupiedGuests;
-        document.getElementById('stat-rooms').innerText = result.stats.activeRoomsCount;
-        document.getElementById('finance-paid').innerText = result.stats.revenue.toLocaleString('vi-VN') + 'đ';
-        document.getElementById('finance-pending').innerText = result.stats.paidAmount.toLocaleString('vi-VN') + 'đ';
-
-        // 2. Render Tabs Chi nhánh
-        if (branchId === 'all' && result.branches) {
-            const tabContainer = document.getElementById('branch-tabs-container');
-            tabContainer.innerHTML = `<button type="button" data-id="all" class="branch-tab px-5 py-2.5 rounded-xl text-sm font-bold transition ${currentSelectedBranch === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600'}" onclick="switchBranch('all')">Tất cả</button>`;
-            result.branches.forEach(b => {
-                tabContainer.innerHTML += `
-                    <button type="button" data-id="${b._id}" class="branch-tab px-5 py-2.5 rounded-xl text-sm font-bold transition ${currentSelectedBranch === b._id ? 'bg-indigo-600 text-white' : 'text-slate-600'}" onclick="switchBranch('${b._id}')">
-                        ${b.Name}
-                    </button>`;
-            });
-        }
-
-        // 3. Khởi tạo Biểu đồ
-        if (typeof Chart !== 'undefined' && result.chartData) {
-            renderChart(result.chartData);
-        }
-
-        // 4. Render Sơ đồ phòng
-        const floorPlanContainer = document.getElementById('host-floor-plan-mini');
-        floorPlanContainer.innerHTML = '';
-        if (result.liveFloorPlan?.length > 0) {
-            result.liveFloorPlan.forEach(space => {
-                let colorClass = 'bg-emerald-100 border-emerald-200 text-emerald-800';
-                if (space.LiveStatus === 'occupied') colorClass = 'bg-rose-100 border-rose-200 text-rose-800';
-                else if (space.LiveStatus === 'maintenance') colorClass = 'bg-slate-200 border-slate-300 text-slate-500';
-
-                floorPlanContainer.innerHTML += `
-                    <div class="aspect-square min-h-[2.25rem] rounded-lg flex items-center justify-center text-[10px] font-bold border ${colorClass}">
-                        ${space.SpaceCode}
-                    </div>`;
-            });
-        }
-
-        // 5. Render Danh sách Booking gần nhất
-        const tableBody = document.getElementById('host-recent-table');
-        if (tableBody) {
-            tableBody.innerHTML = ''; 
-
-            if (result.recentBookings && result.recentBookings.length > 0) {
-                result.recentBookings.forEach(booking => {
-                    const customerName = booking.CustomerID?.FullName || booking.CustomerID?.fullName || 'Khách vãng lai';
-                    const spaceName = booking.SpaceID?.SpaceCode || booking.SpaceID?.name || 'N/A';
-                    const date = new Date(booking.createdAt).toLocaleDateString('vi-VN');
-
-                    const statusMap = { 'pending': 'Chờ duyệt', 'confirmed': 'Đã xác nhận', 'in-use': 'Đang sử dụng', 'completed': 'Hoàn thành' };
-                    const statusText = statusMap[booking.Status] || booking.Status;
-
-                    tableBody.innerHTML += `
-                <tr class="border-b border-slate-100 hover:bg-slate-50">
-                    <td class="p-3 font-medium text-slate-800">${customerName}</td>
-                    <td class="p-3">${spaceName}</td>
-                    <td class="p-3 text-slate-500">${date}</td>
-                    <td class="p-3">
-                        <span class="px-2 py-1 rounded-md text-[9px] font-bold uppercase ${booking.Status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-                            booking.Status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
-                        }">
-                            ${statusText}
-                        </span>
-                    </td>
-                </tr>
-            `;
-                });
-            } else {
-                tableBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">Chưa có đơn đặt chỗ nào.</td></tr>';
-            }
-        }
-    } catch (err) {
-        console.error("Lỗi:", err);
-    }
-}
-
-// Hàm renderChart tách riêng
-function renderChart(chartData) {
-    const ctx = document.getElementById('bookingChart').getContext('2d');
-
-    if (myChart) {
-        myChart.destroy();
-    }
-
-    myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Số lượt đặt chỗ',
-                data: chartData.bookings,
-                borderColor: '#0d9488',
-                backgroundColor: 'rgba(13, 148, 136, 0.1)',
-                borderWidth: 3,
-                fill: true,
-                tension: 0.4,
-                pointBackgroundColor: '#0d9488',
-                pointBorderColor: '#ffffff',
-                pointBorderWidth: 2,
-                pointRadius: 5
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: '#1e293b',
-                    padding: 12,
-                    titleFont: { size: 13 },
-                    bodyFont: { size: 14, weight: 'bold' },
-                    displayColors: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { stepSize: 1, color: '#94a3b8' },
-                    grid: { color: '#f1f5f9', drawBorder: false }
-                },
-                x: {
-                    ticks: { color: '#94a3b8', font: { weight: 'bold' } },
-                    grid: { display: false }
-                }
-            }
-        }
-    });
-}
-
-// Hàm switchBranch
-function switchBranch(branchId) {
-    currentSelectedBranch = branchId;
-    document.querySelectorAll('.branch-tab').forEach(tab => {
-        const isActive = tab.getAttribute('data-id') === branchId;
-        tab.className = `branch-tab px-5 py-2.5 rounded-xl text-sm font-bold transition ${isActive ? 'bg-indigo-600 text-white' : 'text-slate-600'}`;
-    });
-    loadDashboardData(branchId);
-}
+// expose for any legacy buttons
+window.switchBranch = switchBranch;
+window.loadHostDashboard = loadHostDashboard;

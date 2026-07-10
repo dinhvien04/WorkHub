@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -33,6 +33,6 @@ jobs:
           JWT_SECRET: test_jwt_secret_key_at_least_32_characters_long_for_workhub
           ENABLE_TRANSACTIONS: 'false'
 
-      - name: Audit (high+)
+      # Fail the job on high+ vulnerabilities (may require dependency upgrades)
+      - name: Audit high+
         run: npm audit --audit-level=high
-        continue-on-error: true

@@ -99,6 +99,9 @@ function validateBookingWindow(start, end) {
       `Chỉ được đặt trước tối đa ${env.MAX_BOOKING_DAYS_AHEAD} ngày.`
     );
   }
+
+  // Slot policy (floor-start): any start/end allowed; overlapping ranges share slots.
+  // Documented: BOOKING_SLOT_MINUTES granularity locks partial overlaps.
 }
 
 async function createBooking({ customerId, spaceId, startTime, endTime, note = '' }) {

@@ -6,51 +6,66 @@ const { ForbiddenError } = require('../utils/errors');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-function createCsrfToken() {
-  return crypto.randomBytes(32).toString('hex');
+/**
+ * Signed CSRF token: random payload + HMAC(session secret).
+ * Cookie holds the token; header must match exactly (double-submit + signature).
+ */
+function signToken(raw) {
+  const secret = env.SESSION_SECRET || env.JWT_SECRET;
+  const sig = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  return `${raw}.${sig}`;
 }
 
-/**
- * Ensure CSRF cookie exists (readable by JS for double-submit).
- */
+function verifySignedToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return false;
+  const [raw, sig] = token.split('.');
+  if (!raw || !sig) return false;
+  const secret = env.SESSION_SECRET || env.JWT_SECRET;
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+function createCsrfToken() {
+  const raw = crypto.randomBytes(32).toString('hex');
+  return signToken(raw);
+}
+
 function ensureCsrfCookie(req, res, next) {
-  // Avoid double-set on same request (global middleware + route middleware)
   if (res.locals.csrfToken) return next();
 
   const name = env.CSRF_COOKIE_NAME;
-  if (!req.cookies || !req.cookies[name]) {
-    const token = createCsrfToken();
-    res.cookie(name, token, {
-      httpOnly: false,
-      secure: env.COOKIE_SECURE,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000,
-    });
-    res.locals.csrfToken = token;
-  } else {
-    res.locals.csrfToken = req.cookies[name];
+  const existing = req.cookies && req.cookies[name];
+  if (existing && verifySignedToken(existing)) {
+    res.locals.csrfToken = existing;
+    return next();
   }
-  next();
+
+  const token = createCsrfToken();
+  res.cookie(name, token, {
+    httpOnly: false,
+    secure: env.COOKIE_SECURE,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000,
+  });
+  res.locals.csrfToken = token;
+  return next();
 }
 
-/**
- * Double-submit CSRF: require X-CSRF-Token header to match csrf cookie.
- * Also checks Origin/Referer for state-changing requests when present.
- */
 function csrfProtection(req, res, next) {
   if (SAFE_METHODS.has(req.method)) return next();
-  // Skip CSRF for health and test bootstrap if needed
-  if (req.path === '/health') return next();
+  if (req.path === '/health' || req.path.startsWith('/health/')) return next();
 
-  // Origin / Referer check when headers present
   const origin = req.get('origin');
   const referer = req.get('referer');
   const host = req.get('host');
   if (origin) {
     try {
-      const originHost = new URL(origin).host;
-      if (originHost !== host) {
+      if (new URL(origin).host !== host) {
         return next(new ForbiddenError('Origin không hợp lệ (CSRF).'));
       }
     } catch {
@@ -58,8 +73,7 @@ function csrfProtection(req, res, next) {
     }
   } else if (referer) {
     try {
-      const refererHost = new URL(referer).host;
-      if (refererHost !== host) {
+      if (new URL(referer).host !== host) {
         return next(new ForbiddenError('Referer không hợp lệ (CSRF).'));
       }
     } catch {
@@ -67,18 +81,29 @@ function csrfProtection(req, res, next) {
     }
   }
 
-  const cookieToken = req.cookies && req.cookies[env.CSRF_COOKIE_NAME];
-  const headerToken = req.get('x-csrf-token') || req.get('x-xsrf-token') || (req.body && req.body._csrf);
-
-  // Opt-in only for isolated unit suites that do not exercise HTTP CSRF
   if (process.env.DISABLE_CSRF === '1' && process.env.ALLOW_DISABLE_CSRF === '1') {
     return next();
   }
 
-  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+  const cookieToken = req.cookies && req.cookies[env.CSRF_COOKIE_NAME];
+  const headerToken =
+    req.get('x-csrf-token') || req.get('x-xsrf-token') || (req.body && req.body._csrf);
+
+  if (
+    !cookieToken ||
+    !headerToken ||
+    cookieToken !== headerToken ||
+    !verifySignedToken(cookieToken)
+  ) {
     return next(new ForbiddenError('Thiếu hoặc sai CSRF token.'));
   }
   return next();
 }
 
-module.exports = { ensureCsrfCookie, csrfProtection, createCsrfToken };
+module.exports = {
+  ensureCsrfCookie,
+  csrfProtection,
+  createCsrfToken,
+  verifySignedToken,
+  signToken,
+};

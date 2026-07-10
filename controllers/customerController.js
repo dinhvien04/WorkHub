@@ -39,7 +39,10 @@ async function getHomePage(req, res) {
     const branches = await Branch.find({ Status: 'active' }).lean();
     res.render('customer/home', { 
       branches,
-      scripts: '<script src="/js/customer-main.js"></script>'
+      pageTitle: 'WorkHub — Đặt chỗ Co-working',
+      scripts: res.locals.scriptsFrom
+        ? res.locals.scriptsFrom(['/js/customer-main.js'])
+        : '<script src="/js/customer-main.js"></script>',
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -72,7 +75,10 @@ async function searchBranches(req, res){
     res.render('customer/search', { 
       branches, 
       keyword: location || "",
-      scripts: '<script src="/js/customer-main.js"></script>' 
+      pageTitle: location ? `Tìm: ${location} — WorkHub` : 'Tìm không gian — WorkHub',
+      scripts: res.locals.scriptsFrom
+        ? res.locals.scriptsFrom(['/js/customer-main.js'])
+        : '<script src="/js/customer-main.js"></script>',
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -95,7 +101,11 @@ async function detailPage(req, res) {
         res.render('customer/detail', {
             branch,
             spaces,
-            scripts: '<script src="/js/customer-main.js"></script>'
+            pageTitle: `${branch.Name} — WorkHub`,
+            metaDescription: (branch.Description || branch.Address || branch.Name || '').slice(0, 160),
+            scripts: res.locals.scriptsFrom
+              ? res.locals.scriptsFrom(['/js/customer-main.js'])
+              : '<script src="/js/customer-main.js"></script>',
         });
     } catch (error) {
         return sendServerError(res, error);
@@ -311,6 +321,54 @@ async function checkAvailability(req, res) {
 // ==========================================
 // 1. TẠO ĐƠN HÀNG MỚI (Thuần túy tạo Hợp đồng)
 // ==========================================
+async function getMyBookingById(req, res) {
+  try {
+    const customerId = req.user.userId;
+    const { bookingId } = req.params;
+    const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId })
+      .populate({
+        path: 'SpaceID',
+        select: 'Name SpaceCode PricePerHour Images BranchID',
+        populate: { path: 'BranchID', select: 'Name Address' },
+      })
+      .lean();
+    if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
+
+    const progress = await paymentService.getPaymentProgress(bookingId);
+    const pendingPayments = await PaymentHistory.find({
+      BookingID: bookingId,
+      CustomerID: customerId,
+      Status: 'pending',
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      booking: {
+        _id: booking._id,
+        Status: booking.Status,
+        StartTime: booking.StartTime,
+        EndTime: booking.EndTime,
+        TotalAmount: booking.TotalAmount,
+        DepositAmount: booking.DepositAmount,
+        SpaceID: booking.SpaceID,
+      },
+      paymentProgress: progress,
+      pendingPayments,
+      // UI guidance: pending is NOT success
+      paymentUiStatus: pendingPayments.length
+        ? 'awaiting_host_verification'
+        : progress.paidAmount >= booking.TotalAmount
+          ? 'paid_in_full'
+          : progress.paidAmount > 0
+            ? 'partially_paid'
+            : 'unpaid',
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
 async function createBooking(req, res) {
   try {
     // Identity ONLY from token — ignore client-supplied CustomerID / userId
@@ -678,6 +736,7 @@ module.exports = {
   getMyProfile,
   updateMyProfile,
   getCustomerBookings,
+  getMyBookingById,
   checkAvailability,
   createBooking,
   cancelBooking,

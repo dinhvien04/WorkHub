@@ -316,13 +316,21 @@ async function createBranch(req, res) {
       req.files.forEach((file) => images.push(file.path));
     }
 
+    const { slugify, uniqueSlug } = require('../utils/slugify');
+    const name = req.body.name;
+    const city = req.body.city || '';
+    const district = req.body.district || '';
+    const slug = await uniqueSlug(Branch, name || 'branch');
     const branch = await Branch.create({
       HostID: hostId,
-      Name: req.body.name,
+      Name: name,
+      Slug: slug,
       Address: req.body.address,
       Description: req.body.note || req.body.description || "",
-      City: req.body.city || "",
-      District: req.body.district || "",
+      City: city,
+      District: district,
+      CitySlug: slugify(city),
+      DistrictSlug: slugify(district),
       OpeningTime: req.body.openingTime || "07:00",
       ClosingTime: req.body.closingTime || "22:00",
       Status: 'active',
@@ -473,28 +481,56 @@ async function getHostReportsPage(req, res) {
       bookingFilter.createdAt = { ...bookingFilter.createdAt, $lte: end };
     }
 
-    // Tải booking phù hợp filter, đồng thời điền thông tin không gian (SpaceID)
+    // Bookings for GMV / ops counts
     const allBookings = filteredSpaceIds.length
       ? await Booking.find(bookingFilter).populate({ path: 'SpaceID', select: 'Name BranchID' }).sort({ createdAt: -1 }).lean()
       : [];
 
-    // Phân loại booking theo trạng thái để tính báo cáo
-    const successfulBookings = allBookings.filter(booking => ['confirmed', 'completed'].includes(booking.Status));
-    const cancelledBookings = allBookings.filter(booking => booking.Status === 'cancelled');
+    const nonCancelled = allBookings.filter((b) => b.Status !== 'cancelled');
+    const cancelledBookings = allBookings.filter((b) => b.Status === 'cancelled');
 
-    // Tính tổng các chỉ số chính
-    const totalGross = successfulBookings.reduce((sum, booking) => sum + Number(booking.TotalAmount || 0), 0);
-    const totalDeposit = successfulBookings.reduce((sum, booking) => sum + Number(booking.DepositAmount || 0), 0);
-    const totalOutstanding = totalGross - totalDeposit;
-    const cancelledRevenue = cancelledBookings.reduce((sum, booking) => sum + Number(booking.TotalAmount || 0), 0);
+    // Actual revenue ONLY from successful payments (host-scoped)
+    const payFilter = { HostID: hostId, Status: 'successful' };
+    if (startDate || endDate) {
+      payFilter.PaidAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        payFilter.PaidAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        payFilter.PaidAt.$lte = end;
+      }
+    }
+    const successfulPayments = await PaymentHistory.find(payFilter).lean();
+    const pendingPayments = await PaymentHistory.find({
+      HostID: hostId,
+      Status: 'pending',
+    }).lean();
+    const refundedPayments = await PaymentHistory.find({
+      HostID: hostId,
+      Status: 'refunded',
+    }).lean();
 
-    // Tạo map để tra branch name nhanh khi cần hiển thị hoặc export
+    const actualRevenue = successfulPayments.reduce((s, p) => s + Number(p.Amount || 0), 0);
+    const pendingAmount = pendingPayments.reduce((s, p) => s + Number(p.Amount || 0), 0);
+    const refundedAmount = refundedPayments.reduce((s, p) => s + Number(p.Amount || 0), 0);
+    const gmv = nonCancelled.reduce((s, b) => s + Number(b.TotalAmount || 0), 0);
+    const outstanding = Math.max(0, gmv - actualRevenue);
+    const cancelledGmv = cancelledBookings.reduce((s, b) => s + Number(b.TotalAmount || 0), 0);
+
     const branchMap = branches.reduce((map, branch) => {
       map[String(branch._id)] = branch.Name;
       return map;
     }, {});
 
-    // Tính thống kê hiệu suất từng không gian
+    // Revenue per space from successful payments joined to bookings
+    const bookingSpaceMap = {};
+    allBookings.forEach((b) => {
+      bookingSpaceMap[String(b._id)] = b.SpaceID;
+    });
     const spaceStats = hostSpaces.reduce((map, space) => {
       const key = String(space._id);
       map[key] = {
@@ -502,22 +538,25 @@ async function getHostReportsPage(req, res) {
         name: space.Name,
         branchName: branchMap[String(space.BranchID)] || 'Không rõ',
         count: 0,
-        revenue: 0
+        revenue: 0,
       };
       return map;
     }, {});
-
-    allBookings.forEach(booking => {
+    allBookings.forEach((booking) => {
       const space = booking.SpaceID;
       const key = String(space?._id || '');
       if (!spaceStats[key]) return;
       spaceStats[key].count += 1;
-      spaceStats[key].revenue += Number(booking.TotalAmount || 0);
+    });
+    successfulPayments.forEach((p) => {
+      const space = bookingSpaceMap[String(p.BookingID)];
+      const key = String(space?._id || '');
+      if (spaceStats[key]) spaceStats[key].revenue += Number(p.Amount || 0);
     });
 
-    const maxBookingCount = Math.max(...Object.values(spaceStats).map(item => item.count), 1);
+    const maxBookingCount = Math.max(...Object.values(spaceStats).map((item) => item.count), 1);
     const performanceRows = Object.values(spaceStats)
-      .filter(item => item.count > 0)
+      .filter((item) => item.count > 0)
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10)
       .map((item, index) => ({
@@ -526,29 +565,31 @@ async function getHostReportsPage(req, res) {
         branchName: item.branchName,
         bookings: item.count,
         fillRate: Math.round((item.count / maxBookingCount) * 100),
-        revenueText: formatVND(item.revenue)
+        revenueText: formatVND(item.revenue),
       }));
 
-    const dailyRevenueMap = successfulBookings.reduce((map, booking) => {
-      if (!booking.createdAt) return map;
-      const dateKey = new Date(booking.createdAt).toISOString().slice(0, 10);
-      map[dateKey] = (map[dateKey] || 0) + Number(booking.TotalAmount || 0);
+    // Daily revenue by PaidAt of successful payments
+    const dailyRevenueMap = successfulPayments.reduce((map, p) => {
+      if (!p.PaidAt) return map;
+      const dateKey = new Date(p.PaidAt).toISOString().slice(0, 10);
+      map[dateKey] = (map[dateKey] || 0) + Number(p.Amount || 0);
       return map;
     }, {});
 
     const chartDates = Object.keys(dailyRevenueMap).sort();
-    const chartLabels = chartDates.map(date => new Date(date).toLocaleDateString('vi-VN'));
-    const chartRevenueData = chartDates.map(date => dailyRevenueMap[date]);
+    const chartLabels = chartDates.map((date) => new Date(date).toLocaleDateString('vi-VN'));
+    const chartRevenueData = chartDates.map((date) => dailyRevenueMap[date]);
 
-    // Dữ liệu gửi vào view để hiển thị các số liệu
     const reportTotals = {
-      gmvText: formatVND(totalGross),
-      depositText: formatVND(totalDeposit),
-      outstandingText: formatVND(totalOutstanding),
-      cancelledText: formatVND(cancelledRevenue),
-      totalBookings: successfulBookings.length,
+      gmvText: formatVND(gmv),
+      depositText: formatVND(actualRevenue), // actual revenue (successful payments)
+      outstandingText: formatVND(outstanding),
+      cancelledText: formatVND(cancelledGmv),
+      pendingText: formatVND(pendingAmount),
+      refundedText: formatVND(refundedAmount),
+      totalBookings: nonCancelled.length,
       totalSpaces: filteredSpaceIds.length,
-      selectedBranchName: 'Tất cả chi nhánh'
+      selectedBranchName: 'Tất cả chi nhánh',
     };
 
     // Tạo URL cho export và navigation giữ nguyên filter
@@ -576,10 +617,14 @@ async function getHostReportsPage(req, res) {
         endTime: booking.EndTime ? new Date(booking.EndTime).toLocaleString('vi-VN') : '',
         total: Number(booking.TotalAmount || 0),
         deposit: Number(booking.DepositAmount || 0),
-        note: booking.Note || ''
+        note: booking.Note || '',
       }));
 
-      const excelBuffer = await buildExcelBuffer(rows, reportTotals);
+      // Excel totals use actual revenue labels
+      const excelBuffer = await buildExcelBuffer(rows, {
+        ...reportTotals,
+        depositText: reportTotals.depositText, // actual revenue
+      });
       const fileName = `workhub-host-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
