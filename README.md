@@ -67,6 +67,11 @@ npm run seed:extras  # coupons + feature flags demo
 - ICS download: `/api/me/bookings/:id/ics`
 - SEO URLs, sitemap, robots, PWA manifest + service worker
 - Payment verify/reject UI for host
+- Search API `/api/search`, autocomplete
+- Reschedule, refunds, disputes, ledger, staff invites
+- Host reception / staff / finance pages
+- CMS guides `/huong-dan/:slug`, compare, support tickets
+- OpenAPI: `docs/openapi.yaml`
 
 ## Roles
 

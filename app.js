@@ -24,6 +24,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const seoRoutes = require('./routes/seoRoutes');
 const meExtraRoutes = require('./routes/meExtraRoutes');
+const platformRoutes = require('./routes/platformRoutes');
 const { getHostReportsPage } = require('./controllers/hostController');
 const { expireStaleHolds } = require('./services/bookingService');
 
@@ -134,6 +135,7 @@ function createApp() {
   app.use('/api/me', meExtraRoutes);
   app.use('/api/hosts', hostRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api', platformRoutes);
 
   // Best-effort: expire holds on hot path for small deployments
   app.use(async (req, res, next) => {
@@ -207,7 +209,55 @@ function createApp() {
       scripts: res.locals.scriptsFrom(['/js/host-calendar.js']),
     })
   );
+  app.get('/host/reception', requireHostPage, (req, res) =>
+    res.render('host/reception', {
+      currentUser: req.currentUser,
+      pageTitle: 'Lễ tân — Host',
+      scripts: res.locals.scriptsFrom(['/js/host-reception.js']),
+    })
+  );
+  app.get('/host/staff', requireHostPage, (req, res) =>
+    res.render('host/staff', {
+      currentUser: req.currentUser,
+      pageTitle: 'Nhân viên — Host',
+      scripts: res.locals.scriptsFrom(['/js/host-staff.js']),
+    })
+  );
+  app.get('/host/finance', requireHostPage, (req, res) =>
+    res.render('host/finance', {
+      currentUser: req.currentUser,
+      pageTitle: 'Tài chính — Host',
+      scripts: res.locals.scriptsFrom(['/js/host-finance.js']),
+    })
+  );
   app.get('/host/reports', requireHostPage, getHostReportsPage);
+
+  app.get('/compare', (req, res) =>
+    res.render('customer/compare', {
+      pageTitle: 'So sánh — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/compare.js']),
+    })
+  );
+  app.get('/support', (req, res) =>
+    res.render('customer/support', {
+      pageTitle: 'Hỗ trợ — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/support.js']),
+    })
+  );
+  app.get('/huong-dan/:slug', async (req, res, next) => {
+    try {
+      const cmsService = require('./services/cmsService');
+      const page = await cmsService.getBySlug(req.params.slug);
+      res.render('customer/cms-page', {
+        page,
+        pageTitle: page.MetaTitle || page.Title,
+        metaDescription: page.MetaDescription || page.Body.slice(0, 160),
+      });
+    } catch (e) {
+      if (e.statusCode === 404) return res.status(404).send('Không tìm thấy');
+      return next(e);
+    }
+  });
 
   // Admin pages protected
   const adminScriptList = ['/js/admin-main.js'];

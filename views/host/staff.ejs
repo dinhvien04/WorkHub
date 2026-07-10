@@ -1,0 +1,17 @@
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-black mb-2">Nhân viên</h1>
+  <form id="staff-invite" class="bg-white border rounded-3xl p-4 mb-6 space-y-3">
+    <h2 class="font-bold">Mời staff</h2>
+    <input name="email" type="email" required placeholder="email@example.com" class="w-full border rounded-xl px-3 py-2 text-sm" />
+    <select name="role" class="w-full border rounded-xl px-3 py-2 text-sm">
+      <option value="manager">Manager</option>
+      <option value="receptionist">Receptionist</option>
+      <option value="finance">Finance</option>
+      <option value="content_editor">Content</option>
+      <option value="support">Support</option>
+    </select>
+    <button class="btn-primary w-full" type="submit">Gửi invite</button>
+    <p id="staff-invite-msg" class="text-xs text-slate-500"></p>
+  </form>
+  <div id="staff-list" class="space-y-2"></div>
+</div>

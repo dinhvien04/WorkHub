@@ -8,6 +8,8 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const Coupon = require('../models/Coupon');
 const FeatureFlag = require('../models/FeatureFlag');
+const CmsPage = require('../models/CmsPage');
+const { MembershipPlan } = require('../models/Membership');
 
 async function main() {
   await mongoose.connect(process.env.MONGODB_URI);
@@ -51,7 +53,49 @@ async function main() {
   for (const f of flags) {
     await FeatureFlag.findOneAndUpdate({ Key: f.Key }, f, { upsert: true });
   }
-  console.log('Seeded coupons WELCOME10, FLAT20K and feature flags.');
+
+  await MembershipPlan.findOneAndUpdate(
+    { Code: 'BASIC' },
+    {
+      Name: 'Basic',
+      Code: 'BASIC',
+      MonthlyPrice: 299000,
+      IncludedHours: 20,
+      DiscountPercent: 5,
+      Status: 'active',
+    },
+    { upsert: true }
+  );
+  await MembershipPlan.findOneAndUpdate(
+    { Code: 'PRO' },
+    {
+      Name: 'Pro',
+      Code: 'PRO',
+      MonthlyPrice: 599000,
+      IncludedHours: 50,
+      DiscountPercent: 10,
+      PriorityBooking: true,
+      Status: 'active',
+    },
+    { upsert: true }
+  );
+
+  await CmsPage.findOneAndUpdate(
+    { Slug: 'chon-phong-hop' },
+    {
+      Slug: 'chon-phong-hop',
+      Title: 'Hướng dẫn chọn phòng họp',
+      Body: 'Chọn capacity phù hợp, kiểm tra tiện nghi máy chiếu/TV, đặt trước giờ peak để giá tốt hơn.',
+      Type: 'guide',
+      Status: 'published',
+      MetaTitle: 'Chọn phòng họp — WorkHub',
+      MetaDescription: 'Mẹo chọn phòng họp co-working trên WorkHub',
+      PublishedAt: new Date(),
+    },
+    { upsert: true }
+  );
+
+  console.log('Seeded coupons, flags, membership plans, CMS guide.');
   await mongoose.disconnect();
 }
 

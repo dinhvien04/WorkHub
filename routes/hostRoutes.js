@@ -8,6 +8,7 @@ const hostController = require('../controllers/hostController');
 const { verifyToken, authorizeRole, requireVerifiedHost } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
 const paymentService = require('../services/paymentService');
+const ledgerService = require('../services/ledgerService');
 const asyncHandler = require('../utils/asyncHandler');
 
 // Host API: authenticated + role host + IsVerified
@@ -54,6 +55,17 @@ router.put(
   '/payments/:paymentId/verify',
   asyncHandler(async (req, res) => {
     const payment = await paymentService.verifyPayment(req.user.userId, req.params.paymentId);
+    await ledgerService.postEntry({
+      hostId: req.user.userId,
+      customerId: payment.CustomerID,
+      bookingId: payment.BookingID,
+      paymentId: payment._id,
+      type: 'payment',
+      amount: payment.Amount,
+      direction: 'credit',
+      description: `Payment ${payment.TransactionCode}`,
+      idempotencyKey: `ledger-pay-${payment._id}`,
+    });
     res.json({ message: 'Đã xác minh thanh toán.', payment });
   })
 );

@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: WorkHub API
+  version: 1.2.0
+  description: WorkHub co-working booking platform API (auth cookie + CSRF)
+servers:
+  - url: /
+paths:
+  /health:
+    get:
+      summary: Health
+      responses:
+        '200':
+          description: OK
+  /api/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Sets HttpOnly cookie
+  /api/customers/me/bookings:
+    post:
+      summary: Create booking
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          schema: { type: string }
+      responses:
+        '201':
+          description: Created
+  /api/search:
+    get:
+      summary: Search branches
+      parameters:
+        - in: query
+          name: location
+          schema: { type: string }
+        - in: query
+          name: sort
+          schema: { type: string }
+      responses:
+        '200':
+          description: Results
+  /api/host/calendar:
+    get:
+      summary: Host calendar (via /api/me/host/calendar)
+      responses:
+        '200':
+          description: Events
+  /api/hosts/payments/{paymentId}/verify:
+    put:
+      summary: Verify payment + ledger
+      parameters:
+        - in: path
+          name: paymentId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Verified
