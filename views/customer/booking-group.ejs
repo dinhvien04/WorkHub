@@ -1,0 +1,38 @@
+<div class="max-w-2xl mx-auto" id="group-page">
+  <a href="/booking/wizard" class="text-teal-700 text-sm font-bold hover:underline">← Wizard</a>
+  <h1 class="text-2xl font-black text-slate-800 mt-2 mb-1">Đặt chỗ nhóm / corporate</h1>
+  <p class="text-sm text-slate-500 mb-6">Tạo booking + lời mời RSVP cho attendee (email). Mỗi khách nhận link RSVP / calendar.</p>
+
+  <div id="gp-error" class="error-state hidden mb-4" role="alert"></div>
+  <div id="gp-ok" class="hidden mb-4 p-3 rounded-xl bg-teal-50 text-teal-800 text-sm border border-teal-100" role="status"></div>
+
+  <section class="bg-white rounded-3xl border p-6 space-y-3">
+    <label class="block text-xs font-bold text-slate-500">Space ID
+      <input id="gp-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="block text-xs font-bold text-slate-500">Bắt đầu
+        <input id="gp-start" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="block text-xs font-bold text-slate-500">Kết thúc
+        <input id="gp-end" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <label class="block text-xs font-bold text-slate-500">Tên công ty / event
+      <input id="gp-corp" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Acme team offsite" />
+    </label>
+    <label class="block text-xs font-bold text-slate-500">Ghi chú
+      <textarea id="gp-note" rows="2" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" maxlength="500"></textarea>
+    </label>
+    <label class="block text-xs font-bold text-slate-500">Attendees (mỗi dòng: email hoặc Tên &lt;email&gt;)
+      <textarea id="gp-attendees" rows="5" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" placeholder="an@example.com&#10;Bình <binh@co.com>"></textarea>
+    </label>
+    <button type="button" id="gp-submit" class="btn-primary w-full">Tạo group booking</button>
+  </section>
+
+  <section id="gp-result" class="hidden mt-4 bg-white rounded-3xl border p-6">
+    <h2 class="font-bold mb-2">Invite links</h2>
+    <ul id="gp-invites" class="space-y-2 text-sm"></ul>
+    <a id="gp-detail" href="#" class="inline-block mt-3 text-teal-700 font-bold text-sm underline">Xem chi tiết booking →</a>
+  </section>
+</div>

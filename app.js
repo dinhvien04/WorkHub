@@ -337,6 +337,25 @@ function createApp() {
       scripts: res.locals.scriptsFrom(['/js/booking-detail.js']),
     })
   );
+  app.get('/booking/recurring', (req, res) =>
+    res.render('customer/booking-recurring', {
+      pageTitle: 'Đặt chỗ lặp lại — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/booking-recurring.js']),
+    })
+  );
+  app.get('/booking/group', (req, res) =>
+    res.render('customer/booking-group', {
+      pageTitle: 'Đặt chỗ nhóm — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/booking-group.js']),
+    })
+  );
+  app.get('/rsvp/:token', (req, res) =>
+    res.render('customer/rsvp', {
+      pageTitle: 'RSVP — WorkHub',
+      token: req.params.token,
+      scripts: res.locals.scriptsFrom(['/js/rsvp.js']),
+    })
+  );
   app.get('/consent', (req, res) =>
     res.render('customer/consent', {
       pageTitle: 'Quyền riêng tư — WorkHub',

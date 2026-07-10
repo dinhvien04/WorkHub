@@ -15,6 +15,25 @@
   <div class="mb-4"></div>
 <% } %>
 
+<% if (typeof districtLinks !== 'undefined' && districtLinks && districtLinks.length) { %>
+<nav class="mb-6" aria-label="Quận / khu vực">
+  <p class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Khu vực</p>
+  <div class="flex flex-wrap gap-2">
+    <% districtLinks.forEach(function(d) { %>
+      <a href="<%= d.path %>" class="text-xs font-semibold px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-800">
+        <%= d.label %> <span class="text-slate-400">(<%= d.count %>)</span>
+      </a>
+    <% }) %>
+  </div>
+</nav>
+<% } %>
+
+<div class="flex flex-wrap gap-2 mb-4 text-xs">
+  <a href="/booking/wizard" class="px-3 py-1.5 rounded-full bg-teal-50 text-teal-800 font-bold border border-teal-100">Wizard 3 bước</a>
+  <a href="/booking/recurring" class="px-3 py-1.5 rounded-full bg-white text-slate-700 font-bold border">Đặt lặp lại</a>
+  <a href="/booking/group" class="px-3 py-1.5 rounded-full bg-white text-slate-700 font-bold border">Đặt nhóm</a>
+</div>
+
 <form id="search-filters" data-search-form class="bg-white border rounded-2xl p-4 mb-6 grid md:grid-cols-4 gap-3 items-end">
   <div>
     <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="sf-location">Từ khóa</label>
@@ -90,7 +109,13 @@
 
                 </div>
 
-                <a href="/detail?branchId=<%= branch._id %>"
+                <%
+                  let _detailHref = '/detail?branchId=' + branch._id;
+                  if (branch.Slug && branch.CitySlug) {
+                    _detailHref = '/khong-gian/' + branch.CitySlug + '/' + (branch.DistrictSlug || 'khu-vuc') + '/' + branch.Slug;
+                  }
+                %>
+                <a href="<%= _detailHref %>"
                    class="w-full py-3 bg-teal-50 text-teal-600 font-bold rounded-xl text-sm text-center mt-4 hover:bg-teal-100 transition">
                     Xem chi tiết
                 </a>
@@ -111,3 +136,19 @@
     <% } %>
 
 </div>
+
+<% if (typeof relatedGuides !== 'undefined' && relatedGuides && relatedGuides.length) { %>
+<section class="mt-10 max-w-4xl">
+  <h2 class="font-bold text-lg text-slate-800 mb-3">Hướng dẫn liên quan</h2>
+  <ul class="space-y-2">
+    <% relatedGuides.forEach(function(g) { %>
+      <li>
+        <a class="text-teal-700 font-semibold text-sm hover:underline" href="/huong-dan/<%= g.Slug %>"><%= g.Title %></a>
+        <% if (g.MetaDescription) { %>
+          <p class="text-xs text-slate-500"><%= g.MetaDescription %></p>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+<% } %>

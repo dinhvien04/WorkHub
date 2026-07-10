@@ -34,9 +34,26 @@ router.get('/membership/plans', g.listPlans);
 router.get('/membership/me', verifyToken, g.myMembership);
 router.post('/membership/subscribe', verifyToken, authorizeRole('customer'), g.subscribe);
 
-// Recurring + corporate
+// Recurring + corporate / group + RSVP
+router.post('/bookings/recurring/preview', verifyToken, authorizeRole('customer'), g.previewRecurring);
+router.get('/bookings/recurring/preview', verifyToken, authorizeRole('customer'), g.previewRecurring);
 router.post('/bookings/recurring', verifyToken, authorizeRole('customer'), g.createRecurring);
+router.get('/bookings/recurring', verifyToken, authorizeRole('customer'), g.listRecurring);
+router.put(
+  '/bookings/recurring/:seriesId/cancel',
+  verifyToken,
+  authorizeRole('customer'),
+  g.cancelRecurring
+);
 router.post('/bookings/group', verifyToken, authorizeRole('customer'), g.createGroupBooking);
+router.get(
+  '/bookings/:bookingId/group-invites',
+  verifyToken,
+  authorizeRole('customer', 'host'),
+  g.listGroupInvites
+);
+router.get('/rsvp/:token', g.getGroupInvitePublic);
+router.post('/rsvp/:token', g.rsvpGroupInvite);
 
 // Fraud
 router.post('/fraud/preview', verifyToken, g.fraudPreview);

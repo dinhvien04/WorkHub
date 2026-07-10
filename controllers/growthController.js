@@ -106,6 +106,26 @@ const subscribe = asyncHandler(async (req, res) => {
 });
 
 // —— Recurring ——
+const previewRecurring = asyncHandler(async (req, res) => {
+  const body = { ...req.body, ...req.query };
+  const preview = await recurringService.previewSeries({
+    spaceId: body.spaceId,
+    frequency: body.frequency,
+    interval: body.interval,
+    daysOfWeek: body.daysOfWeek
+      ? Array.isArray(body.daysOfWeek)
+        ? body.daysOfWeek
+        : String(body.daysOfWeek).split(',').map(Number)
+      : [],
+    startTimeOfDay: body.startTimeOfDay,
+    durationMinutes: body.durationMinutes,
+    seriesStart: body.seriesStart,
+    seriesEnd: body.seriesEnd,
+    occurrenceCount: body.occurrenceCount,
+  });
+  res.json({ preview });
+});
+
 const createRecurring = asyncHandler(async (req, res) => {
   const space = await Space.findById(req.body.spaceId);
   if (!space) throw new NotFoundError('Space not found');
@@ -123,6 +143,16 @@ const createRecurring = asyncHandler(async (req, res) => {
     occurrenceCount: req.body.occurrenceCount,
   });
   res.status(201).json(result);
+});
+
+const listRecurring = asyncHandler(async (req, res) => {
+  const items = await recurringService.listSeries(req.user.userId);
+  res.json({ series: items });
+});
+
+const cancelRecurring = asyncHandler(async (req, res) => {
+  const series = await recurringService.cancelSeries(req.params.seriesId, req.user.userId);
+  res.json({ series, message: 'Đã hủy series.' });
 });
 
 // —— Fraud score (preview) ——
@@ -302,27 +332,46 @@ const downloadJobFile = asyncHandler(async (req, res) => {
   res.download(abs, path.basename(abs));
 });
 
-// —— Corporate / group booking note ——
+// —— Corporate / group booking + RSVP ——
 const createGroupBooking = asyncHandler(async (req, res) => {
-  const bookingService = require('../services/bookingService');
-  const attendees = Array.isArray(req.body.attendees) ? req.body.attendees.slice(0, 50) : [];
-  const booking = await bookingService.createBooking({
+  const groupBookingService = require('../services/groupBookingService');
+  const result = await groupBookingService.createGroupBooking({
     customerId: req.user.userId,
     spaceId: req.body.spaceId,
     startTime: req.body.startTime,
     endTime: req.body.endTime,
-    note: [
-      req.body.note || '',
-      attendees.length ? `Attendees: ${attendees.map((a) => a.email || a.name).join(', ')}` : '',
-      req.body.corporateName ? `Corporate: ${req.body.corporateName}` : '',
-    ]
-      .filter(Boolean)
-      .join(' | '),
+    note: req.body.note || '',
+    corporateName: req.body.corporateName || '',
+    attendees: req.body.attendees || [],
+    addOns: req.body.addOns || [],
+    couponCode: req.body.couponCode || null,
   });
-  res.status(201).json({
-    booking,
-    group: { corporateName: req.body.corporateName || '', attendees },
+  res.status(201).json(result);
+});
+
+const listGroupInvites = asyncHandler(async (req, res) => {
+  const groupBookingService = require('../services/groupBookingService');
+  const invites = await groupBookingService.listInvitesForBooking({
+    bookingId: req.params.bookingId,
+    userId: req.user.userId,
   });
+  res.json({ invites });
+});
+
+const getGroupInvitePublic = asyncHandler(async (req, res) => {
+  const groupBookingService = require('../services/groupBookingService');
+  const data = await groupBookingService.getInviteByToken(req.params.token);
+  res.json(data);
+});
+
+const rsvpGroupInvite = asyncHandler(async (req, res) => {
+  const groupBookingService = require('../services/groupBookingService');
+  const invite = await groupBookingService.rsvpByToken({
+    token: req.params.token,
+    status: req.body.status,
+    note: req.body.note,
+  });
+  res.json({ invite, message: 'Đã ghi nhận RSVP.' });
 });
 
 // —— RUM / Web Vitals beacon (no PII; fire-and-forget) ——
@@ -969,7 +1018,10 @@ module.exports = {
   listPlans,
   myMembership,
   subscribe,
+  previewRecurring,
   createRecurring,
+  listRecurring,
+  cancelRecurring,
   fraudPreview,
   createApiKey,
   listApiKeys,
@@ -986,6 +1038,9 @@ module.exports = {
   retryJob,
   downloadJobFile,
   createGroupBooking,
+  listGroupInvites,
+  getGroupInvitePublic,
+  rsvpGroupInvite,
   hostAdvancedReport,
   rumBeacon,
   mintCheckIn,

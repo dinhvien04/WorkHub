@@ -2,6 +2,7 @@
 
 const RecurringSeries = require('../models/RecurringSeries');
 const bookingService = require('./bookingService');
+const bookingQuoteService = require('./bookingQuoteService');
 const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
 
 function parseHm(hm) {
@@ -34,11 +35,85 @@ function buildOccurrences(series, max = 12) {
     }
     if (series.Frequency === 'daily') {
       cursor = new Date(cursor.getTime() + series.Interval * 86400000);
-    } else {
+    } else if (series.Frequency === 'weekly' && series.DaysOfWeek?.length) {
+      // advance one day; day filter above picks next matching DOW
       cursor = new Date(cursor.getTime() + 86400000);
+    } else {
+      // weekly without DOW: interval weeks
+      cursor = new Date(cursor.getTime() + (series.Interval || 1) * 7 * 86400000);
     }
   }
   return out;
+}
+
+/**
+ * Preview occurrences + optional per-slot quote totals (no writes).
+ */
+async function previewSeries({
+  spaceId,
+  frequency,
+  interval = 1,
+  daysOfWeek = [],
+  startTimeOfDay,
+  durationMinutes,
+  seriesStart,
+  seriesEnd = null,
+  occurrenceCount = 8,
+  max = 12,
+}) {
+  if (!['daily', 'weekly'].includes(frequency)) {
+    throw new ValidationError('Frequency không hợp lệ (daily|weekly).');
+  }
+  if (!spaceId) throw new ValidationError('Thiếu spaceId.');
+  if (!startTimeOfDay || !durationMinutes) {
+    throw new ValidationError('Thiếu startTimeOfDay hoặc durationMinutes.');
+  }
+  if (!seriesStart) throw new ValidationError('Thiếu seriesStart.');
+
+  const draft = {
+    Frequency: frequency,
+    Interval: Math.max(1, Number(interval) || 1),
+    DaysOfWeek: Array.isArray(daysOfWeek) ? daysOfWeek.map(Number) : [],
+    StartTimeOfDay: startTimeOfDay,
+    DurationMinutes: Math.max(30, Number(durationMinutes) || 60),
+    SeriesStart: new Date(seriesStart),
+    SeriesEnd: seriesEnd ? new Date(seriesEnd) : null,
+    OccurrenceCount: Math.min(52, Math.max(1, Number(occurrenceCount) || 8)),
+  };
+
+  const occurrences = buildOccurrences(draft, Math.min(draft.OccurrenceCount, max));
+  const items = [];
+  let estimatedTotal = 0;
+  for (const oc of occurrences) {
+    let quote = null;
+    try {
+      quote = await bookingQuoteService.quoteBooking({
+        spaceId,
+        startTime: oc.start,
+        endTime: oc.end,
+      });
+      if (quote && quote.ok !== false) {
+        estimatedTotal += quote.totalAmount || 0;
+      } else quote = null;
+    } catch {
+      quote = null;
+    }
+    items.push({
+      startTime: oc.start.toISOString(),
+      endTime: oc.end.toISOString(),
+      totalAmount: quote?.totalAmount ?? null,
+      depositAmount: quote?.depositAmount ?? null,
+    });
+  }
+
+  return {
+    frequency: draft.Frequency,
+    interval: draft.Interval,
+    daysOfWeek: draft.DaysOfWeek,
+    occurrenceCount: items.length,
+    estimatedTotal,
+    occurrences: items,
+  };
 }
 
 async function createSeries({
@@ -66,18 +141,18 @@ async function createSeries({
     SpaceID: spaceId,
     HostID: hostId,
     Frequency: frequency,
-    Interval: interval,
-    DaysOfWeek: daysOfWeek,
+    Interval: Math.max(1, Number(interval) || 1),
+    DaysOfWeek: Array.isArray(daysOfWeek) ? daysOfWeek.map(Number) : [],
     StartTimeOfDay: startTimeOfDay,
-    DurationMinutes: durationMinutes,
+    DurationMinutes: Math.max(30, Number(durationMinutes) || 60),
     SeriesStart: new Date(seriesStart),
     SeriesEnd: seriesEnd ? new Date(seriesEnd) : null,
-    OccurrenceCount: occurrenceCount,
+    OccurrenceCount: Math.min(52, Math.max(1, Number(occurrenceCount) || 8)),
     Status: 'active',
     BookingIDs: [],
   });
 
-  const occurrences = buildOccurrences(series, Math.min(occurrenceCount || 8, 12));
+  const occurrences = buildOccurrences(series, Math.min(series.OccurrenceCount || 8, 12));
   const created = [];
   const failed = [];
 
@@ -88,7 +163,7 @@ async function createSeries({
         spaceId,
         startTime: oc.start,
         endTime: oc.end,
-        note: `Recurring ${series._id}`,
+        note: `Recurring series ${series._id}`,
       });
       created.push(booking._id);
     } catch (err) {
@@ -98,7 +173,14 @@ async function createSeries({
 
   series.BookingIDs = created;
   await series.save();
-  return { series, createdCount: created.length, failed };
+  return { series, createdCount: created.length, failed, bookingIds: created };
+}
+
+async function listSeries(userId) {
+  return RecurringSeries.find({ CustomerID: userId })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
 }
 
 async function cancelSeries(seriesId, userId) {
@@ -112,4 +194,10 @@ async function cancelSeries(seriesId, userId) {
   return series;
 }
 
-module.exports = { createSeries, cancelSeries, buildOccurrences };
+module.exports = {
+  createSeries,
+  cancelSeries,
+  buildOccurrences,
+  previewSeries,
+  listSeries,
+};

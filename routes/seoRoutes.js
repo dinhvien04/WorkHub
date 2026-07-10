@@ -219,7 +219,13 @@ async function renderListing(req, res, next, { city, district, slug }) {
       const filter = { Status: 'active' };
       if (city) filter.CitySlug = city;
       if (district) filter.DistrictSlug = district;
-      const branches = await Branch.find(filter).limit(50).lean();
+      const branches = await Branch.find(filter)
+        .select(
+          'Name Slug CitySlug DistrictSlug Address City District RatingAvg Images Description OpeningTime ClosingTime'
+        )
+        .sort({ RatingAvg: -1 })
+        .limit(50)
+        .lean();
 
       const cityLabel = (city || '').replace(/-/g, ' ');
       const districtLabel = (district || '').replace(/-/g, ' ');
@@ -235,6 +241,42 @@ async function renderListing(req, res, next, { city, district, slug }) {
           : 'Tất cả không gian co-working trên WorkHub. Lọc theo thành phố, loại phòng và đặt chỗ trong 3 bước.');
       if (district) {
         blurb = `Không gian tại ${districtLabel}${cityLabel ? ', ' + cityLabel : ''}. ${blurb}`;
+      }
+
+      // Distinct districts in this city for internal links (avoid thin pages without listings)
+      let districtLinks = [];
+      if (city && !district) {
+        const distRows = await Branch.aggregate([
+          { $match: { Status: 'active', CitySlug: city, DistrictSlug: { $exists: true, $nin: [null, ''] } } },
+          { $group: { _id: '$DistrictSlug', count: { $sum: 1 }, name: { $first: '$District' } } },
+          { $sort: { count: -1 } },
+          { $limit: 24 },
+        ]);
+        districtLinks = distRows.map((d) => ({
+          slug: d._id,
+          label: d.name || String(d._id).replace(/-/g, ' '),
+          count: d.count,
+          path: `/khong-gian/${city}/${d._id}`,
+        }));
+      }
+
+      // Related CMS guides for city (real content only)
+      let relatedGuides = [];
+      try {
+        const CmsPage = require('../models/CmsPage');
+        relatedGuides = await CmsPage.find({
+          Status: 'published',
+          $or: [
+            { CitySlug: city || '' },
+            { Type: 'guide' },
+          ],
+        })
+          .select('Title Slug MetaDescription')
+          .sort({ PublishedAt: -1 })
+          .limit(city ? 6 : 4)
+          .lean();
+      } catch {
+        relatedGuides = [];
       }
 
       const base = `${req.protocol}://${req.get('host')}`;
@@ -263,16 +305,47 @@ async function renderListing(req, res, next, { city, district, slug }) {
         });
       }
 
+      const itemList =
+        branches.length > 0
+          ? {
+              '@context': 'https://schema.org',
+              '@type': 'ItemList',
+              name: pageTitle.replace(' — WorkHub', ''),
+              numberOfItems: branches.length,
+              itemListElement: branches.slice(0, 20).map((b, i) => {
+                const path = b.Slug && b.CitySlug
+                  ? `/khong-gian/${b.CitySlug}/${b.DistrictSlug || 'khu-vuc'}/${b.Slug}`
+                  : `/detail?branchId=${b._id}`;
+                return {
+                  '@type': 'ListItem',
+                  position: i + 1,
+                  name: b.Name,
+                  url: `${base}${path}`,
+                };
+              }),
+            }
+          : null;
+
+      const jsonLd = [breadcrumb];
+      if (itemList) jsonLd.push(itemList);
+
+      res.locals.pageTitle = pageTitle;
+      res.locals.metaDescription = blurb.slice(0, 160);
+      res.locals.canonicalPath = req.path;
+      res.locals.jsonLd = jsonLd;
+
       return res.render('customer/search', {
         branches,
         keyword: city || '',
         citySlug: city || '',
         districtSlug: district || '',
         listingBlurb: blurb,
+        districtLinks,
+        relatedGuides,
         pageTitle,
         metaDescription: blurb.slice(0, 160),
         canonicalPath: req.path,
-        jsonLd: breadcrumb,
+        jsonLd,
         scripts: res.locals.scriptsFrom
           ? res.locals.scriptsFrom(['/js/customer-main.js', '/js/search-filters.js'])
           : '',

@@ -118,6 +118,9 @@ npm run seed:extras  # coupons + feature flags demo
 - Detail above-the-fold amenities + free-cancel/instant badges + wizard CTA
 - Reschedule preview/apply (`/api/bookings/:id/reschedule-preview`, PUT reschedule) + booking-detail UI
 - Login returnUrl + resume wizard draft; hold countdown on payment & booking detail
+- Recurring series preview/create/list/cancel + `/booking/recurring`
+- Group booking invites + public RSVP (`/rsvp/:token`) + `/booking/group`
+- City SEO: district chips, ItemList JSON-LD, related guides, SEO detail links
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
