@@ -1,0 +1,87 @@
+'use strict';
+
+const express = require('express');
+const {
+  verifyToken,
+  authorizeRole,
+  requireAdmin,
+  requireVerifiedHost,
+} = require('../middlewares/authMiddleware');
+const { requireApiKey, requireScope } = require('../middlewares/apiKeyAuth');
+const g = require('../controllers/growthController');
+
+const router = express.Router();
+
+// Gateway
+router.post('/gateway/checkout', verifyToken, authorizeRole('customer'), g.createCheckout);
+router.post('/gateway/webhook', g.gatewayWebhook); // signature verified inside
+router.get('/gateway/sessions/:sessionId', g.getGatewaySession);
+router.post(
+  '/gateway/sessions/:sessionId/mock-complete',
+  verifyToken,
+  authorizeRole('customer'),
+  g.mockCompleteGateway
+);
+
+// Payouts
+router.post('/host/payouts', verifyToken, authorizeRole('host'), requireVerifiedHost, g.requestPayout);
+router.get('/host/payouts', verifyToken, authorizeRole('host'), requireVerifiedHost, g.listPayouts);
+router.put('/admin/payouts/:payoutId/process', verifyToken, requireAdmin, g.adminProcessPayout);
+
+// Membership
+router.get('/membership/plans', g.listPlans);
+router.get('/membership/me', verifyToken, g.myMembership);
+router.post('/membership/subscribe', verifyToken, authorizeRole('customer'), g.subscribe);
+
+// Recurring + corporate
+router.post('/bookings/recurring', verifyToken, authorizeRole('customer'), g.createRecurring);
+router.post('/bookings/group', verifyToken, authorizeRole('customer'), g.createGroupBooking);
+
+// Fraud
+router.post('/fraud/preview', verifyToken, g.fraudPreview);
+
+// Partner API keys (user-owned)
+router.post('/partner/keys', verifyToken, g.createApiKey);
+router.get('/partner/keys', verifyToken, g.listApiKeys);
+router.delete('/partner/keys/:id', verifyToken, g.revokeApiKey);
+
+// Partner data plane (API key)
+router.get(
+  '/partner/v1/spaces',
+  requireApiKey,
+  requireScope('spaces:read'),
+  g.partnerListSpaces
+);
+router.get(
+  '/partner/v1/bookings/:id',
+  requireApiKey,
+  requireScope('bookings:read'),
+  g.partnerGetBooking
+);
+
+// Sessions / security
+router.get('/sessions', verifyToken, g.listSessions);
+router.post('/sessions/logout-all', verifyToken, g.logoutAll);
+
+// i18n
+router.get('/i18n', g.i18nBundle);
+
+// RUM beacon (public, no auth — no PII accepted)
+router.post('/rum', g.rumBeacon);
+
+// External calendar feed
+router.get('/feeds/host/:hostId/calendar.ics', g.hostIcalFeed);
+
+// Admin ops
+router.get('/admin/dead-letters', verifyToken, requireAdmin, g.listDeadLetters);
+
+// Host advanced report
+router.get(
+  '/host/reports/advanced',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.hostAdvancedReport
+);
+
+module.exports = router;

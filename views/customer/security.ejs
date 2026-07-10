@@ -1,0 +1,31 @@
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-black mb-2">Bảo mật tài khoản</h1>
+  <p class="text-sm text-slate-500 mb-6">Quản lý phiên đăng nhập và xuất dữ liệu cá nhân (GDPR-style).</p>
+
+  <section class="bg-white rounded-3xl border p-5 mb-6">
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <h2 class="font-bold">Phiên đăng nhập</h2>
+      <button type="button" id="logout-all-btn"
+        class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700">
+        Đăng xuất tất cả
+      </button>
+    </div>
+    <p id="sec-msg" class="text-sm mb-3" role="status"></p>
+    <div id="session-list" class="space-y-2"></div>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-6">
+    <h2 class="font-bold mb-3">Quyền riêng tư</h2>
+    <div class="flex flex-wrap gap-3">
+      <button type="button" id="export-data-btn"
+        class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-900">
+        Tải dữ liệu của tôi
+      </button>
+      <button type="button" id="delete-account-btn"
+        class="border border-red-300 text-red-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-50">
+        Yêu cầu xóa tài khoản
+      </button>
+    </div>
+    <p id="privacy-msg" class="text-sm mt-3" role="status"></p>
+  </section>
+</div>

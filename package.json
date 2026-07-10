@@ -13,7 +13,8 @@
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "check": "npm run lint && npm test",
     "migrate:fields": "node scripts/migrateCanonicalFields.js --dry-run",
-    "seed:extras": "node scripts/seedDemoExtras.js"
+    "seed:extras": "node scripts/seedDemoExtras.js",
+    "backup": "node scripts/backup-mongo.js"
   },
   "keywords": [
     "coworking",

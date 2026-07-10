@@ -34,6 +34,10 @@ router.post(
 );
 router.get('/bookings/:bookingId/ics', verifyToken, authorizeRole('customer'), ctrl.downloadIcs);
 
+// Privacy
+router.get('/privacy/export', verifyToken, ctrl.exportMyData);
+router.post('/privacy/delete-request', verifyToken, ctrl.requestDeleteAccount);
+
 // Host calendar
 router.get(
   '/host/calendar',

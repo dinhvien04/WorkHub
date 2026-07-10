@@ -107,6 +107,85 @@ const downloadIcs = asyncHandler(async (req, res) => {
   res.send(ics);
 });
 
+/** GDPR-style data export (JSON). No password hashes or payment card data. */
+const exportMyData = asyncHandler(async (req, res) => {
+  const userId = req.user.userId;
+  const User = require('../models/User');
+  const PaymentHistory = require('../models/Payment_History');
+  const Favorite = require('../models/Favorite');
+  const Notification = require('../models/Notification');
+
+  const [user, bookings, payments, favorites, notifications] = await Promise.all([
+    User.findById(userId).select('-PasswordHash -tokenVersion').lean(),
+    Booking.find({ CustomerID: userId }).sort({ createdAt: -1 }).limit(200).lean(),
+    PaymentHistory.find({ CustomerID: userId }).sort({ createdAt: -1 }).limit(200).lean(),
+    Favorite.find({ UserID: userId }).lean(),
+    Notification.find({ UserID: userId }).sort({ createdAt: -1 }).limit(100).lean(),
+  ]);
+
+  if (!user) throw new NotFoundError('Người dùng không tồn tại.');
+
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    user,
+    bookings,
+    payments: payments.map((p) => ({
+      id: p._id,
+      bookingId: p.BookingID,
+      amount: p.Amount,
+      status: p.Status,
+      method: p.PaymentMethod,
+      createdAt: p.createdAt,
+    })),
+    favorites,
+    notifications: notifications.map((n) => ({
+      id: n._id,
+      title: n.Title,
+      body: n.Body,
+      type: n.Type,
+      isRead: n.IsRead,
+      createdAt: n.createdAt,
+    })),
+  };
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="workhub-my-data.json"');
+  res.send(JSON.stringify(payload, null, 2));
+});
+
+/** Soft delete request — ban account + bump tokenVersion; financial rows retained. */
+const requestDeleteAccount = asyncHandler(async (req, res) => {
+  const User = require('../models/User');
+  const user = await User.findById(req.user.userId);
+  if (!user) throw new NotFoundError('Người dùng không tồn tại.');
+
+  user.Status = 'banned';
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+  user.FullName = user.FullName || 'Deleted User';
+  await user.save();
+
+  try {
+    const UserSession = require('../models/Session');
+    await UserSession.updateMany(
+      { UserID: user._id, RevokedAt: null },
+      { $set: { RevokedAt: new Date() } }
+    );
+  } catch {
+    /* ignore */
+  }
+
+  res.clearCookie(require('../config/env').AUTH_COOKIE_NAME, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+  });
+
+  res.json({
+    message:
+      'Đã ghi nhận và vô hiệu hóa tài khoản. Dữ liệu tài chính/booking được giữ theo quy định kế toán.',
+  });
+});
+
 module.exports = {
   listFavorites,
   addFavorite,
@@ -119,4 +198,6 @@ module.exports = {
   listMessages,
   sendMessage,
   downloadIcs,
+  exportMyData,
+  requestDeleteAccount,
 };

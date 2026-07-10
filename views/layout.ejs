@@ -56,6 +56,51 @@
           navigator.serviceWorker.register('/sw.js').catch(function () {});
         });
       }
+      // Lightweight RUM beacon (LCP/CLS/INP) — no PII
+      (function () {
+        var sent = false;
+        function send(partial) {
+          if (sent) return;
+          sent = true;
+          var body = {
+            path: location.pathname.slice(0, 200),
+            navType: (performance.getEntriesByType && performance.getEntriesByType('navigation')[0] || {}).type || '',
+            lcp: partial.lcp || null,
+            cls: partial.cls || null,
+            inp: partial.inp || null,
+            ttfb: partial.ttfb || null,
+            fcp: partial.fcp || null
+          };
+          try {
+            if (navigator.sendBeacon) {
+              navigator.sendBeacon('/api/rum', new Blob([JSON.stringify(body)], { type: 'application/json' }));
+            } else {
+              fetch('/api/rum', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive: true });
+            }
+          } catch (e) {}
+        }
+        try {
+          var cls = 0;
+          if ('PerformanceObserver' in window) {
+            try {
+              new PerformanceObserver(function (list) {
+                list.getEntries().forEach(function (e) {
+                  if (!e.hadRecentInput) cls += e.value;
+                });
+              }).observe({ type: 'layout-shift', buffered: true });
+            } catch (e) {}
+            try {
+              new PerformanceObserver(function (list) {
+                var entries = list.getEntries();
+                var last = entries[entries.length - 1];
+                if (last) send({ lcp: last.startTime, cls: cls });
+              }).observe({ type: 'largest-contentful-paint', buffered: true });
+            } catch (e) {}
+          }
+          window.addEventListener('pagehide', function () { send({ cls: cls }); });
+          setTimeout(function () { send({ cls: cls }); }, 8000);
+        } catch (e) {}
+      })();
     </script>
 </body>
 </html>

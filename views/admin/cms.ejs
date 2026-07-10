@@ -1,0 +1,21 @@
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-black mb-4">CMS</h1>
+  <form id="cms-form" class="bg-white border rounded-3xl p-4 space-y-3">
+    <input name="Title" required placeholder="Title" class="w-full border rounded-xl px-3 py-2 text-sm" />
+    <input name="Slug" placeholder="slug (optional)" class="w-full border rounded-xl px-3 py-2 text-sm" />
+    <select name="Type" class="w-full border rounded-xl px-3 py-2 text-sm">
+      <option value="guide">guide</option>
+      <option value="faq">faq</option>
+      <option value="policy">policy</option>
+      <option value="city">city</option>
+      <option value="announcement">announcement</option>
+    </select>
+    <textarea name="Body" rows="6" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Nội dung"></textarea>
+    <select name="Status" class="w-full border rounded-xl px-3 py-2 text-sm">
+      <option value="published">published</option>
+      <option value="draft">draft</option>
+    </select>
+    <button class="btn-primary w-full" type="submit">Lưu</button>
+    <p id="cms-msg" class="text-xs text-slate-500"></p>
+  </form>
+</div>

@@ -72,6 +72,18 @@ npm run seed:extras  # coupons + feature flags demo
 - Host reception / staff / finance pages
 - CMS guides `/huong-dan/:slug`, compare, support tickets
 - OpenAPI: `docs/openapi.yaml`
+- Mock payment gateway + signed webhook (`POST /api/gateway/webhook`)
+- Host payouts + ledger reserve (`/host/finance`, `POST /api/host/payouts`)
+- Membership subscribe, recurring series, group/corporate booking
+- Partner API keys (`/api/partner/v1/*` + `X-API-Key`)
+- Fraud rule score, i18n vi/en, device sessions + logout-all
+- Privacy export / delete request (`/security`, `/api/me/privacy/*`)
+- RUM web-vitals beacon (`POST /api/rum`)
+- Host iCal feed, dead-letter queue, backup script
+
+```bash
+npm run backup
+```
 
 ## Roles
 

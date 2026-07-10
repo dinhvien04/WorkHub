@@ -51,11 +51,11 @@ async function getHostBalance(hostId) {
   let paidOut = 0;
   for (const e of entries) {
     const signed = e.Direction === 'credit' ? e.Amount : -e.Amount;
-    if (e.Type === 'payout') paidOut += e.Amount;
-    else if (e.Type === 'payment') available += signed;
-    else if (e.Type === 'refund') available += signed;
-    else if (e.Type === 'fee') available += signed;
-    else available += signed;
+    // Every posted entry moves available (credits +, debits -), including payout holds.
+    available += signed;
+    if (e.Type === 'payout' && e.Direction === 'debit') {
+      paidOut += e.Amount;
+    }
   }
   return {
     available: Math.max(0, available),

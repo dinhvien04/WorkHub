@@ -9,7 +9,11 @@ const menus = {
     { id: 'history', label: 'Lịch sử đặt', icon: '📅' },
     { id: 'favorites', label: 'Yêu thích', icon: '❤️' },
     { id: 'notifications', label: 'Thông báo', icon: '🔔' },
+    { id: 'messages', label: 'Tin nhắn', icon: '💬' },
+    { id: 'membership', label: 'Membership', icon: '🎫' },
     { id: 'payment_history', label: 'Lịch sử thanh toán', icon: '💳' },
+    { id: 'support', label: 'Hỗ trợ', icon: '🛟' },
+    { id: 'security', label: 'Bảo mật', icon: '🔐' },
     { id: 'profile', label: 'Hồ sơ', icon: '👤' },
   ],
   host: [
@@ -28,6 +32,8 @@ const menus = {
     { id: 'admin_dashboard', label: 'Bảng điều khiển', icon: '📊' },
     { id: 'admin_users', label: 'Người dùng', icon: '👥' },
     { id: 'admin_hosts', label: 'Chủ cơ sở', icon: '🏢' },
+    { id: 'admin_disputes', label: 'Disputes', icon: '⚖️' },
+    { id: 'admin_cms', label: 'CMS', icon: '📝' },
     { id: 'admin_activitylog', label: 'Nhật ký hoạt động', icon: '⭐' },
   ],
 };
@@ -44,6 +50,10 @@ function navigateTo(id) {
     favorites: '/favorites',
     notifications: '/notifications',
     booking_wizard: '/booking/wizard',
+    messages: '/messages',
+    membership: '/membership',
+    support: '/support',
+    security: '/security',
     login: '/login',
     host_profile: '/host/profile',
     host_dashboard: '/host/dashboard',
@@ -60,6 +70,8 @@ function navigateTo(id) {
     admin_dashboard: '/admin/dashboard',
     admin_users: '/admin/users',
     admin_hosts: '/admin/hosts',
+    admin_disputes: '/admin/disputes',
+    admin_cms: '/admin/cms',
     admin_activitylog: '/admin/activitylog',
   };
   if (routes[id]) window.location.href = routes[id];

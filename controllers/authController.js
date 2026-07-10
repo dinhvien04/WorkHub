@@ -166,6 +166,20 @@ const loginUser = asyncHandler(async (req, res) => {
 
   res.cookie(env.AUTH_COOKIE_NAME, token, authCookieOptions());
 
+  // Track device session for logout-all / security page (best-effort)
+  try {
+    const UserSession = require('../models/Session');
+    await UserSession.create({
+      UserID: user._id,
+      TokenVersion: user.tokenVersion || 0,
+      UserAgent: String(req.get('user-agent') || '').slice(0, 300),
+      IP: String(req.ip || req.socket?.remoteAddress || '').slice(0, 64),
+      LastSeenAt: new Date(),
+    });
+  } catch {
+    /* non-blocking */
+  }
+
   await logActivity(
     user._id,
     'LOGIN',

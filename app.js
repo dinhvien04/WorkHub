@@ -25,8 +25,10 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const seoRoutes = require('./routes/seoRoutes');
 const meExtraRoutes = require('./routes/meExtraRoutes');
 const platformRoutes = require('./routes/platformRoutes');
+const growthRoutes = require('./routes/growthRoutes');
 const { getHostReportsPage } = require('./controllers/hostController');
 const { expireStaleHolds } = require('./services/bookingService');
+const { detectLang, t } = require('./services/i18n');
 
 function createApp() {
   const app = express();
@@ -85,12 +87,16 @@ function createApp() {
 
   app.use((req, res, next) => {
     if (!req.path.startsWith('/api/')) return next();
+    // External webhooks / partner API keys authenticate via signature or X-API-Key.
     const skip =
       (req.path === '/api/auth/login' && req.method === 'POST') ||
       (req.path === '/api/auth/register' && req.method === 'POST') ||
       (req.path === '/api/auth/forgot-password' && req.method === 'POST') ||
       (req.path === '/api/auth/reset-password' && req.method === 'POST') ||
-      (req.path === '/api/auth/csrf' && req.method === 'GET');
+      (req.path === '/api/auth/csrf' && req.method === 'GET') ||
+      req.path === '/api/gateway/webhook' ||
+      req.path === '/api/rum' ||
+      req.path.startsWith('/api/partner/v1/');
     if (skip) return next();
     return csrfProtection(req, res, next);
   });
@@ -136,6 +142,10 @@ function createApp() {
   app.use('/api/hosts', hostRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api', platformRoutes);
+  app.use('/api', growthRoutes);
+
+  // Webhook needs raw-ish body for signature — express.json already parsed;
+  // gatewayService signs JSON.stringify of object (stable enough for mock).
 
   // Best-effort: expire holds on hot path for small deployments
   app.use(async (req, res, next) => {
@@ -157,6 +167,8 @@ function createApp() {
     res.locals.req = req;
     res.locals.branches = [];
     res.locals.keyword = '';
+    res.locals.lang = detectLang(req);
+    res.locals.t = (key, fb) => t(res.locals.lang, key, fb);
     res.locals.csrfToken = res.locals.csrfToken || (req.cookies && req.cookies.csrfToken) || '';
     res.locals.pageTitle = res.locals.pageTitle || 'WorkHub - Đặt chỗ Co-working';
     res.locals.metaDescription =
@@ -242,6 +254,43 @@ function createApp() {
     res.render('customer/support', {
       pageTitle: 'Hỗ trợ — WorkHub',
       scripts: res.locals.scriptsFrom(['/js/support.js']),
+    })
+  );
+  app.get('/membership', (req, res) =>
+    res.render('customer/membership', {
+      pageTitle: 'Membership — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/membership.js']),
+    })
+  );
+  app.get('/messages', (req, res) =>
+    res.render('customer/messages', {
+      pageTitle: 'Tin nhắn — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/messages.js']),
+    })
+  );
+  app.get('/security', (req, res) =>
+    res.render('customer/security', {
+      pageTitle: 'Bảo mật — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/security.js']),
+    })
+  );
+  app.get('/payment/gateway/:sessionId', (req, res) =>
+    res.render('customer/gateway-checkout', {
+      pageTitle: 'Thanh toán — WorkHub',
+      sessionId: req.params.sessionId,
+      scripts: res.locals.scriptsFrom(['/js/gateway-checkout.js']),
+    })
+  );
+  app.get('/admin/disputes', requireAdminPage, (req, res) =>
+    res.render('admin/disputes', {
+      pageTitle: 'Disputes — Admin',
+      scripts: res.locals.scriptsFrom(['/js/admin-disputes.js']),
+    })
+  );
+  app.get('/admin/cms', requireAdminPage, (req, res) =>
+    res.render('admin/cms', {
+      pageTitle: 'CMS — Admin',
+      scripts: res.locals.scriptsFrom(['/js/admin-cms.js']),
     })
   );
   app.get('/huong-dan/:slug', async (req, res, next) => {

@@ -141,6 +141,29 @@ async function createBooking({
     throw new ValidationError('Không gian hiện không khả dụng để đặt.');
   }
 
+  // Fraud pre-check (rule-based)
+  try {
+    const User = require('../models/User');
+    const fraudService = require('./fraudService');
+    const user = await User.findById(customerId).select('createdAt').lean();
+    const recentBookingCount = await Booking.countDocuments({
+      CustomerID: customerId,
+      createdAt: { $gte: new Date(Date.now() - 3600000) },
+    });
+    const hoursPreview = (end - start) / 3600000;
+    const amountPreview = Math.round(hoursPreview * (space.PricePerHour || 0));
+    const fraud = fraudService.scoreBookingAttempt({
+      userCreatedAt: user?.createdAt,
+      amount: amountPreview,
+      recentBookingCount,
+    });
+    if (fraud.action === 'block') {
+      throw new ValidationError('Yêu cầu đặt chỗ bị chặn bởi hệ thống an toàn. Liên hệ hỗ trợ.');
+    }
+  } catch (err) {
+    if (err.statusCode) throw err;
+  }
+
   const slotStarts = buildSlotStarts(start, end);
   const maxSlots = Math.ceil((env.MAX_BOOKING_HOURS * 60) / env.BOOKING_SLOT_MINUTES);
   if (slotStarts.length > maxSlots) {

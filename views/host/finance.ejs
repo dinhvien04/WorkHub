@@ -1,11 +1,36 @@
 <div class="max-w-4xl mx-auto">
   <h1 class="text-2xl font-black mb-2">Tài chính host</h1>
+  <p class="text-sm text-slate-500 mb-6">Số dư từ ledger append-only. Rút tiền giữ (reserve) ngay khi yêu cầu.</p>
+
   <div id="fin-balance" class="grid md:grid-cols-3 gap-4 mb-6"></div>
+
+  <div class="bg-white rounded-3xl border p-5 mb-6">
+    <h2 class="font-bold mb-3">Yêu cầu rút tiền (payout)</h2>
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label for="payout-amount" class="block text-[10px] font-black uppercase text-slate-400 mb-1">Số tiền (VND)</label>
+        <input id="payout-amount" type="number" min="50000" step="1000" placeholder="Tối thiểu 50.000"
+          class="w-full border rounded-xl px-3 py-2 text-sm font-semibold" />
+      </div>
+      <button type="button" id="payout-request-btn"
+        class="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-teal-700">
+        Rút tiền
+      </button>
+    </div>
+    <p id="payout-msg" class="text-sm mt-2" role="status"></p>
+    <div id="fin-payouts" class="mt-4 border rounded-2xl overflow-hidden bg-slate-50"></div>
+  </div>
+
   <h2 class="font-bold mb-2">Sổ cái (ledger)</h2>
   <div class="bg-white rounded-3xl border overflow-hidden">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
-        <tr><th class="p-3 text-left">Loại</th><th class="p-3 text-left">Hướng</th><th class="p-3 text-right">Số tiền</th><th class="p-3 text-left">Mô tả</th></tr>
+        <tr>
+          <th class="p-3 text-left">Loại</th>
+          <th class="p-3 text-left">Hướng</th>
+          <th class="p-3 text-right">Số tiền</th>
+          <th class="p-3 text-left">Mô tả</th>
+        </tr>
       </thead>
       <tbody id="fin-ledger"></tbody>
     </table>
