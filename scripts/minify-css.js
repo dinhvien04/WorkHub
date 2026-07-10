@@ -2,8 +2,9 @@
 
 /**
  * Minimal CSS minifier (no PostCSS deps).
+ * Prefer: npm run build:css → scripts/purge-css.js (purge + minify).
+ * This script keeps full utilities (no purge).
  * Usage: node scripts/minify-css.js
- * Reads public/css/style.css + utilities.css → public/css/app.min.css
  */
 const fs = require('fs');
 const path = require('path');

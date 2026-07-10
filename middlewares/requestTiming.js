@@ -29,6 +29,7 @@ function requestTiming(req, res, next) {
           status: res.statusCode,
           ms,
           requestId: req.requestId,
+          traceId: req.trace?.traceId,
         },
         'slow_or_error_request'
       );

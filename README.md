@@ -142,12 +142,14 @@ npm run build:css
 docker compose up -d   # optional infra
 npm run smoke          # requires running server
 npm run load:smoke
+npm run build:css      # purge unused utility classes + minify → public/css/app.min.css
 ```
 
 ### Observability
 
 - `GET /metrics` — Prometheus text format  
-- `GET /health/details` — JSON snapshot (db, metrics, version)
+- `GET /health/details` — JSON snapshot (db, metrics, version)  
+- W3C `traceparent` propagation + optional OTLP export (`OTEL_EXPORTER_OTLP_ENDPOINT`)
 
 ## Roles
 

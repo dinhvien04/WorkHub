@@ -15,6 +15,7 @@ const requestId = require('./middlewares/requestId');
 const requestTiming = require('./middlewares/requestTiming');
 const apiVersion = require('./middlewares/apiVersion');
 const maintenanceMode = require('./middlewares/maintenanceMode');
+const { tracingMiddleware } = require('./utils/tracing');
 const { ensureCsrfCookie, csrfProtection } = require('./middlewares/csrfMiddleware');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { requireHostPage, requireAdminPage } = require('./middlewares/authMiddleware');
@@ -41,6 +42,7 @@ function createApp() {
   }
 
   app.use(requestId);
+  app.use(tracingMiddleware);
   app.use(requestTiming);
   app.use(apiVersion);
 
