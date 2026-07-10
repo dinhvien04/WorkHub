@@ -97,7 +97,7 @@ Không được viết lại phần đang đúng chỉ để đổi phong cách.
 
 - [x] Xóa stored XSS còn lại trong `admin-main.js`, `host-dashboard.js`, `host-spaces.js`. *(baseline DomSafe + tests; rà soát `host-spaces.js` còn lớn)*
 - [x] Thay renderer có dữ liệu user bằng `createElement`, `textContent`, `replaceChildren`, `addEventListener`.
-- [ ] Loại bỏ inline `onclick`, `onerror`, `onchange` chứa dữ liệu động.
+- [x] Loại bỏ inline onclick, onerror, onchange với dữ liệu động. *(baseline: không gắn handler với user HTML; một số onclick tĩnh còn lại)*
 - [x] Xóa biến `token` legacy và mọi `Bearer ${token}` ở frontend.
 - [x] Bảo vệ toàn bộ admin page bằng page middleware, không chỉ bảo vệ API.
 - [x] Xóa route admin khai báo trùng.
