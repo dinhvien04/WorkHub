@@ -196,8 +196,41 @@ const quote = asyncHandler(async (req, res) => {
     start: startTime,
     end: endTime,
     basePricePerHour: space.PricePerHour,
+    durationPrices: {
+      PricePerHalfDay: space.PricePerHalfDay,
+      PricePerDay: space.PricePerDay,
+      PricePerWeek: space.PricePerWeek,
+      PricePerMonth: space.PricePerMonth,
+    },
   });
   res.json(q);
+});
+
+/** Preview a draft/unsaved pricing rule before publish */
+const previewPricingRule = asyncHandler(async (req, res) => {
+  const { spaceId, startTime, endTime, rule, draftRuleId } = req.body;
+  const space = await Space.findById(spaceId);
+  if (!space) return res.status(404).json({ error: 'Space not found' });
+  if (String(space.HostID) !== String(req.user.userId)) {
+    return res.status(403).json({ error: 'Không có quyền preview rule cho space này.' });
+  }
+  const result = await pricingService.previewPricingRule({
+    hostId: space.HostID,
+    spaceId: space._id,
+    branchId: space.BranchID,
+    start: startTime,
+    end: endTime,
+    basePricePerHour: space.PricePerHour,
+    durationPrices: {
+      PricePerHalfDay: space.PricePerHalfDay,
+      PricePerDay: space.PricePerDay,
+      PricePerWeek: space.PricePerWeek,
+      PricePerMonth: space.PricePerMonth,
+    },
+    rule,
+    draftRuleId: draftRuleId || null,
+  });
+  res.json({ preview: result });
 });
 
 // —— Add-ons / blackouts / pricing rules (host) ——
@@ -248,6 +281,9 @@ const deleteBlackout = asyncHandler(async (req, res) => {
 });
 
 const createPricingRule = asyncHandler(async (req, res) => {
+  // Default draft so host can preview before publish
+  const status =
+    req.body.status === 'active' || req.body.publish === true ? 'active' : 'draft';
   const doc = await PricingRule.create({
     HostID: req.user.userId,
     BranchID: req.body.branchId || null,
@@ -261,9 +297,24 @@ const createPricingRule = asyncHandler(async (req, res) => {
     HourStart: req.body.hourStart ?? null,
     HourEnd: req.body.hourEnd ?? null,
     MinHours: req.body.minHours ?? null,
-    Status: 'active',
+    Status: status,
   });
   res.status(201).json({ rule: doc });
+});
+
+const publishPricingRule = asyncHandler(async (req, res) => {
+  const rule = await pricingService.publishPricingRule({
+    hostId: req.user.userId,
+    ruleId: req.params.ruleId,
+  });
+  res.json({ rule });
+});
+
+const listPricingRules = asyncHandler(async (req, res) => {
+  const filter = { HostID: req.user.userId };
+  if (req.query.status) filter.Status = req.query.status;
+  const rules = await PricingRule.find(filter).sort({ Priority: 1, createdAt: -1 }).lean();
+  res.json({ rules });
 });
 
 // —— Support ——
@@ -321,10 +372,16 @@ const listPlans = asyncHandler(async (req, res) => {
 });
 
 const myMembership = asyncHandler(async (req, res) => {
-  const m = await Membership.findOne({ UserID: req.user.userId, Status: 'active' })
-    .populate('PlanID')
-    .lean();
+  const membershipService = require('../services/membershipService');
+  const m = await membershipService.getActiveMembership(req.user.userId);
   res.json({ membership: m });
+});
+
+const myCreditLedger = asyncHandler(async (req, res) => {
+  const membershipService = require('../services/membershipService');
+  const { page, limit } = parsePagination(req.query);
+  const data = await membershipService.listCreditLedger(req.user.userId, { page, limit });
+  res.json({ ...data, pagination: paginationMeta(data.total, page, limit) });
 });
 
 // —— Feature flags ——
@@ -488,12 +545,15 @@ module.exports = {
   hostBalance,
   hostLedger,
   quote,
+  previewPricingRule,
   listAddOns,
   createAddOn,
   createBlackout,
   listBlackouts,
   deleteBlackout,
   createPricingRule,
+  publishPricingRule,
+  listPricingRules,
   createTicket,
   listTickets,
   createIncident,
@@ -502,6 +562,7 @@ module.exports = {
   upsertCms,
   listPlans,
   myMembership,
+  myCreditLedger,
   flags,
   adminListFlags,
   adminUpsertFlag,

@@ -27,6 +27,7 @@ router.get('/disputes', verifyToken, c.listDisputes);
 router.post('/support/tickets', verifyToken, c.createTicket);
 router.get('/support/tickets', verifyToken, c.listTickets);
 router.get('/membership/me', verifyToken, authorizeRole('customer'), c.myMembership);
+router.get('/membership/credits', verifyToken, authorizeRole('customer'), c.myCreditLedger);
 router.post('/staff/accept', verifyToken, c.acceptStaffInvite);
 
 // Host
@@ -45,7 +46,10 @@ router.delete('/host/blackouts/:blackoutId', ...host, c.deleteBlackout);
 router.post('/host/spaces/bulk', ...host, c.bulkSpaces);
 router.put('/host/branches/:branchId/status', ...host, c.setBranchStatusHost);
 router.put('/host/branches/:branchId/publish', ...host, c.setBranchPublishHost);
+router.get('/host/pricing-rules', ...host, c.listPricingRules);
 router.post('/host/pricing-rules', ...host, c.createPricingRule);
+router.post('/host/pricing-rules/preview', ...host, c.previewPricingRule);
+router.put('/host/pricing-rules/:ruleId/publish', ...host, c.publishPricingRule);
 router.post('/host/spaces/bulk-status', ...host, c.bulkSpaceStatus);
 router.get('/host/reception/today', ...host, c.receptionToday);
 router.put('/host/bookings/:bookingId/checkout', ...host, c.checkout);

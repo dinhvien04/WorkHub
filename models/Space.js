@@ -58,6 +58,11 @@ const spaceSchema = new mongoose.Schema({
         required: true, 
         min: 0 
     },
+    /** Duration package prices (optional). Used when booking length meets tier. */
+    PricePerHalfDay: { type: Number, default: null, min: 0 },
+    PricePerDay: { type: Number, default: null, min: 0 },
+    PricePerWeek: { type: Number, default: null, min: 0 },
+    PricePerMonth: { type: Number, default: null, min: 0 },
     DepositAmount: { 
         type: Number, 
         default: 0, 

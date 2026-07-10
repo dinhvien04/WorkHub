@@ -9,7 +9,7 @@
 
 ## Checklist progress (repo)
 
-> **Cập nhật checklist:** 2026-07-10 · main verification/publish batch
+> **Cập nhật checklist:** 2026-07-10 · pricing duration + credit ledger batch
 > **Quy ước:** `[x]` = đã ship baseline trong code (+ test liên quan). Ghi `*(partial: …)*` nếu đặc tả đầy đủ chưa xong. `[ ]` = chưa làm hoặc còn thiếu lõi.  
 > **Bắt buộc:** mỗi batch ship xong phải tick/cập nhật partial trong file này cùng commit (hoặc commit ngay sau).
 
@@ -392,13 +392,13 @@ Mọi financial transition idempotent và audit được.
 
 ## 14. Pricing, coupon, membership
 
-- [ ] Hourly, half-day, daily, weekly, monthly.
+- [x] Hourly, half-day, daily, weekly, monthly. *(Space PricePerHalfDay/Day/Week/Month + selectDurationPackage)*
 - [x] Peak hour, weekend, holiday, last-minute, long-stay và corporate pricing. *(partial: PricingRule peak/weekend; holiday/corporate mỏng)*
-- [ ] Rule priority và preview trước publish.
+- [x] Rule priority và preview trước publish. *(draft default + /preview + publish; Priority sort)*
 - [x] Coupon percentage/fixed, min/max, time range, usage/user limit, branch/space scope.
 - [x] Platform-funded hoặc host-funded.
-- [x] Membership P2: credits, included hours, discount, priority booking. *(partial: plans/subscribe; credit ledger mỏng)*
-- [ ] Credit ledger, expiry và không sửa balance trực tiếp.
+- [x] Membership P2: credits, included hours, discount, priority booking.
+- [x] Credit ledger, expiry và không sửa balance trực tiếp. *(MembershipCreditLedger append-only; grant/consume/expire)*
 
 ## 15. Host staff và permission
 

@@ -105,6 +105,13 @@ const subscribe = asyncHandler(async (req, res) => {
   res.status(201).json({ membership: m });
 });
 
+const myCreditLedger = asyncHandler(async (req, res) => {
+  const { parsePagination, paginationMeta } = require('../utils/pagination');
+  const { page, limit } = parsePagination(req.query);
+  const data = await membershipService.listCreditLedger(req.user.userId, { page, limit });
+  res.json({ ...data, pagination: paginationMeta(data.total, page, limit) });
+});
+
 // —— Recurring ——
 const previewRecurring = asyncHandler(async (req, res) => {
   const body = { ...req.body, ...req.query };
@@ -1057,6 +1064,7 @@ module.exports = {
   listPlans,
   myMembership,
   subscribe,
+  myCreditLedger,
   previewRecurring,
   createRecurring,
   listRecurring,

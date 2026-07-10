@@ -51,6 +51,13 @@ async function quoteBooking({
   const { start, end } = parseRange(startTime, endTime);
   const hours = Math.max(0, (end - start) / 3600000);
 
+  const durationPrices = {
+    PricePerHalfDay: space.PricePerHalfDay,
+    PricePerDay: space.PricePerDay,
+    PricePerWeek: space.PricePerWeek,
+    PricePerMonth: space.PricePerMonth,
+  };
+
   let quote;
   try {
     quote = await pricingService.quotePrice({
@@ -60,6 +67,7 @@ async function quoteBooking({
       start,
       end,
       basePricePerHour: space.PricePerHour || 0,
+      durationPrices,
     });
   } catch {
     const total = Math.round(hours * (space.PricePerHour || 0));
@@ -69,6 +77,7 @@ async function quoteBooking({
       totalAmount: total,
       depositAmount: Math.round(total * 0.3),
       appliedRules: [],
+      durationTier: 'hourly',
     };
   }
 
@@ -160,10 +169,14 @@ async function quoteBooking({
         : 24;
   const policy = buildPolicySnapshot({ freeCancelHours });
 
+  const durationLabel = quote.durationLabel || 'Theo giờ';
   const lines = [
     {
       key: 'base',
-      label: `Thuê ${hours.toFixed(hours % 1 ? 1 : 0)} giờ × ${Number(quote.pricePerHour).toLocaleString('vi-VN')}đ`,
+      label:
+        quote.durationTier && quote.durationTier !== 'hourly'
+          ? `${durationLabel} (${hours.toFixed(hours % 1 ? 1 : 0)}h)`
+          : `Thuê ${hours.toFixed(hours % 1 ? 1 : 0)} giờ × ${Number(quote.pricePerHour).toLocaleString('vi-VN')}đ`,
       amount: baseAmount,
     },
   ];
@@ -199,6 +212,9 @@ async function quoteBooking({
     currency: 'VND',
     pricePerHour: quote.pricePerHour,
     basePricePerHour: space.PricePerHour || 0,
+    durationTier: quote.durationTier || 'hourly',
+    durationLabel: quote.durationLabel || 'Theo giờ',
+    packagePrice: quote.packagePrice ?? null,
     baseAmount,
     addOnsTotal,
     addOns: addOnLines,

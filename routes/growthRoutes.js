@@ -32,6 +32,7 @@ router.put('/admin/payouts/:payoutId/process', verifyToken, requireAdmin, g.admi
 // Membership
 router.get('/membership/plans', g.listPlans);
 router.get('/membership/me', verifyToken, g.myMembership);
+router.get('/membership/credits', verifyToken, authorizeRole('customer'), g.myCreditLedger);
 router.post('/membership/subscribe', verifyToken, authorizeRole('customer'), g.subscribe);
 
 // Recurring + corporate / group + RSVP
