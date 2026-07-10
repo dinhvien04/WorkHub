@@ -143,6 +143,22 @@ async function createBooking({
     throw new ValidationError('Không gian hiện không khả dụng để đặt.');
   }
 
+  // Platform kill switch (feature flag)
+  try {
+    const featureFlagService = require('./featureFlagService');
+    const bookingOff = await featureFlagService.isEnabled('kill_switch_bookings', {
+      userId: customerId,
+      role: 'customer',
+    });
+    if (bookingOff) {
+      throw new ValidationError(
+        'Hệ thống tạm dừng nhận booking mới (kill switch). Vui lòng thử lại sau.'
+      );
+    }
+  } catch (err) {
+    if (err.statusCode) throw err;
+  }
+
   // Blackout / maintenance windows
   try {
     const Blackout = require('../models/Blackout');

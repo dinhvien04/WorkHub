@@ -262,6 +262,46 @@ const listDeadLetters = asyncHandler(async (req, res) => {
   res.json({ items });
 });
 
+const discardDeadLetter = asyncHandler(async (req, res) => {
+  const doc = await jobQueue.discardDeadLetter(req.params.id);
+  if (!doc) throw new NotFoundError('Dead letter not found');
+  res.json({ item: doc });
+});
+
+const replayDeadLetter = asyncHandler(async (req, res) => {
+  const result = await jobQueue.replayDeadLetter(req.params.id);
+  res.json(result);
+});
+
+const retryJob = asyncHandler(async (req, res) => {
+  const job = await jobQueue.retryFailedJob(req.params.jobId);
+  res.json({ job });
+});
+
+const downloadJobFile = asyncHandler(async (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  const job = await jobQueue.getJob(req.params.jobId);
+  if (!job) throw new NotFoundError('Job not found');
+  if (
+    req.user.role !== 'admin' &&
+    job.OwnerUserID &&
+    String(job.OwnerUserID) !== String(req.user.userId)
+  ) {
+    throw new ForbiddenError('Không có quyền tải file job.');
+  }
+  if (job.Status !== 'completed' || !job.Result?.file) {
+    throw new ValidationError('Job chưa có file kết quả.');
+  }
+  const rel = String(job.Result.file).replace(/\\/g, '/');
+  if (rel.includes('..') || !rel.startsWith('tmp/exports/')) {
+    throw new ForbiddenError('Đường dẫn file không hợp lệ.');
+  }
+  const abs = path.join(process.cwd(), rel);
+  if (!fs.existsSync(abs)) throw new NotFoundError('File không còn trên đĩa.');
+  res.download(abs, path.basename(abs));
+});
+
 // —— Corporate / group booking note ——
 const createGroupBooking = asyncHandler(async (req, res) => {
   const bookingService = require('../services/bookingService');
@@ -914,6 +954,10 @@ module.exports = {
   i18nBundle,
   hostIcalFeed,
   listDeadLetters,
+  discardDeadLetter,
+  replayDeadLetter,
+  retryJob,
+  downloadJobFile,
   createGroupBooking,
   hostAdvancedReport,
   rumBeacon,

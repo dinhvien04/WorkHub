@@ -126,6 +126,10 @@ npm run seed:extras  # coupons + feature flags demo
 - Durable background jobs (Mongo claim): export ledger/bookings, email, booking reminders
 - Optional ClamAV TCP scan (`CLAMAV_HOST`)
 - Host “Export nền” for large ledger exports
+- Job download + retry; admin dead-letter replay
+- Stripe/MoMo **live** session create when keys set (else mock)
+- Booking kill switch flag `kill_switch_bookings`
+- Guest favorites auto-merge after login
 
 ```bash
 npm run backup

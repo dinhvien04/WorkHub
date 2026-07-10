@@ -1,3 +1,26 @@
+async function mergeGuestFavoritesAfterLogin() {
+  try {
+    const local = JSON.parse(localStorage.getItem('guestFavorites') || '[]');
+    if (!Array.isArray(local) || !local.length) return;
+    // Need CSRF for POST
+    const csrfRes = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
+    const csrfData = await csrfRes.json().catch(() => ({}));
+    const token = csrfData.csrfToken || '';
+    await fetch('/api/me/favorites/merge', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': token,
+      },
+      body: JSON.stringify({ branchIds: local }),
+    });
+    localStorage.removeItem('guestFavorites');
+  } catch {
+    /* non-blocking */
+  }
+}
+
 function finishLoginRedirect(data) {
   showToast('Đăng nhập thành công! Đang chuyển hướng...');
   localStorage.removeItem('token');
@@ -9,7 +32,7 @@ function finishLoginRedirect(data) {
     sessionStorage.setItem('displayName', data.user.fullName || '');
     sessionStorage.setItem('displayRole', data.user.role || '');
   }
-  setTimeout(() => {
+  const go = () => {
     if (data.user && data.user.role === 'host') {
       window.location.href = '/host/dashboard';
     } else if (data.user && data.user.role === 'admin') {
@@ -17,7 +40,12 @@ function finishLoginRedirect(data) {
     } else {
       window.location.href = '/';
     }
-  }, 800);
+  };
+  if (data.user && data.user.role === 'customer') {
+    mergeGuestFavoritesAfterLogin().finally(() => setTimeout(go, 400));
+  } else {
+    setTimeout(go, 800);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {

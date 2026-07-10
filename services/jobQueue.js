@@ -131,6 +131,50 @@ async function discardDeadLetter(id) {
   return DeadLetter.findByIdAndUpdate(id, { $set: { Status: 'discarded' } }, { new: true });
 }
 
+/**
+ * Re-queue a failed job or re-enqueue payload from a dead letter.
+ */
+async function replayDeadLetter(id) {
+  const dl = await DeadLetter.findById(id);
+  if (!dl) {
+    const err = new Error('Dead letter not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  const payload = dl.Payload || {};
+  const type = payload.type || 'generic';
+  const job = await enqueue({
+    type,
+    queue: dl.Queue || 'default',
+    payload: payload.payload || payload,
+    ownerUserId: payload.ownerUserId || null,
+    maxAttempts: 3,
+  });
+  dl.Status = 'replayed';
+  await dl.save();
+  return { deadLetter: dl, job };
+}
+
+async function retryFailedJob(jobId) {
+  const job = await BackgroundJob.findById(jobId);
+  if (!job) {
+    const err = new Error('Job not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (job.Status !== 'failed' && job.Status !== 'completed') {
+    const err = new Error('Chỉ retry job failed/completed.');
+    err.statusCode = 400;
+    throw err;
+  }
+  job.Status = 'queued';
+  job.Error = '';
+  job.RunAfter = new Date();
+  job.CompletedAt = null;
+  await job.save();
+  return job;
+}
+
 // —— Built-in handlers ——
 registerHandler('email', async (payload) => {
   const emailService = require('./emailService');
@@ -213,6 +257,8 @@ module.exports = {
   withRetry,
   listDeadLetters,
   discardDeadLetter,
+  replayDeadLetter,
+  retryFailedJob,
   enqueue,
   getJob,
   listJobsForUser,

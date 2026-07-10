@@ -11,7 +11,7 @@ const gatewayPaymentSchema = new mongoose.Schema(
     Currency: { type: String, default: 'VND' },
     Provider: {
       type: String,
-      enum: ['workhub_mock', 'stripe_mock', 'momo_mock'],
+      enum: ['workhub_mock', 'stripe_mock', 'momo_mock', 'stripe', 'momo'],
       default: 'workhub_mock',
       index: true,
     },

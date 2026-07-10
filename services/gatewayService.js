@@ -58,7 +58,27 @@ async function createCheckoutSession({
     }
   }
 
-  const sessionId = providers.makeSessionId(provider);
+  // Prefer live provider session when keys configured
+  let live = null;
+  try {
+    live = await providers.tryCreateLiveSession({
+      provider,
+      amount: amt,
+      currency: 'VND',
+      bookingId,
+      successUrl: process.env.PUBLIC_BASE_URL
+        ? `${process.env.PUBLIC_BASE_URL}/payment?bookingId=${bookingId}&paid=1`
+        : undefined,
+      cancelUrl: process.env.PUBLIC_BASE_URL
+        ? `${process.env.PUBLIC_BASE_URL}/payment?bookingId=${bookingId}`
+        : undefined,
+    });
+  } catch (err) {
+    if (err.statusCode === 502) throw err;
+    live = null;
+  }
+
+  const sessionId = live?.sessionId || providers.makeSessionId(provider);
   try {
     const session = await GatewayPayment.create({
       BookingID: bookingId,
@@ -66,14 +86,16 @@ async function createCheckoutSession({
       HostID: booking.HostID,
       Amount: amt,
       SessionId: sessionId,
-      Status: 'created',
+      Status: live ? 'redirected' : 'created',
       IdempotencyKey: idempotencyKey || undefined,
       Provider: provider,
+      ProviderRef: live?.providerRef || '',
     });
     return {
       session,
-      checkoutUrl: providers.providerCheckoutUrl(provider, sessionId),
+      checkoutUrl: live?.checkoutUrl || providers.providerCheckoutUrl(provider, sessionId),
       provider,
+      live: Boolean(live?.live),
       duplicate: false,
     };
   } catch (err) {

@@ -75,6 +75,8 @@ router.get('/feeds/host/:hostId/calendar.ics', g.hostIcalFeed);
 
 // Admin ops
 router.get('/admin/dead-letters', verifyToken, requireAdmin, g.listDeadLetters);
+router.post('/admin/dead-letters/:id/replay', verifyToken, requireAdmin, g.replayDeadLetter);
+router.delete('/admin/dead-letters/:id', verifyToken, requireAdmin, g.discardDeadLetter);
 
 // Host advanced report
 router.get(
@@ -151,6 +153,8 @@ router.post(
 );
 router.get('/jobs/me', verifyToken, g.listMyJobs);
 router.get('/jobs/:jobId', verifyToken, g.getJobStatus);
+router.get('/jobs/:jobId/download', verifyToken, g.downloadJobFile);
+router.post('/jobs/:jobId/retry', verifyToken, g.retryJob);
 
 // Reviews
 router.post('/reviews/:reviewId/report', verifyToken, g.reportReview);
