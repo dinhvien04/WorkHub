@@ -6,40 +6,35 @@ const User = require('../models/User');
 const ExcelJS = require('exceljs');
 const PaymentHistory = require('../models/Payment_History');
 const logActivity = require('../utils/auditLogger');
-const jwt = require('jsonwebtoken');
+const bookingService = require('../services/bookingService');
+const paymentService = require('../services/paymentService');
+const { extractPublicId, imageInResource } = require('../utils/cloudinaryHelper');
+const { parsePagination, paginationMeta } = require('../utils/pagination');
+const socketService = require('../services/socketService');
 
 const cloudinary = require('cloudinary').v2;
 
-// Cấu hình Cloudinary để gọi API xóa ảnh
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+if (process.env.CLOUDINARY_CLOUD_NAME) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+}
 
-// ==========================================
-// HÀM HELPER KHÔNG ĐỔI
-// ==========================================
 const sendServerError = (res, error) => {
   console.error(error);
   return res.status(500).json({ error: 'Lỗi máy chủ, vui lòng thử lại sau.' });
 };
 
-// Middleware/Helper lấy Host ID từ token tiện dụng hơn
+/** Host identity ONLY from authenticated middleware (req.user.userId). */
 const getHostIdFromToken = (req) => {
-  if (req.user) return req.user.id || req.user._id || req.user.userId;
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
-  const token = authHeader.split(' ')[1];
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'YOUR_SECRET_KEY');
-  return decoded.userId || decoded.id || decoded._id;
+  if (!req.user || !req.user.userId) return null;
+  return req.user.userId;
 };
 
-// Phát tín hiệu Socket.io gọn gàng
-const emitBookingUpdate = (bookingId, newStatus) => {
-  if (global.io) {
-    global.io.emit('booking_status_updated', { bookingId, newStatus });
-  }
+const emitBookingUpdate = (bookingId, newStatus, hostId, customerId) => {
+  socketService.emitBookingUpdate({ bookingId, newStatus, hostId, customerId });
 };
 
 function mapCategory(type) {
@@ -576,28 +571,40 @@ async function getHostReportsPage(req, res) {
 async function deleteBranchImage(req, res) {
   try {
     const hostId = getHostIdFromToken(req);
+    if (!hostId) return res.status(401).json({ error: 'Chưa xác thực.' });
     const { branchId } = req.params;
     const { imageUrl } = req.body;
+    if (!imageUrl) return res.status(400).json({ error: 'Thiếu imageUrl.' });
 
-    // 1. Lọc lấy public_id từ URL và Xóa ảnh trên mây Cloudinary
-    try {
-        // Tách lấy public_id (VD từ URL: https://.../upload/v1234/coworking/branchs/file1.jpg -> coworking/branchs/file1)
-        const matches = imageUrl.match(/\/v\d+\/(.+?)\.[a-zA-Z0-9]+$/);
-        if (matches && matches[1]) {
-            await cloudinary.uploader.destroy(matches[1]);
-        }
-    } catch (cloudErr) {
-        console.warn("⚠️ Bỏ qua lỗi xóa ảnh Cloudinary (Có thể ảnh đã bị xóa trước đó):", cloudErr.message);
+    // 1) Ownership first
+    const branch = await Branch.findOne({ _id: branchId, HostID: hostId });
+    if (!branch) return res.status(404).json({ error: 'Không tìm thấy cơ sở.' });
+
+    // 2) Image must belong to this resource
+    if (!imageInResource(branch.Images, imageUrl)) {
+      return res.status(400).json({ error: 'Ảnh không thuộc cơ sở này.' });
     }
 
-    // 2. Xóa đường dẫn trong MongoDB
-    const branch = await Branch.findOneAndUpdate(
-      { _id: branchId, HostID: hostId },
-      { $pull: { Images: imageUrl } },
-      { new: true }
-    );
-    if (!branch) return res.status(404).json({ error: "Không tìm thấy cơ sở." });
-    return res.json({ message: "Đã xóa ảnh thành công.", branch });
+    // 3) Only then delete from Cloudinary
+    const publicId = extractPublicId(imageUrl);
+    if (publicId && process.env.CLOUDINARY_CLOUD_NAME) {
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (cloudErr) {
+        return res.status(502).json({
+          error: 'Xóa ảnh trên Cloudinary thất bại. DB chưa bị thay đổi.',
+          detail: cloudErr.message,
+        });
+      }
+    }
+
+    // 4) Update DB after successful cloud delete (or no cloud)
+    branch.Images = branch.Images.filter((img) => {
+      if (typeof img === 'string') return img !== imageUrl;
+      return img.url !== imageUrl;
+    });
+    await branch.save();
+    return res.json({ message: 'Đã xóa ảnh thành công.', branch });
   } catch (error) {
     return sendServerError(res, error);
   }
@@ -700,27 +707,36 @@ async function updateSpace(req, res) {
 async function deleteSpaceImage(req, res) {
   try {
     const hostId = getHostIdFromToken(req);
+    if (!hostId) return res.status(401).json({ error: 'Chưa xác thực.' });
     const { spaceId } = req.params;
     const { imageUrl } = req.body;
+    if (!imageUrl) return res.status(400).json({ error: 'Thiếu imageUrl.' });
 
-    // 1. Lọc lấy public_id từ URL và Xóa ảnh trên mây Cloudinary
-    try {
-        const matches = imageUrl.match(/\/v\d+\/(.+?)\.[a-zA-Z0-9]+$/);
-        if (matches && matches[1]) {
-            await cloudinary.uploader.destroy(matches[1]);
-        }
-    } catch (cloudErr) {
-        console.warn("⚠️ Bỏ qua lỗi xóa ảnh Cloudinary (Có thể ảnh đã bị xóa trước đó):", cloudErr.message);
+    const space = await Space.findOne({ _id: spaceId, HostID: hostId });
+    if (!space) return res.status(404).json({ error: 'Không tìm thấy không gian.' });
+
+    if (!imageInResource(space.Images, imageUrl)) {
+      return res.status(400).json({ error: 'Ảnh không thuộc không gian này.' });
     }
 
-    // 2. Xóa đường dẫn trong MongoDB
-    const space = await Space.findOneAndUpdate(
-      { _id: spaceId, HostID: hostId },
-      { $pull: { Images: imageUrl } },
-      { new: true }
-    );
-    if (!space) return res.status(404).json({ error: "Không tìm thấy không gian." });
-    return res.json({ message: "Đã xóa ảnh thành công.", space });
+    const publicId = extractPublicId(imageUrl);
+    if (publicId && process.env.CLOUDINARY_CLOUD_NAME) {
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (cloudErr) {
+        return res.status(502).json({
+          error: 'Xóa ảnh trên Cloudinary thất bại. DB chưa bị thay đổi.',
+          detail: cloudErr.message,
+        });
+      }
+    }
+
+    space.Images = space.Images.filter((img) => {
+      if (typeof img === 'string') return img !== imageUrl;
+      return img.url !== imageUrl;
+    });
+    await space.save();
+    return res.json({ message: 'Đã xóa ảnh thành công.', space });
   } catch (error) {
     return sendServerError(res, error);
   }
@@ -776,146 +792,94 @@ async function createBranchAndSpaces(req, res) {
 // ==========================================
 async function getHostBookings(req, res) {
   try {
-    const currentTime = new Date();
-    // Tự động chuyển đơn hết giờ thành completed
-    await Booking.updateMany(
-      { $or: [{ Status: 'in-use' }, { status: 'in-use' }], $or: [{ EndTime: { $lt: currentTime } }, { endTime: { $lt: currentTime } }] },
-      { $set: { Status: 'completed', status: 'completed' } }
-    );
-
     const hostId = getHostIdFromToken(req);
-    
-    // 1. Lấy danh sách Bookings
-    const bookings = await Booking.find({ $or: [{ HostID: hostId }, { hostID: hostId }] })
-      .populate({ path: 'CustomerID', select: 'email Email FullName fullName', strictPopulate: false })
-      .populate({
-        path: 'SpaceID',
-        select: 'Name name SpaceName spaceName SpaceCode Space_Code space_code Space_code SpaceCode_code code spaceCode spaceCode',
-        populate: { path: 'BranchID', select: 'Name name' }
-      })
-      .sort({ createdAt: -1 }).lean();
+    if (!hostId) return res.status(401).json({ error: 'Chưa xác thực.' });
 
-    // 2. TRUY VẤN LỊCH SỬ THANH TOÁN (GOM CẢ PENDING ĐỂ LẤY PAYMENT_TYPE)
+    // Completion of expired bookings is handled by background job — do not updateMany entire system here.
+    // Optionally complete only this host's expired in-use bookings:
+    await bookingService.completeExpiredBookings({ hostId });
+
+    const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 50, maxLimit: 100 });
+
+    const filter = { HostID: hostId };
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .populate({ path: 'CustomerID', select: 'Email FullName', strictPopulate: false })
+        .populate({
+          path: 'SpaceID',
+          select: 'Name SpaceCode BranchID',
+          populate: { path: 'BranchID', select: 'Name' }
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
+
     const bookingIds = bookings.map(b => b._id);
-    const payments = await PaymentHistory.find({ BookingID: { $in: bookingIds } }).lean();
+    const payments = await PaymentHistory.find({
+      BookingID: { $in: bookingIds },
+      HostID: hostId,
+      Status: 'successful',
+    }).lean();
 
-    // 3. Thuật toán quét chọn % thanh toán cao nhất
-    const bookingPercentMap = {};
+    const paidMap = {};
     payments.forEach(p => {
-        const bId = p.BookingID.toString();
-        const type = p.PaymentType;
-
-        if (type === 'full_payment' || type === 'remaining_balance') {
-            bookingPercentMap[bId] = 100; // Thanh toán full hoặc tất toán nốt là 100%
-        } else if (type === 'deposit') {
-            // Cọc thì 30% (nếu chưa có lệnh 100%)
-            if (bookingPercentMap[bId] !== 100) {
-                bookingPercentMap[bId] = 30;
-            }
-        }
+      const bId = p.BookingID.toString();
+      paidMap[bId] = (paidMap[bId] || 0) + p.Amount;
     });
 
-    // 4. Ghép phần trăm vào kết quả trả về cho Frontend
     const result = bookings.map(b => {
-        const percentPaid = bookingPercentMap[b._id.toString()] || 0;
-        return { ...b, percentPaid };
+      const paid = paidMap[b._id.toString()] || 0;
+      const percentPaid = b.TotalAmount > 0 ? Math.min(100, Math.round((paid / b.TotalAmount) * 100)) : 0;
+      return { ...b, percentPaid, paidAmount: paid };
     });
 
-    return res.json({ bookings: result });
+    return res.json({ bookings: result, pagination: paginationMeta(total, page, limit) });
   } catch (error) {
     return sendServerError(res, error);
   }
 }
+
 async function confirmBooking(req, res) {
   try {
+    const hostId = getHostIdFromToken(req);
+    if (!hostId) return res.status(401).json({ error: 'Chưa xác thực.' });
     const { bookingId } = req.params;
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
-
-    if ((booking.Status || booking.status) !== 'pending') {
-      return res.status(400).json({ error: 'Đơn hàng này không ở trạng thái chờ xác nhận.' });
-    }
-
-    // 1. Chuyển trạng thái Booking sang 'confirmed'
-    await Booking.updateOne({ _id: bookingId }, { $set: { Status: 'confirmed', status: 'confirmed' } });
-
-    // 2. ĐỒNG BỘ TÀI CHÍNH: Quét tất cả biên lai đang 'pending' của đơn này và chuyển thành 'successful'
-    try {
-      await PaymentHistory.updateMany(
-        { BookingID: bookingId, Status: 'pending' },
-        { $set: { Status: 'successful', PaidAt: new Date() } }
-      );
-    } catch (pErr) {
-      console.warn('⚠️ Lỗi đồng bộ lịch sử thanh toán (Confirm):', pErr.message);
-    }
-    
-    const hostId = req.user?.id || req.user?._id || req.user?.userId || booking.HostID;
-    await logActivity(hostId, 'CONFIRM_BOOKING', 'Booking', booking._id, `Chủ cơ sở đã xác nhận đơn đặt chỗ`, 'success');
-
-    emitBookingUpdate(bookingId, 'confirmed');
-    return res.status(200).json({ message: 'Xác nhận đơn hàng thành công.' });
+    const booking = await bookingService.confirmBooking(hostId, bookingId);
+    emitBookingUpdate(bookingId, 'confirmed', hostId, booking.CustomerID);
+    return res.status(200).json({ message: 'Xác nhận đơn hàng thành công.', booking });
   } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message, code: error.code });
     return sendServerError(res, error);
   }
 }
 
 async function checkinBooking(req, res) {
   try {
+    const hostId = getHostIdFromToken(req);
+    if (!hostId) return res.status(401).json({ error: 'Chưa xác thực.' });
     const { bookingId } = req.params;
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
-
-    if ((booking.Status || booking.status) !== 'confirmed') {
-      return res.status(400).json({ error: 'Chỉ có thể nhận phòng với đơn đã được xác nhận.' });
-    }
-
-    const total = Number(booking.TotalAmount || booking.totalAmount || 0);
-    await Booking.updateOne(
-      { _id: bookingId },
-      { $set: { Status: 'in-use', status: 'in-use', DepositAmount: total, depositAmount: total, percentagePaid: 100 } }
-    );
-    
-    const hostId = req.user.id || req.user._id || req.user.userId;
-    await logActivity(hostId, 'CHECKIN_BOOKING', 'Booking', booking._id, `Chủ cơ sở đã cho khách nhận phòng (Check-in)`, 'info');
-
-    emitBookingUpdate(bookingId, 'in-use');
-    return res.status(200).json({ message: 'Nhận phòng thành công. Hệ thống đã ghi nhận thu đủ 100% tiền!' });
+    const booking = await bookingService.checkInBooking(hostId, bookingId);
+    emitBookingUpdate(bookingId, 'in-use', hostId, booking.CustomerID);
+    return res.status(200).json({ message: 'Nhận phòng thành công.', booking });
   } catch (error) {
-    console.error("LỖI CHECK-IN:", error);
-    return res.status(500).json({ error: `Chi tiết lỗi Server: ${error.message}` });
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    return sendServerError(res, error);
   }
 }
 
 async function cancelBooking(req, res) {
   try {
+    const hostId = getHostIdFromToken(req);
+    if (!hostId) return res.status(401).json({ error: 'Chưa xác thực.' });
     const { bookingId } = req.params;
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
-
-    const currentStatus = booking.Status || booking.status;
-    if (currentStatus !== 'pending' && currentStatus !== 'confirmed') {
-      return res.status(400).json({ error: 'Chỉ có thể hủy đơn đang chờ hoặc đơn đã xác nhận.' });
-    }
-
-    // 1. Chuyển trạng thái Booking sang 'cancelled'
-    await Booking.updateOne({ _id: bookingId }, { $set: { Status: 'cancelled', status: 'cancelled' } });
-    
-    // 2. ĐỒNG BỘ TÀI CHÍNH: Chuyển toàn bộ biên lai liên quan thành 'refunded' (Đã hoàn tiền)
-    try {
-      await PaymentHistory.updateMany(
-        { BookingID: bookingId },
-        { $set: { Status: 'refunded' } }
-      );
-    } catch (pErr) {
-      console.warn('⚠️ Lỗi đồng bộ lịch sử thanh toán (Cancel):', pErr.message);
-    }
-
-    const hostId = getHostIdFromToken(req) || booking.HostID;
-    await logActivity(hostId, 'CANCEL_BOOKING', 'Booking', booking._id, `Chủ cơ sở đã huỷ đơn đặt chỗ`, 'danger');
-
-    emitBookingUpdate(bookingId, 'cancelled');
-    return res.status(200).json({ message: 'Đã hủy đơn hàng thành công.' });
+    const booking = await bookingService.cancelBookingByHost(hostId, bookingId);
+    emitBookingUpdate(bookingId, 'cancelled', hostId, booking.CustomerID);
+    return res.status(200).json({ message: 'Đã hủy đơn hàng thành công.', booking });
   } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message, code: error.code });
     return sendServerError(res, error);
   }
 }

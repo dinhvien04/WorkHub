@@ -1,28 +1,37 @@
-const express = require('express');
+'use strict';
 
-// Khai báo gộp TẤT CẢ các hàm từ authController
+const express = require('express');
 const {
-    registerUser,
-    loginUser,
-    logoutUser,
-    changePassword,
-    forgotPassword,
-    resetPassword
+  registerUser,
+  loginUser,
+  logoutUser,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+  getMe,
 } = require('../controllers/authController');
 
 const authMiddleware = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
+const {
+  loginLimiter,
+  registerLimiter,
+  passwordLimiter,
+} = require('../middlewares/rateLimiters');
+const { ensureCsrfCookie } = require('../middlewares/csrfMiddleware');
 
 const router = express.Router();
 
-// ================= LUỒNG XÁC THỰC CƠ BẢN =================
-router.post('/register', upload.single('verificationDocument'), registerUser);
-router.post('/login', loginUser);
-router.post('/logout', logoutUser);
-router.post('/change-password', authMiddleware.verifyToken, changePassword);
+router.get('/csrf', ensureCsrfCookie, (req, res) => {
+  res.json({ csrfToken: res.locals.csrfToken || (req.cookies && req.cookies.csrfToken) });
+});
 
-// ================= LUỒNG QUÊN MẬT KHẨU MÔ PHỎNG =================
-router.post('/forgot-password', forgotPassword); // Bước 1: Gửi email -> Sinh OTP in ra console
-router.post('/reset-password', resetPassword);   // Bước 2: Kiểm tra OTP -> Đổi mật khẩu mới
+router.post('/register', registerLimiter, upload.single('verificationDocument'), registerUser);
+router.post('/login', loginLimiter, loginUser);
+router.post('/logout', logoutUser);
+router.get('/me', authMiddleware.verifyToken, getMe);
+router.post('/change-password', authMiddleware.verifyToken, changePassword);
+router.post('/forgot-password', passwordLimiter, forgotPassword);
+router.post('/reset-password', passwordLimiter, resetPassword);
 
 module.exports = router;

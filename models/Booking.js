@@ -44,8 +44,10 @@ const bookingSchema = new mongoose.Schema({
 });
 
 // 5. CHỈ MỤC PHỨC HỢP (COMPOSITE INDEX)
-// Đây là "vũ khí bí mật" giúp API kiểm tra trùng lịch chạy nhanh gấp 10 lần
 bookingSchema.index({ SpaceID: 1, StartTime: 1, EndTime: 1 });
+bookingSchema.index({ CustomerID: 1, createdAt: -1 });
+bookingSchema.index({ HostID: 1, createdAt: -1 });
+bookingSchema.index({ Status: 1, EndTime: 1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
 

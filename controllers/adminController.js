@@ -175,6 +175,8 @@ async function toggleUserStatus(req, res) {
     if (user._id.toString() === req.user.userId) return res.status(400).json({ error: 'Bạn không thể tự khóa tài khoản của chính mình!' });
 
     user.Status = user.Status === 'active' ? 'banned' : 'active';
+    // Invalidate all existing JWTs immediately
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
     const severity = user.Status === 'banned' ? 'danger' : 'success';
     await logActivity(req.user.userId, user.Status === 'banned' ? 'BAN_USER' : 'UNBAN_USER', 'User', user._id, `Admin đã ${user.Status === 'banned' ? 'khóa' : 'mở khóa'} tài khoản của người dùng`, severity);

@@ -48,12 +48,21 @@ const paymentSchema = new mongoose.Schema({
     // 4. TRẠNG THÁI GIAO DỊCH
     Status: { 
         type: String, 
-        enum: ['pending', 'successful', 'failed', 'refunded'], 
+        enum: ['pending', 'successful', 'failed', 'refunded', 'refund_pending'], 
         default: 'pending',
         index: true 
     },
     PaidAt: { 
         type: Date // Chỉ ghi nhận thời gian khi Status chuyển sang 'successful'
+    },
+    VerifiedAt: { type: Date },
+    VerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    FailureReason: { type: String, default: '' },
+    RefundedAt: { type: Date },
+    IdempotencyKey: {
+        type: String,
+        index: true,
+        sparse: true
     }
 
 }, { 
@@ -62,7 +71,12 @@ const paymentSchema = new mongoose.Schema({
 });
 
 // 5. CHỈ MỤC PHỨC HỢP (COMPOSITE INDEX)
-// Hỗ trợ cực mạnh cho API "Tính tổng doanh thu của 1 Host trong tháng X"
 paymentSchema.index({ HostID: 1, Status: 1, createdAt: -1 });
+paymentSchema.index({ BookingID: 1, Status: 1 });
+paymentSchema.index({ CustomerID: 1, createdAt: -1 });
+paymentSchema.index(
+  { BookingID: 1, CustomerID: 1, IdempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { IdempotencyKey: { $type: 'string' } } }
+);
 
 module.exports = mongoose.model('PaymentHistory', paymentSchema);

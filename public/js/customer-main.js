@@ -243,43 +243,34 @@ async function checkAuthAndGoToPayment() {
     if (!selectedSeat) { alert("Vui lòng chọn phòng!"); return; }
     if (!selectedTimeSlot) { alert("Vui lòng chọn khung giờ!"); return; }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-        alert("Vui lòng đăng nhập để tiến hành đặt chỗ.");
-        window.location.href = '/login';
-        return;
-    }
-
     const branchId = document.querySelector('[data-branch-id]')?.getAttribute('data-branch-id');
     
     try {
+        // Verify session from server (cookie HttpOnly)
+        const meRes = await WorkHubAPI.api('/api/auth/me');
+        if (!meRes.ok) {
+            alert("Vui lòng đăng nhập để tiến hành đặt chỗ.");
+            window.location.href = '/login';
+            return;
+        }
+
         const [startStr, endStr] = selectedTimeSlot.split(' - ');
         const date = document.getElementById('booking-date').value;
         const startTimeObj = new Date(`${date}T${startStr}:00`);
         const endTimeObj = new Date(`${date}T${endStr}:00`);
 
-        // [BẢO MẬT]: Chặn chốt đơn trong quá khứ
         if (startTimeObj < new Date()) {
             alert("Khung giờ này đã qua. Vui lòng chọn thời gian khác trong tương lai!");
             return;
         }
 
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        const userId = payload.userId || payload.id || payload._id;
-
-        // BƯỚC 1: TẠO ĐƠN HÀNG (PENDING)
-        const createRes = await fetch(`/api/customers/${userId}/bookings`, { 
+        const createRes = await WorkHubAPI.api('/api/customers/me/bookings', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
-            },
-            body: JSON.stringify({
+            body: {
                 spaceId: selectedSeat,
                 startTime: startTimeObj.toISOString(),
                 endTime: endTimeObj.toISOString(),
-                // Lưu ý: Chưa có paymentType ở đây vì sang màn hình Payment khách mới chọn
-            })
+            }
         });
 
         const data = await createRes.json();
@@ -343,9 +334,6 @@ function setPaymentType(type) {
 }
 
 async function handleFinalSuccess() {
-    const token = localStorage.getItem('token');
-    if (!token) { alert('Vui lòng đăng nhập!'); return; }
-
     const bookingId = new URLSearchParams(window.location.search).get('bookingId');
     if (!bookingId) {
         alert('Thiếu thông mã đặt chỗ, không thể xác nhận thanh toán!');
@@ -353,14 +341,9 @@ async function handleFinalSuccess() {
     }
 
     try {
-        // BƯỚC 3: XÁC NHẬN THANH TOÁN (CẬP NHẬT PAID AMOUNT)
-        const confirmRes = await fetch('/api/customers/booking/confirm', {
+        const confirmRes = await WorkHubAPI.api('/api/customers/me/booking/confirm', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ bookingId: bookingId, paymentType: selectedPaymentType })
+            body: { bookingId: bookingId, paymentType: selectedPaymentType }
         });
 
         const confirmData = await confirmRes.json();
@@ -575,16 +558,15 @@ function escapeHtml(str) {
 // TRANG PROFILE (CỦA NA - GIỮ NGUYÊN)
 // ==========================================
 async function loadMyProfile() {
-    const token = localStorage.getItem('token');
-    if (!token) { window.location.href = '/login'; return; }
-
     try {
-        const res = await fetch('/api/customers/me/profile', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await WorkHubAPI.api('/api/customers/me/profile');
         const data = await res.json();
 
-        if (!res.ok) { alert(data.error || 'Lỗi tải hồ sơ'); return; }
+        if (!res.ok) {
+            if (res.status === 401) { window.location.href = '/login'; return; }
+            alert(data.error || 'Lỗi tải hồ sơ');
+            return;
+        }
 
         const { user, profile } = data;
 
@@ -616,9 +598,6 @@ async function loadMyProfile() {
 }
 
 async function saveMyProfile() {
-    const token = localStorage.getItem('token');
-    if (!token) { alert('Vui lòng đăng nhập!'); return; }
-
     const formData = new FormData();
     formData.append('FullName', document.getElementById('input-fullname').value.trim());
     formData.append('Phone', document.getElementById('input-phone').value.trim());
@@ -629,9 +608,8 @@ async function saveMyProfile() {
     if (avatarFile) formData.append('customerAvatar', avatarFile);
 
     try {
-        const res = await fetch('/api/customers/me/profile', {
+        const res = await WorkHubAPI.api('/api/customers/me/profile', {
             method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` },
             body: formData
         });
 
@@ -653,9 +631,9 @@ async function saveMyProfile() {
                 : `https://ui-avatars.com/api/?name=${encodeURIComponent(data.user.FullName || 'User')}&background=0D8B8B&color=fff`;
         }
 
-        localStorage.setItem('userName', data.user.FullName || '');
+        sessionStorage.setItem('displayName', data.user.FullName || '');
         if (data.profile?.Avatar) {
-            localStorage.setItem('userAvatar', data.profile.Avatar);
+            sessionStorage.setItem('displayAvatar', data.profile.Avatar);
         }
 
         alert('Đã lưu thông tin thành công!');

@@ -1,3 +1,9 @@
+﻿async function hostApiFetch(url, options = {}) {
+  if (window.WorkHubAPI && WorkHubAPI.api) return WorkHubAPI.api(url, options);
+  options = options || {};
+  options.credentials = 'same-origin';
+  return fetch(url, options);
+}
 let allUsersList = []; 
 let chartInstances = {}; 
 let currentAdminTimeType = 'all';
@@ -131,9 +137,7 @@ function setupAdminFilters() {
 // DATA: API DASHBOARD
 // =====================================
 async function fetchAdminStats() {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
+    
     const d1 = document.getElementById('filter-date-1')?.value || '';
     const d2 = document.getElementById('filter-date-2')?.value || '';
     let startDate = currentAdminTimeType !== 'all' ? d1 : '';
@@ -142,9 +146,9 @@ async function fetchAdminStats() {
 
     try {
         const queryParams = new URLSearchParams({ startDate, endDate, keyword }).toString();
-        const response = await fetch(`/api/admin/stats?${queryParams}`, {
+        const response = await hostApiFetch(`/api/admin/stats?${queryParams}`, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }
         });
 
         if (response.ok) {
@@ -261,9 +265,7 @@ function renderAuditLogs(logs) {
 // DATA: API ACTIVITY LOG (NHẬT KÝ)
 // =====================================
 async function fetchActivityLogs() {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
+    
     const d1 = document.getElementById('filter-date-1')?.value || '';
     const d2 = document.getElementById('filter-date-2')?.value || '';
     let startDate = currentAdminTimeType !== 'all' ? d1 : '';
@@ -275,7 +277,7 @@ async function fetchActivityLogs() {
 
     try {
         const params = new URLSearchParams({ page: currentLogPage, limit: LOGS_PER_PAGE, search: keyword, entity, startDate, endDate });
-        const res = await fetch(`/api/admin/activity-logs?${params}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await hostApiFetch(`/api/admin/activity-logs?${params}`, { credentials: 'same-origin' });
         const data = await res.json();
         if (res.ok) {
             renderActivityLogTable(data.logs);
@@ -370,11 +372,10 @@ function renderLogPagination(p) {
 // DATA: API QUẢN LÝ USER VÀ HOST
 // =====================================
 async function fetchUsers() {
-    const token = localStorage.getItem('token');
     const tbody = document.getElementById('user-table-body');
     if (!token) return;
     try {
-        const response = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await hostApiFetch('/api/admin/users', { credentials: 'same-origin' });
         if (response.ok) {
             const data = await response.json(); allUsersList = data.users; renderUserTable(allUsersList); 
         } else {
@@ -410,17 +411,13 @@ function renderUserTable(users) {
 async function toggleUserStatus(userId, targetStatus) {
     if (!confirm(`Xác nhận thao tác này?`)) return;
     
-    const token = localStorage.getItem('token');
-    if (!token) {
-        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!');
-        return;
-    }
+    
 
     try {
-        const response = await fetch(`/api/admin/users/${userId}/toggle-status`, { 
+        const response = await hostApiFetch(`/api/admin/users/${userId}/toggle-status`, { 
             method: 'PATCH', 
             headers: { 
-                'Authorization': `Bearer ${token}`,
+                'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': 'application/json'
             } 
         });
@@ -441,11 +438,10 @@ async function toggleUserStatus(userId, targetStatus) {
     }
 }
 async function fetchPendingHosts() {
-    const token = localStorage.getItem('token');
     const tbody = document.getElementById('pending-hosts-body');
     if (!token || !tbody) return;
     try {
-        const response = await fetch('/api/admin/pending-hosts', { headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await hostApiFetch('/api/admin/pending-hosts', { credentials: 'same-origin' });
         if (response.ok) { 
             const data = await response.json(); 
             renderPendingHostsTable(data.hosts); 
@@ -468,9 +464,8 @@ function renderPendingHostsTable(hosts) {
 
 async function verifyHost(hostId) {
     if (!confirm('Xác nhận phê duyệt?')) return;
-    const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`/api/admin/hosts/${hostId}/verify`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await hostApiFetch(`/api/admin/hosts/${hostId}/verify`, { method: 'PATCH', credentials: 'same-origin' });
         if (response.ok) { alert('Thành công!'); fetchPendingHosts(); }
     } catch (error) { alert('Lỗi kết nối.'); }
 }
@@ -506,9 +501,8 @@ async function viewDetails(entityType, targetId, safeDescription) {
     setTimeout(() => { modal.classList.remove('opacity-0'); modalContent.classList.remove('scale-95'); }, 10);
 
     try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/admin/entity-detail?type=${entityType}&id=${targetId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const res = await hostApiFetch(`/api/admin/entity-detail?type=${entityType}&id=${targetId}`, {
+            credentials: 'same-origin'
         });
         const result = await res.json();
 

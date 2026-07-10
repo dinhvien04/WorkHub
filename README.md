@@ -1,80 +1,144 @@
-# WorkHub MVC
+# WorkHub
 
-WorkHub là một ứng dụng đặt chỗ Co-working Space xây dựng theo kiến trúc MVC với Node.js, Express, EJS và MongoDB.
+Hệ thống đặt chỗ **Co-working Space** (Node.js · Express · EJS · MongoDB).
 
-## Mô tả dự án
+## Yêu cầu
 
-Ứng dụng cho phép:
-- Khách hàng tìm kiếm, xem chi tiết, thanh toán và quản lý lịch sử đặt chỗ.
-- Chủ cơ sở quản lý cơ sở, không gian, booking và báo cáo.
-- Sử dụng Giao diện người dùng động với EJS và JavaScript phía client.
-
-## Yêu cầu hệ thống
-
-- Node.js 18.x hoặc mới hơn
-- npm 10.x hoặc mới hơn
-- MongoDB (hoặc MongoDB Atlas) để kết nối cơ sở dữ liệu
+- **Node.js** ≥ 18
+- **MongoDB** 6+ (khuyến nghị **replica set** hoặc MongoDB Atlas nếu dùng multi-document transactions)
+- Tài khoản Cloudinary (upload ảnh production)
 
 ## Cài đặt
 
-1. Clone repository:
-   ```bash
-   git clone <repository-url>
-   cd projectcnltud
-   ```
-
-2. Cài đặt dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Tạo file `.env` từ mẫu `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
-   Hoặc trên Windows PowerShell:
-   ```powershell
-   copy .env.example .env
-   ```
-
-4. Cập nhật giá trị môi trường trong `.env`:
-   - `PORT`
-   - `MONGODB_URI`
-   - `NODE_ENV`
-
-## Cấu trúc file chính
-
-- `server.js` - Entry point của ứng dụng.
-- `config/db.js` - Kết nối MongoDB.
-- `routes/` - Định nghĩa route.
-- `controllers/` - Xử lý logic backend.
-- `models/` - Định nghĩa schema Mongoose.
-- `views/` - Template EJS.
-- `public/` - Tài nguyên front-end tĩnh (CSS, JS).
-
-## Chạy ứng dụng
-
-### Chạy một lần
 ```bash
-node server.js
+git clone https://github.com/dinhvien04/WorkHub.git
+cd WorkHub
+cp .env.example .env
 ```
 
-### Chạy trong môi trường phát triển
-Nếu bạn dùng `nodemon`, cài thêm:
+Sinh JWT secret an toàn:
+
 ```bash
-npm install -D nodemon
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
+
+Dán vào `JWT_SECRET` trong `.env`. **Không commit file `.env`.**
+
 ```bash
-npx nodemon server.js
+npm install
+npm run dev
 ```
 
-### Truy cập
-Mở trình duyệt và vào:
-```
-http://localhost:3000
+Mở http://localhost:3000
+
+## Biến môi trường
+
+| Biến | Bắt buộc | Mô tả |
+|------|----------|--------|
+| `JWT_SECRET` | Có | Secret ký JWT (≥ 32 ký tự) |
+| `MONGODB_URI` | Có | Connection string MongoDB |
+| `PORT` | Không | Mặc định `3000` |
+| `NODE_ENV` | Không | `development` / `production` / `test` |
+| `CLOUDINARY_*` | Production | Upload ảnh |
+| `BOOKING_SLOT_MINUTES` | Không | Slot khóa lịch (mặc định 30) |
+| `TRUST_PROXY` | Production | `true` khi sau reverse proxy |
+
+Ứng dụng **fail-fast** nếu thiếu `JWT_SECRET` hoặc `MONGODB_URI`. Không có fallback secret.
+
+## Scripts
+
+```bash
+npm run dev      # nodemon
+npm start        # production
+npm test         # jest + mongodb-memory-server
+npm run lint     # eslint
+npm run check    # lint + test
 ```
 
-## Lưu ý
+## Roles
 
-- Không đẩy file `.env` lên GitHub.
-- Nếu sử dụng MongoDB Atlas, đảm bảo chuỗi kết nối (`MONGODB_URI`) hợp lệ và cho phép IP của bạn truy cập.
+| Role | Quyền |
+|------|--------|
+| `customer` | Đặt chỗ, thanh toán, review, hồ sơ cá nhân |
+| `host` | Quản lý branch/space, duyệt booking, xem payment của mình |
+| `admin` | User, host verification, audit log |
+
+## Booking states
+
+```
+pending → confirmed → in-use → completed
+   ↘ cancelled ↗
+```
+
+Transition chỉ qua `services/bookingService.js`.  
+Job `jobs/completeExpiredBookings.js` chỉ chuyển `in-use` + `EndTime < now` → `completed`.
+
+## Payment states
+
+`pending` · `successful` · `failed` · `refunded` · `refund_pending`
+
+**Chỉ** `Status = successful` được tính là đã thanh toán.
+
+## Auth model
+
+- JWT trong cookie **HttpOnly** `authToken`
+- Không lưu JWT trong `localStorage`
+- `GET /api/auth/me` cho trạng thái đăng nhập
+- `POST /api/auth/logout` xóa cookie
+- `tokenVersion` vô hiệu hóa token sau ban / đổi mật khẩu
+- CSRF double-submit (`csrfToken` cookie + header `X-CSRF-Token`)
+- Rate limit: login, register, forgot/reset password, booking, payment
+
+## API chính
+
+```
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+POST   /api/auth/forgot-password
+POST   /api/auth/reset-password
+
+GET    /api/customers/me/profile
+PUT    /api/customers/me/profile
+GET    /api/customers/me/bookings
+POST   /api/customers/me/bookings
+PUT    /api/customers/me/bookings/:bookingId/cancel
+POST   /api/customers/me/booking/confirm
+
+GET    /api/hosts/branches
+GET    /api/hosts/bookings
+PUT    /api/hosts/bookings/:id/confirm|checkin|cancel
+
+GET    /health
+```
+
+Route `/:userId/...` cũ vẫn có nhưng **chỉ self-access** (403 nếu khác user).
+
+## Security notes
+
+- Production bắt buộc HTTPS
+- Rotate `JWT_SECRET` nếu bị lộ
+- Không commit secrets
+- Ownership check trên mọi object theo ID
+- Upload: JPEG/PNG/WebP (PDF chỉ verification document), max 5MB
+- Helmet + CSP + body limit 1mb
+
+## Deploy production
+
+1. Set `NODE_ENV=production`, HTTPS reverse proxy, `TRUST_PROXY=true`
+2. MongoDB Atlas / replica set
+3. Cloudinary credentials
+4. `npm ci && npm start`
+5. Process manager: pm2 / systemd
+
+## Kiến trúc thư mục
+
+```
+app.js                 # Express app (no listen)
+server.js              # HTTP + Socket.IO + graceful shutdown
+config/env.js          # Env validation
+services/              # Booking, payment, socket, email
+jobs/                  # Background jobs
+middlewares/           # Auth, CSRF, rate limit, upload, errors
+test/                  # Integration & unit tests
+```

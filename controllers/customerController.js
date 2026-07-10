@@ -6,7 +6,12 @@ const PaymentHistory = require('../models/Payment_History');
 const Review = require('../models/Review');
 const Branch = require('../models/Branch');
 const Space = require('../models/Space');
-const logActivity = require('../utils/auditLogger'); // Bắt buộc giữ lại hệ thống Log của BẠN
+const logActivity = require('../utils/auditLogger');
+const bookingService = require('../services/bookingService');
+const paymentService = require('../services/paymentService');
+const { safeRegexQuery } = require('../utils/escapeRegex');
+const { parsePagination, paginationMeta } = require('../utils/pagination');
+const { ForbiddenError, NotFoundError, ValidationError } = require('../utils/errors');
 
 
 
@@ -50,16 +55,19 @@ async function searchBranches(req, res){
     let query = { Status: 'active' };
     
     if (location && location.trim()) {
-      // Dùng Regex để tìm kiếm từ khóa không phân biệt hoa thường (i)
-      query.$or = [
-        { Name: { $regex: location, $options: 'i'} },
-        { Address: { $regex: location, $options: 'i'} }, 
-        { District: { $regex: location, $options: 'i'} },
-        { City: { $regex: location, $options: 'i'} }
-      ];
+      const rx = safeRegexQuery(location, 100);
+      if (rx) {
+        query.$or = [
+          { Name: rx },
+          { Address: rx },
+          { District: rx },
+          { City: rx },
+        ];
+      }
     }
-    
-    const branches = await Branch.find(query).lean();
+
+    const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 50, maxLimit: 100 });
+    const branches = await Branch.find(query).skip(skip).limit(limit).lean();
     
     res.render('customer/search', { 
       branches, 
@@ -98,14 +106,17 @@ async function detailPage(req, res) {
 // KHU VỰC 2: API HỒ SƠ KHÁCH HÀNG (KẾT HỢP NA & BẠN)
 // ==========================================
 
-// Hàm lấy profile thông qua param (Dành cho Admin hoặc tham chiếu chéo)
+/** @deprecated Use /me/profile. Enforces self-access only. */
 async function getCustomerProfile(req, res) {
   try {
     const { userId } = req.params;
     if (!userId) return res.status(400).json({ error: 'Thiếu userId.' });
+    if (String(userId) !== String(req.user.userId)) {
+      return res.status(403).json({ error: 'Bạn không có quyền xem hồ sơ người khác.' });
+    }
 
-    const profile = await CustomerProfile.findOne({ UserID: userId }).lean();
-    const user = await User.findById(userId).select('-PasswordHash -passwordHash').lean();
+    const profile = await CustomerProfile.findOne({ UserID: req.user.userId }).lean();
+    const user = await User.findById(req.user.userId).select('-PasswordHash').lean();
     if (!user) return res.status(404).json({ error: 'Người dùng không tìm thấy.' });
 
     return res.json({ user, profile });
@@ -114,16 +125,27 @@ async function getCustomerProfile(req, res) {
   }
 }
 
-// Hàm cập nhật profile thông qua param
+/** @deprecated Use /me/profile. Enforces self-access + field whitelist. */
 async function updateCustomerProfile(req, res) {
   try {
     const { userId } = req.params;
-    const update = req.body;
     if (!userId) return res.status(400).json({ error: 'Thiếu userId.' });
+    if (String(userId) !== String(req.user.userId)) {
+      return res.status(403).json({ error: 'Bạn không có quyền cập nhật hồ sơ người khác.' });
+    }
+
+    const { FullName, Phone, BankName, BankNumber } = req.body;
+    if (FullName?.trim()) {
+      await User.findByIdAndUpdate(req.user.userId, { $set: { FullName: FullName.trim() } });
+    }
+    const updateData = {};
+    if (Phone !== undefined) updateData.Phone = String(Phone).trim();
+    if (BankName !== undefined) updateData.BankName = String(BankName).trim();
+    if (BankNumber !== undefined) updateData.BankNumber = String(BankNumber).trim();
 
     const profile = await CustomerProfile.findOneAndUpdate(
-      { UserID: userId },
-      { $set: update },
+      { UserID: req.user.userId },
+      { $set: updateData },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean();
 
@@ -287,71 +309,45 @@ async function checkAvailability(req, res) {
 // ==========================================
 async function createBooking(req, res) {
   try {
-    const { spaceId, startTime, endTime } = req.body;
-    const customerId = req.params.userId || req.user.userId;
+    // Identity ONLY from token — ignore client-supplied CustomerID / userId
+    const customerId = req.user.userId;
+    if (req.params.userId && String(req.params.userId) !== String(customerId)) {
+      return res.status(403).json({ error: 'Không được tạo booking cho người dùng khác.' });
+    }
 
-    if (!spaceId || !startTime || !endTime) return res.status(400).json({ error: 'Thiếu thông tin đặt chỗ' });
-
-    const space = await Space.findById(spaceId);
-    if (!space) return res.status(404).json({ error: 'Không tìm thấy phòng' });
-
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-
-    if (end <= start) return res.status(400).json({ error: 'Thời gian không hợp lệ' });
-    if (start < new Date()) return res.status(400).json({ error: 'Không thể đặt phòng ở thời điểm trong quá khứ' });
-
-    const conflict = await Booking.findOne({
-      SpaceID: spaceId,
-      Status: { $in: ['pending', 'confirmed', 'in-use'] },
-      StartTime: { $lt: end },
-      EndTime: { $gt: start }
+    const { spaceId, startTime, endTime, note } = req.body;
+    const booking = await bookingService.createBooking({
+      customerId,
+      spaceId,
+      startTime,
+      endTime,
+      note,
     });
-    if (conflict) return res.status(409).json({ error: 'Khung giờ này vừa có người khác đặt. Vui lòng chọn giờ khác!' });
-
-    const hours = (end - start) / (1000 * 60 * 60);
-    const total = hours * (space.PricePerHour || 0);
-    const deposit = space.DepositAmount || Math.round(total * 0.3);
-
-    // CHỈ tạo đơn, không gán thuộc tính thanh toán
-    const booking = await Booking.create({
-      CustomerID: customerId,
-      SpaceID: spaceId,
-      BranchID: space.BranchID,
-      HostID: space.HostID,
-      StartTime: start,
-      EndTime: end,
-      TotalAmount: total,
-      DepositAmount: deposit,
-      Status: 'pending'
-    });
-
-    await logActivity(customerId, 'CREATE_BOOKING', 'Booking', booking._id, `Khách hàng vừa tạo đơn đặt chỗ mới trị giá ${total.toLocaleString('vi-VN')}đ`, 'info');
 
     return res.status(201).json({ message: 'Tạo đơn đặt chỗ thành công', booking });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
     return sendServerError(res, error);
   }
 }
-// Giữ lại hàm Hủy phòng (phòng hờ giao diện của bạn vẫn còn nút này)
+
 async function cancelBooking(req, res) {
-    try {
-        const userId = req.params.userId || req.user?.userId;
-        const { bookingId } = req.params;
-        const booking = await Booking.findOne({ _id: bookingId, CustomerID: userId });
-        
-        if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng của bạn.' });
-        if (booking.Status !== 'pending') return res.status(400).json({ error: 'Chỉ có thể hủy đơn đang chờ xác nhận.' });
-
-        booking.Status = 'cancelled';
-        await booking.save();
-        
-        await logActivity(userId, 'CANCEL_BOOKING', 'Booking', booking._id, `Khách hàng đã hủy đơn đặt chỗ`, 'warning');
-
-        return res.json({ message: 'Bạn đã hủy đơn đặt chỗ thành công.', booking });
-    } catch (error) {
-        return sendServerError(res, error);
+  try {
+    const customerId = req.user.userId;
+    if (req.params.userId && String(req.params.userId) !== String(customerId)) {
+      return res.status(403).json({ error: 'Không có quyền hủy đơn của người khác.' });
     }
+    const { bookingId } = req.params;
+    const booking = await bookingService.cancelBookingByCustomer(customerId, bookingId);
+    return res.json({ message: 'Bạn đã hủy đơn đặt chỗ thành công.', booking });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    return sendServerError(res, error);
+  }
 }
 
 // ==========================================
@@ -365,87 +361,66 @@ async function cancelBooking(req, res) {
 // ==========================================
 async function confirmPayment(req, res) {
   try {
-    const { bookingId, paymentType } = req.body; 
-    const customerId = req.user?.userId || req.params?.userId;
-    
+    const customerId = req.user.userId;
+    const { bookingId, paymentType } = req.body;
     if (!bookingId) return res.status(400).json({ error: 'Thiếu mã đơn hàng' });
 
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng của bạn.' });
-
-    if (booking.Status !== 'pending') return res.status(400).json({ error: 'Đơn hàng không ở trạng thái chờ.' });
-
-    // Thuật toán quét và xác định giá trị thanh toán thực tế
-    const typeStr = String(paymentType || '').toLowerCase().trim();
-    const isFull = (typeStr === 'full' || typeStr === 'full_payment' || typeStr === '100');
-    
-    const amountToPay = isFull ? booking.TotalAmount : booking.DepositAmount;
-    const actualPaymentType = isFull ? 'full_payment' : 'deposit';
-
-    // Sinh ra Biên lai Giao dịch với Status "pending" (Chờ Host duyệt tiền về tài khoản)
-    const payment = await PaymentHistory.create({
-      BookingID: booking._id,
-      CustomerID: booking.CustomerID,
-      HostID: booking.HostID,
-      TransactionCode: `TXN-${booking._id}-${Date.now()}`,
-      Amount: amountToPay,
-      PaymentType: actualPaymentType,
-      PaymentMethod: 'bank_transfer',
-      Status: 'pending', 
-      PaidAt: new Date()
+    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey || null;
+    const { payment, duplicate } = await paymentService.createPendingPayment({
+      customerId,
+      bookingId,
+      paymentType,
+      paymentMethod: 'bank_transfer',
+      idempotencyKey,
     });
 
-    await logActivity(customerId, 'PAYMENT_PENDING', 'PaymentHistory', payment._id, `Khách hàng đã báo cáo thanh toán ${amountToPay.toLocaleString('vi-VN')}đ. Chờ chủ cơ sở xác nhận.`, 'info');
-
-    return res.json({ message: 'Đã gửi yêu cầu xác nhận thanh toán thành công!', booking, payment });
+    const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
+    return res.json({
+      message: duplicate
+        ? 'Yêu cầu thanh toán đã được ghi nhận trước đó.'
+        : 'Đã gửi yêu cầu xác nhận thanh toán thành công!',
+      booking,
+      payment,
+      duplicate,
+    });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
     return sendServerError(res, error);
   }
 }
-// ==========================================
-// 3. THANH TOÁN PHẦN CÒN LẠI (Quét tổng các Biên lai cũ)
-// ==========================================
+
 async function payRemainder(req, res) {
   try {
-    const { userId, bookingId } = req.params;
-
-    const booking = await Booking.findOne({ _id: bookingId, CustomerID: userId });
-    if (!booking) return res.status(404).json({ error: 'Không tìm thấy đơn hàng.' });
-
-    if (booking.Status !== 'confirmed' && booking.Status !== 'in-use') {
-      return res.status(400).json({ error: 'Đơn hàng chưa được xác nhận để thanh toán tiếp.' });
+    const customerId = req.user.userId;
+    if (req.params.userId && String(req.params.userId) !== String(customerId)) {
+      return res.status(403).json({ error: 'Không có quyền thanh toán đơn của người khác.' });
     }
+    const { bookingId } = req.params;
+    const idempotencyKey = req.get('Idempotency-Key') || req.body.idempotencyKey || null;
 
-    // THUẬT TOÁN: Tính tổng số tiền đã được Host xác nhận là Thành công (successful)
-    const successfulPayments = await PaymentHistory.find({ 
-        BookingID: bookingId, 
-        Status: 'successful' 
-    });
-    
-    const totalPaid = successfulPayments.reduce((sum, p) => sum + p.Amount, 0);
-
-    if (totalPaid >= booking.TotalAmount) {
-      return res.status(400).json({ error: 'Đơn hàng này đã được thanh toán đầy đủ.' });
-    }
-
-    const remainingAmount = booking.TotalAmount - totalPaid;
-
-    const payment = await PaymentHistory.create({
-      BookingID: booking._id,
-      CustomerID: booking.CustomerID,
-      HostID: booking.HostID,
-      TransactionCode: `TXN-${booking._id}-${Date.now()}`,
-      Amount: remainingAmount,
-      PaymentType: 'remaining_balance',
-      PaymentMethod: req.body.paymentMethod || 'bank_transfer',
-      Status: 'pending', // Phải chờ Host duyệt tiền
-      PaidAt: new Date()
+    const { payment, duplicate } = await paymentService.createPendingPayment({
+      customerId,
+      bookingId,
+      paymentType: 'remaining_balance',
+      paymentMethod: req.body.paymentMethod || 'bank_transfer',
+      idempotencyKey,
     });
 
-    await logActivity(userId, 'PAYMENT_PENDING', 'PaymentHistory', payment._id, `Khách hàng báo cáo thanh toán nốt ${remainingAmount.toLocaleString('vi-VN')}đ.`, 'info');
-
-    return res.json({ message: 'Đã gửi báo cáo thanh toán phần còn lại, đang chờ duyệt.', booking, payment });
+    const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
+    return res.json({
+      message: duplicate
+        ? 'Yêu cầu thanh toán đã được ghi nhận trước đó.'
+        : 'Đã gửi báo cáo thanh toán phần còn lại, đang chờ duyệt.',
+      booking,
+      payment,
+      duplicate,
+    });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
     return sendServerError(res, error);
   }
 }
@@ -458,47 +433,53 @@ async function payRemainder(req, res) {
 // ==========================================
 async function submitReview(req, res) {
     try {
-        const { userId, bookingId } = req.params;
+        const customerId = req.user.userId;
+        if (req.params.userId && String(req.params.userId) !== String(customerId)) {
+            return res.status(403).json({ error: 'Không có quyền đánh giá đơn của người khác.' });
+        }
+        const { bookingId } = req.params;
         const { rating, comment } = req.body;
 
-        const booking = await Booking.findOne({ _id: bookingId, CustomerID: userId });
+        const ratingNum = Number(rating);
+        if (!Number.isFinite(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+            return res.status(400).json({ error: 'Rating phải từ 1 đến 5.' });
+        }
+        const safeComment = String(comment || '').slice(0, 2000);
+
+        const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
         if (!booking || booking.Status !== 'completed') {
             return res.status(400).json({ error: 'Đơn hàng không hợp lệ hoặc chưa hoàn tất.' });
         }
 
-        let review = await Review.findOne({ BookingID: bookingId });
+        let review = await Review.findOne({ BookingID: bookingId, CustomerID: customerId });
 
         if (review) {
-            // Xử lý CẬP NHẬT (Sửa đánh giá)
             const daysSinceReview = (new Date() - new Date(review.createdAt)) / (1000 * 3600 * 24);
             if (daysSinceReview > 7) {
                 return res.status(400).json({ error: 'Đã quá 7 ngày, bạn không thể chỉnh sửa đánh giá.' });
             }
-            review.Rating = rating;
-            review.Comment = comment;
+            review.Rating = ratingNum;
+            review.Comment = safeComment;
             await review.save();
 
-            await logActivity(userId, 'UPDATE_REVIEW', 'Review', review._id, `Khách hàng vừa cập nhật đánh giá cho đơn hàng`, 'info');
+            await logActivity(customerId, 'UPDATE_REVIEW', 'Review', review._id, `Khách hàng vừa cập nhật đánh giá cho đơn hàng`, 'info');
             return res.json({ message: 'Cập nhật đánh giá thành công!', review });
         } else {
-            // Xử lý LƯU MỚI (Bọc Try-Catch để bắt lỗi E11000)
             try {
                 review = await Review.create({
                     SpaceID: booking.SpaceID,
-                    CustomerID: userId,
+                    CustomerID: customerId,
                     BookingID: bookingId,
-                    Rating: rating,
-                    Comment: comment
+                    Rating: ratingNum,
+                    Comment: safeComment
                 });
-                await logActivity(userId, 'SUBMIT_REVIEW', 'Review', review._id, `Khách hàng đã đánh giá không gian ${rating} sao`, 'info');
+                await logActivity(customerId, 'SUBMIT_REVIEW', 'Review', review._id, `Khách hàng đã đánh giá không gian ${ratingNum} sao`, 'info');
                 return res.json({ message: 'Cảm ơn bạn đã đánh giá!', review });
                 
             } catch (createErr) {
-                // Nếu MongoDB ném lỗi trùng lặp key (E11000)
                 if (createErr.code === 11000) {
                     return res.status(400).json({ error: 'Hệ thống đang xử lý, đánh giá của bạn đã được ghi nhận!' });
                 }
-                // Nếu là lỗi khác thì ném ra ngoài để khối catch tổng xử lý
                 throw createErr; 
             }
         }
@@ -564,71 +545,65 @@ async function getBranchReviews(req, res) {
 // ==========================================
 async function getCustomerBookings(req, res) {
   try {
-    const { userId } = req.params;
-    if (!userId) return res.status(400).json({ error: 'Thiếu userId.' });
+    const customerId = req.user.userId;
+    if (req.params.userId && String(req.params.userId) !== String(customerId)) {
+      return res.status(403).json({ error: 'Không có quyền xem booking của người khác.' });
+    }
 
-    // 1. Lấy thông tin Bookings
-    const bookings = await Booking.find({ CustomerID: userId })
-      .populate({
-        path: 'SpaceID',
-        select: 'Name Images SpaceCode BranchID PricePerHour',
-        populate: { path: 'BranchID', select: 'Name Address Hotline' }
-      })
-      .sort({ createdAt: -1 })
-      .lean();
+    const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 50, maxLimit: 100 });
+
+    const [bookings, total] = await Promise.all([
+      Booking.find({ CustomerID: customerId })
+        .populate({
+          path: 'SpaceID',
+          select: 'Name Images SpaceCode BranchID PricePerHour',
+          populate: { path: 'BranchID', select: 'Name Address Hotline' }
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments({ CustomerID: customerId }),
+    ]);
 
     const bookingIds = bookings.map(b => b._id);
-
-    // 2. Lấy thông tin Reviews
     const reviews = await Review.find({ BookingID: { $in: bookingIds } }).lean();
     const reviewMap = {};
-    reviews.forEach(r => reviewMap[r.BookingID.toString()] = r);
+    reviews.forEach(r => { reviewMap[r.BookingID.toString()] = r; });
 
-    // 3. TRUY VẤN LỊCH SỬ THANH TOÁN (GOM CẢ PENDING ĐỂ LẤY PAYMENT_TYPE)
+    // Only successful payments count toward paid %
     const payments = await PaymentHistory.find({
-        BookingID: { $in: bookingIds }
+      BookingID: { $in: bookingIds },
+      Status: 'successful',
     }).lean();
 
-    // Thuật toán quét chọn % cao nhất dựa trên PaymentType thu được
-    const bookingPercentMap = {};
+    const paidMap = {};
     payments.forEach(p => {
-        const bId = p.BookingID.toString();
-        const type = p.PaymentType;
-
-        if (type === 'full_payment' || type === 'remaining_balance') {
-            bookingPercentMap[bId] = 100; // Thanh toán full hoặc tất toán nốt đều là 100%
-        } else if (type === 'deposit') {
-            // Nếu trước đó chưa ghi nhận lệnh 100% thì đặt là 30%
-            if (bookingPercentMap[bId] !== 100) {
-                bookingPercentMap[bId] = 30;
-            }
-        }
+      const bId = p.BookingID.toString();
+      paidMap[bId] = (paidMap[bId] || 0) + p.Amount;
     });
 
     const now = new Date();
-    
-    // 4. Ghép nối dữ liệu trả về cho Frontend
     const result = bookings.map(b => {
-       const review = reviewMap[b._id.toString()];
-       let canReview = false;
-       let canEditReview = false;
-       
-       if (b.Status === 'completed' || b.status === 'completed') {
-           if (!review) {
-               canReview = true;
-           } else {
-               const daysSinceReview = (now - new Date(review.createdAt)) / (1000 * 3600 * 24);
-               if (daysSinceReview <= 7) canEditReview = true;
-           }
-       }
+      const review = reviewMap[b._id.toString()];
+      let canReview = false;
+      let canEditReview = false;
 
-       // Lấy phần trăm đã được phân loại từ bản đồ mapping ở trên
-       const percentPaid = bookingPercentMap[b._id.toString()] || 0;
+      if (b.Status === 'completed') {
+        if (!review) canReview = true;
+        else {
+          const daysSinceReview = (now - new Date(review.createdAt)) / (1000 * 3600 * 24);
+          if (daysSinceReview <= 7) canEditReview = true;
+        }
+      }
 
-       return { ...b, ReviewData: review, canReview, canEditReview, percentPaid };
+      const paid = paidMap[b._id.toString()] || 0;
+      const percentPaid = b.TotalAmount > 0 ? Math.min(100, Math.round((paid / b.TotalAmount) * 100)) : 0;
+
+      return { ...b, ReviewData: review, canReview, canEditReview, percentPaid, paidAmount: paid };
     });
 
-    return res.json({ bookings: result });
+    return res.json({ bookings: result, pagination: paginationMeta(total, page, limit) });
   } catch (error) {
     return sendServerError(res, error);
   }

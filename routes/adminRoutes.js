@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
-const { getAdminDashboard, listUsers, toggleUserStatus, getPendingHosts, verifyHost } = require('../controllers/adminController');
+const { toggleUserStatus, getPendingHosts, verifyHost } = require('../controllers/adminController');
 const { verifyToken, requireAdmin } = require('../middlewares/authMiddleware');
 
 // 🔒 Áp dụng ổ khóa bảo vệ cho TOÀN BỘ API của Admin bên dưới

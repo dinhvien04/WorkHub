@@ -1,3 +1,9 @@
+﻿async function hostApiFetch(url, options = {}) {
+  if (window.WorkHubAPI && WorkHubAPI.api) return WorkHubAPI.api(url, options);
+  options = options || {};
+  options.credentials = 'same-origin';
+  return fetch(url, options);
+}
 // Hàm gom nhóm việc làm sạch/ẩn các ô nhập mật khẩu
 function clearPasswordFields() {
     ['old-password', 'new-password', 'confirm-password'].forEach(id => {
@@ -46,14 +52,12 @@ function validatePasswordMatch() {
 // TỰ ĐỘNG TẢI DỮ LIỆU KHI MỞ TRANG PROFILE
 // ==========================================
 async function loadProfile() {
-    const token = localStorage.getItem('token');
-    if (!token) return console.error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
-
+    
     try {
         // Đã sửa đường dẫn URL chuẩn
-        const response = await fetch('/api/hosts/profile', {
+        const response = await hostApiFetch('/api/hosts/profile', {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'same-origin'
         });
 
         const data = await response.json();
@@ -93,7 +97,6 @@ window.addEventListener('DOMContentLoaded', loadProfile);
 // ==========================================
 async function updateProfile() {
     const submitBtn = document.getElementById('submit-btn');
-    const token = localStorage.getItem('token');
     if (!submitBtn) return;
 
     submitBtn.disabled = true;
@@ -109,11 +112,11 @@ async function updateProfile() {
             if (!validatePasswordMatch()) return alert('Mật khẩu xác nhận không trùng khớp!');
             if (newPassword.length < 6) return alert('Mật khẩu mới phải từ 6 ký tự trở lên!');
 
-            const passResponse = await fetch('/api/auth/change-password', {
+            const passResponse = await hostApiFetch('/api/auth/change-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify({ oldPassword, newPassword })
             });
@@ -124,9 +127,9 @@ async function updateProfile() {
 
         const formElement = document.getElementById('profile-form');
         // Đã sửa đường dẫn URL chuẩn
-        const profileResponse = await fetch('/api/hosts/profile', {
+        const profileResponse = await hostApiFetch('/api/hosts/profile', {
             method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'same-origin',
             body: new FormData(formElement)
         });
 

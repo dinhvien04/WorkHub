@@ -10,26 +10,18 @@ var historyTimerInterval = null;
 // 1. GỌI API LẤY LỊCH SỬ ĐẶT CHỖ
 // ==========================================
 async function fetchCustomerHistory() {
-    const userId = localStorage.getItem('userId');
-    const token = localStorage.getItem('token');
-    
-    if (!userId || !token) {
-        document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Vui lòng đăng nhập để xem lịch sử.</p></div>`;
-        return;
-    }
-
     try {
-        const res = await fetch(`/api/customers/${userId}/bookings`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await WorkHubAPI.api('/api/customers/me/bookings');
         const data = await res.json();
         
         if (res.ok) {
             historyBookingsCache = data.bookings || [];
             applyCustomerFilters();
+        } else if (res.status === 401) {
+            document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Vui lòng đăng nhập để xem lịch sử.</p></div>`;
         } else {
-            // Nâng cấp: Hiển thị lỗi ra màn hình nếu API từ chối
-            document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Lỗi: ${data.error || 'Không thể tải dữ liệu'}</p></div>`;
+            const safeErr = WorkHubAPI.escapeHtml(data.error || 'Không thể tải dữ liệu');
+            document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Lỗi: ${safeErr}</p></div>`;
         }
     } catch (error) {
         console.error("Lỗi lấy dữ liệu:", error);
@@ -447,17 +439,14 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
                 // --------------------------------------------------------
 
-                const userId = localStorage.getItem('userId');
-                const token = localStorage.getItem('token');
                 const bookingId = document.getElementById('rv-booking-id').value;
                 const rating = document.querySelector('input[name="rating"]:checked').value;
                 const comment = document.getElementById('rv-comment').value.trim();
 
                 try {
-                    const res = await fetch(`/api/customers/${userId}/bookings/${bookingId}/review`, {
+                    const res = await WorkHubAPI.api(`/api/customers/me/bookings/${bookingId}/review`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ rating, comment })
+                        body: { rating, comment }
                     });
                     const data = await res.json();
                     

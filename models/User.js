@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['active', 'inactive', 'banned'], // Thêm 'banned' để chặn user vi phạm
         default: 'inactive' // Mặc định inactive cho đến khi xác thực qua Email (OTP/Link)
+    },
+    // Incremented on password change / force-logout to invalidate existing JWTs
+    tokenVersion: {
+        type: Number,
+        default: 0
     }
 
 }, {

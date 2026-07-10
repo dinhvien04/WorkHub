@@ -1,107 +1,140 @@
-const jwt = require('jsonwebtoken');
+'use strict';
 
-// Hàm hỗ trợ phân tích cookie từ nhánh Gia-Hung
+const jwt = require('jsonwebtoken');
+const env = require('../config/env');
+const User = require('../models/User');
+const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
+
 function parseCookies(cookieHeader = '') {
-    return cookieHeader.split(';').reduce((cookies, cookieString) => {
-        const [name, ...rest] = cookieString.trim().split('=');
-        if (!name) return cookies;
-        cookies[name] = decodeURIComponent(rest.join('='));
-        return cookies;
-    }, {});
+  return cookieHeader.split(';').reduce((cookies, cookieString) => {
+    const [name, ...rest] = cookieString.trim().split('=');
+    if (!name) return cookies;
+    cookies[name] = decodeURIComponent(rest.join('='));
+    return cookies;
+  }, {});
+}
+
+function extractToken(req) {
+  const authHeader = req.header('Authorization') || req.headers.authorization;
+  if (authHeader) {
+    if (authHeader.startsWith('Bearer ')) return authHeader.slice(7).trim();
+    return authHeader.trim();
+  }
+  const cookies = req.cookies || parseCookies(req.headers.cookie || '');
+  return cookies[env.AUTH_COOKIE_NAME] || cookies.authToken || null;
 }
 
 /**
- * 1. Xác thực người dùng (Kiểm tra Token)
- * Kết hợp sự chặt chẽ của nhánh HEAD và khả năng đọc Cookie của nhánh Gia-Hung
+ * Verify JWT, reload user from DB, enforce active status + tokenVersion.
+ * Sets req.user = { userId, role, status, tokenVersion, email, fullName }
  */
-const verifyToken = (req, res, next) => {
+async function verifyToken(req, res, next) {
+  try {
+    const token = extractToken(req);
+    if (!token) {
+      return next(new UnauthorizedError('Không tìm thấy token xác thực. Vui lòng đăng nhập.'));
+    }
+
+    let decoded;
     try {
-        // Lấy token từ header 'Authorization'
-        const authHeader = req.header('Authorization') || req.headers['authorization'];
-        let tokenFromHeader = null;
-        
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            tokenFromHeader = authHeader.split(' ')[1];
-        } else if (authHeader) {
-            tokenFromHeader = authHeader.split(' ')[1] || authHeader;
-        }
-
-        // Lấy token từ Cookie
-        const cookies = parseCookies(req.headers.cookie || '');
-        const tokenFromCookie = cookies.authToken || cookies.token;
-
-        // Ưu tiên Header, nếu không có thì lấy từ Cookie
-        const token = tokenFromHeader || tokenFromCookie;
-
-        if (!token) {
-            return res.status(401).json({ 
-                error: 'Không tìm thấy token xác thực. Vui lòng cung cấp Bearer Token hoặc đăng nhập để cấp Cookie.' 
-            });
-        }
-
-        // Sử dụng secret từ .env, có fallback để tránh crash server
-        const secret = process.env.JWT_SECRET || 'workhub_fallback_secret_key_2026';
-
-        // Giải mã token
-        const decoded = jwt.verify(token, secret);
-
-        // Gắn thông tin đã giải mã vào req.user 
-        req.user = decoded;
-
-        // Cho phép request đi tiếp vào Controller
-        next();
+      decoded = jwt.verify(token, env.JWT_SECRET);
     } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ error: 'Token đã hết hạn. Vui lòng đăng nhập lại.' });
-        }
-        return res.status(403).json({ error: 'Token không hợp lệ.' });
+      if (error.name === 'TokenExpiredError') {
+        return next(new UnauthorizedError('Token đã hết hạn. Vui lòng đăng nhập lại.'));
+      }
+      return next(new UnauthorizedError('Token không hợp lệ.'));
     }
-};
 
-/**
- * 2. Phân quyền động (Kiểm tra Role)
- * Dùng để đảm bảo quyền truy cập chéo (Ví dụ: authorizeRole('customer', 'host'))
- */
-const authorizeRole = (...allowedRoles) => {
-    return (req, res, next) => {
-        // Chưa đăng nhập hoặc chưa có thông tin user
-        if (!req.user) {
-            return res.status(401).json({
-                error: 'Bạn cần đăng nhập để thực hiện thao tác này.'
-            });
-        }
+    const userId = decoded.userId || decoded.id || decoded._id;
+    if (!userId) {
+      return next(new UnauthorizedError('Token không chứa userId.'));
+    }
 
-        // Không có thông tin role
-        if (!req.user.role) {
-            return res.status(403).json({
-                error: 'Không tìm thấy thông tin phân quyền.'
-            });
-        }
+    const user = await User.findById(userId).select('_id Role Status Email FullName tokenVersion');
+    if (!user) {
+      return next(new UnauthorizedError('Tài khoản không tồn tại.'));
+    }
+    if (user.Status === 'banned') {
+      return next(new ForbiddenError('Tài khoản của bạn đã bị khóa.'));
+    }
+    if (user.Status !== 'active') {
+      return next(new ForbiddenError('Tài khoản chưa được kích hoạt.'));
+    }
 
-        // Role không được phép
-        if (!allowedRoles.includes(req.user.role)) {
-            return res.status(403).json({
-                error: 'Bạn không có quyền truy cập tài nguyên này.'
-            });
-        }
+    const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
+    const dbVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
+    if (tokenVersion !== dbVersion) {
+      return next(new UnauthorizedError('Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.'));
+    }
 
-        next();
+    req.user = {
+      userId: user._id.toString(),
+      role: user.Role,
+      status: user.Status,
+      tokenVersion: dbVersion,
+      email: user.Email,
+      fullName: user.FullName,
     };
-};
+    req.currentUser = user;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+}
 
 /**
- * 3. Phân quyền Admin cụ thể
- * Giữ lại để đảm bảo các file như adminRoutes.js không bị lỗi nếu đang gọi hàm này
+ * Optional auth: attach user if token present, otherwise continue as guest.
  */
-const requireAdmin = (req, res, next) => {
-    if (!req.user || req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Quyền truy cập bị từ chối. Chỉ Admin mới được thực hiện hành động này.' });
-    }
-    next();
+async function optionalAuth(req, res, next) {
+  const token = extractToken(req);
+  if (!token) return next();
+  return verifyToken(req, res, next);
+}
+
+const authorizeRole = (...allowedRoles) => (req, res, next) => {
+  if (!req.user) return next(new UnauthorizedError('Bạn cần đăng nhập để thực hiện thao tác này.'));
+  if (!req.user.role) return next(new ForbiddenError('Không tìm thấy thông tin phân quyền.'));
+  if (!allowedRoles.includes(req.user.role)) {
+    return next(new ForbiddenError('Bạn không có quyền truy cập tài nguyên này.'));
+  }
+  return next();
 };
+
+const requireAdmin = (req, res, next) => authorizeRole('admin')(req, res, next);
+
+/**
+ * Page-level host auth: redirect to login instead of JSON.
+ */
+async function requireHostPage(req, res, next) {
+  try {
+    const token = extractToken(req);
+    if (!token) return res.redirect('/login');
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const user = await User.findById(decoded.userId || decoded.id);
+    if (!user || user.Role !== 'host' || user.Status !== 'active') return res.redirect('/login');
+    const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
+    const dbVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
+    if (tokenVersion !== dbVersion) return res.redirect('/login');
+    req.user = {
+      userId: user._id.toString(),
+      role: user.Role,
+      status: user.Status,
+      tokenVersion: dbVersion,
+      email: user.Email,
+      fullName: user.FullName,
+    };
+    req.currentUser = user;
+    return next();
+  } catch {
+    return res.redirect('/login');
+  }
+}
 
 module.exports = {
-    verifyToken,
-    authorizeRole,
-    requireAdmin
+  verifyToken,
+  optionalAuth,
+  authorizeRole,
+  requireAdmin,
+  requireHostPage,
+  extractToken,
 };

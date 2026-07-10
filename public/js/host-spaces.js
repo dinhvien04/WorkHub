@@ -1,3 +1,9 @@
+﻿async function hostApiFetch(url, options = {}) {
+  if (window.WorkHubAPI && WorkHubAPI.api) return WorkHubAPI.api(url, options);
+  options = options || {};
+  options.credentials = 'same-origin';
+  return fetch(url, options);
+}
 // =======================================================
 // QUẢN LÝ CƠ SỞ & KHÔNG GIAN (HOST SPACES)
 // =======================================================
@@ -76,16 +82,12 @@ function backToLayer2() {
 
 // ==================== LAYER 1: TẢI DANH SÁCH CƠ SỞ ====================
 async function initHostSpacesPage() {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        if(typeof showToast === 'function') showToast("Vui lòng đăng nhập để xem dữ liệu");
-        return;
-    }
+    
     
     try {
-        const res = await fetch('/api/hosts/branches', {
+        const res = await hostApiFetch('/api/hosts/branches', {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'same-origin'
         });
         
         if(!res.ok) throw new Error("Lỗi xác thực");
@@ -132,9 +134,8 @@ async function openFacilityMgmt(branchId) {
     const previewContainer = document.getElementById("branch-selected-preview-container");
     if (previewContainer) previewContainer.innerHTML = "";
 
-    const token = localStorage.getItem('token');
     try {
-        const branchRes = await fetch('/api/hosts/branches', { headers: { 'Authorization': `Bearer ${token}` } });
+        const branchRes = await hostApiFetch('/api/hosts/branches', { credentials: 'same-origin' });
         const branchData = await branchRes.json();
         const branch = (branchData.branches || []).find(b => String(b._id) === String(branchId));
 
@@ -168,9 +169,8 @@ async function openFacilityMgmt(branchId) {
 
 async function deleteExistingBranchImage(imgUrl) {
     if (!confirm("Bạn có chắc muốn xóa tấm ảnh này khỏi hệ thống?")) return;
-    const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`/api/hosts/branches/${currentBranchId}/delete-image`, {
+        const response = await hostApiFetch(`/api/hosts/branches/${currentBranchId}/delete-image`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
             body: JSON.stringify({ imageUrl: imgUrl }),
@@ -227,11 +227,10 @@ async function saveBranchInfo() {
         selectedBranchFiles.forEach((file) => formData.append("image", file));
     }
     
-    const token = localStorage.getItem('token');
     try {
-        const res = await fetch(`/api/hosts/branches/${currentBranchId}`, {
+        const res = await hostApiFetch(`/api/hosts/branches/${currentBranchId}`, {
             method: "PUT",
-            headers: { 'Authorization': `Bearer ${token}` }, 
+            credentials: 'same-origin', 
             body: formData,
         });
         
@@ -251,10 +250,9 @@ async function saveBranchInfo() {
 
 // ==================== KHÔNG GIAN BÊN TRONG CƠ SỞ (LAYER 2) ====================
 async function loadSpaceList(branchId) {
-    const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`/api/hosts/branches/${branchId}/spaces`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await hostApiFetch(`/api/hosts/branches/${branchId}/spaces`, {
+            credentials: 'same-origin'
         });
         const data = await response.json();
         renderSpacesList(data.spaces || []);
@@ -329,9 +327,8 @@ function renderSpaceImages(space) {
 
 async function deleteExistingSpaceImage(imgUrl) {
     if (!confirm("Xóa ảnh này khỏi phòng?")) return;
-    const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`/api/hosts/spaces/${currentSpaceId}/delete-image`, {
+        const response = await hostApiFetch(`/api/hosts/spaces/${currentSpaceId}/delete-image`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
             body: JSON.stringify({ imageUrl: imgUrl }),
@@ -379,11 +376,10 @@ async function saveSpaceDetail() {
       selectedSpaceFiles.forEach((file) => formData.append("image", file));
     }
   
-    const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`/api/hosts/spaces/${currentSpaceId}`, {
+        const response = await hostApiFetch(`/api/hosts/spaces/${currentSpaceId}`, {
             method: "PUT",
-            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'same-origin',
             body: formData,
         });
         const data = await response.json();
@@ -398,9 +394,8 @@ async function saveSpaceDetail() {
 }
 
 async function loadSpaceBookings(spaceId) {
-    const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`/api/hosts/bookings`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await hostApiFetch(`/api/hosts/bookings`, { credentials: 'same-origin' });
         const data = await response.json();
         const tbody = document.getElementById("space-schedule-body");
         tbody.innerHTML = "";
@@ -580,8 +575,6 @@ async function saveNewFacility() {
     const name = document.getElementById('add-fac-name')?.value.trim();
     const address = document.getElementById('add-fac-address')?.value.trim();
     const note = document.getElementById('add-fac-note')?.value.trim();
-    const token = localStorage.getItem('token');
-
     if (!name || !address) {
         if(typeof showToast === 'function') showToast('Thiếu thông tin cơ sở');
         setAddFacilityStep(1);
@@ -597,9 +590,9 @@ async function saveNewFacility() {
     }
 
     try {
-        const resBranch = await fetch('/api/hosts/branches', {
+        const resBranch = await hostApiFetch('/api/hosts/branches', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'same-origin',
             body: formData
         });
 
@@ -634,9 +627,9 @@ async function saveNewFacility() {
                 spForm.append("image", wizardSpaceFiles[rowId]);
             }
 
-            await fetch(`/api/hosts/branches/${branchData._id}/spaces`, {
+            await hostApiFetch(`/api/hosts/branches/${branchData._id}/spaces`, {
                 method: "POST",
-                headers: { 'Authorization': `Bearer ${token}` },
+                credentials: 'same-origin',
                 body: spForm,
             });
             spacesCount++;
@@ -664,8 +657,6 @@ async function loadHostBookings() {
     const tableBody = document.getElementById('host-booking-table-body');
     const emptyState = document.getElementById('booking-empty-state');
     
-    const token = localStorage.getItem('token'); 
-    
     if (!token) {
         if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold bg-red-50 rounded-xl">Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại!</td></tr>`;
         if (emptyState) emptyState.style.display = 'none';
@@ -673,10 +664,10 @@ async function loadHostBookings() {
     }
 
     try {
-        const response = await fetch(`/api/hosts/bookings`, {
+        const response = await hostApiFetch(`/api/hosts/bookings`, {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${token}`,
+            'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/json'
             }
         });
@@ -1016,13 +1007,11 @@ function startLiveTimers() {
 async function executeBookingAction(bookingId, action) {
     if (action !== 'checkin' && !confirm(`Bạn có chắc chắn muốn thực hiện hành động này không?`)) return;
 
-    const token = localStorage.getItem('token');
-
     try {
-        const response = await fetch(`/api/hosts/bookings/${bookingId}/${action}`, { 
+        const response = await hostApiFetch(`/api/hosts/bookings/${bookingId}/${action}`, { 
             method: 'PUT',
             headers: {
-                'Authorization': `Bearer ${token}`,
+                'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': 'application/json'
             }
         });
@@ -1226,12 +1215,10 @@ async function submitNewSpace(event) {
     modalSpaceSelectedFiles.forEach((file) => formData.append("image", file));
     }
 
-    const token = localStorage.getItem('token');
-    
     try {
-        const response = await fetch(`/api/hosts/branches/${currentBranchId}/spaces`, {
+        const response = await hostApiFetch(`/api/hosts/branches/${currentBranchId}/spaces`, {
             method: "POST",
-            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'same-origin',
             body: formData,
         });
         

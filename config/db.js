@@ -1,14 +1,20 @@
-const mongoose = require('mongoose');
+'use strict';
 
-async function connectDB() {
-  const uri = process.env.MONGODB_URI;
-  try {
-    await mongoose.connect(uri);
-    console.log('✅ Kết nối MongoDB thành công');
-  } catch (err) {
-    console.error('❌ Lỗi kết nối MongoDB:', err);
-    process.exit(1);
+const mongoose = require('mongoose');
+const logger = require('../utils/logger');
+
+async function connectDB(uri = process.env.MONGODB_URI) {
+  if (!uri) {
+    throw new Error('MONGODB_URI is required');
   }
+  mongoose.set('strictQuery', true);
+  await mongoose.connect(uri);
+  logger.info('MongoDB connected');
 }
 
-module.exports = { connectDB };
+async function disconnectDB() {
+  await mongoose.disconnect();
+  logger.info('MongoDB disconnected');
+}
+
+module.exports = { connectDB, disconnectDB };

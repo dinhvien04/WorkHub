@@ -1,0 +1,64 @@
+'use strict';
+
+module.exports = [
+  {
+    ignores: ['node_modules/**', 'public/uploads/**', 'coverage/**'],
+  },
+  {
+    files: ['**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        exports: 'writable',
+        Buffer: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        URL: 'readonly',
+        jest: 'readonly',
+        describe: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+      'no-undef': 'error',
+      'no-console': 'off',
+    },
+  },
+  {
+    files: ['public/js/**/*.js'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        fetch: 'readonly',
+        alert: 'readonly',
+        FormData: 'readonly',
+        FileReader: 'readonly',
+        location: 'readonly',
+        WorkHubAPI: 'readonly',
+        hostApiFetch: 'readonly',
+        showToast: 'readonly',
+        closeModal: 'readonly',
+        openModal: 'readonly',
+        navigateTo: 'readonly',
+      },
+    },
+  },
+];

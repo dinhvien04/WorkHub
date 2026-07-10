@@ -1,82 +1,85 @@
-const express = require('express');
+'use strict';
 
-// Import toàn bộ các hàm từ Controller (Đã hợp nhất BẠN và NA)
-const { 
-    getHomePage,
-    searchBranches,
-    detailPage,
-    getCustomerProfile, 
-    updateCustomerProfile,
-    getMyProfile,
-    updateMyProfile, 
-    getCustomerBookings,
-    createBooking,
-    confirmPayment,
-    checkAvailability,
-    cancelBooking,
-    payRemainder,
-    submitReview,
-    getReview,
-    getBranchReviews,
-    getPaymentHistoryPage
+const express = require('express');
+const {
+  getHomePage,
+  searchBranches,
+  detailPage,
+  getCustomerProfile,
+  updateCustomerProfile,
+  getMyProfile,
+  updateMyProfile,
+  getCustomerBookings,
+  createBooking,
+  confirmPayment,
+  checkAvailability,
+  cancelBooking,
+  payRemainder,
+  submitReview,
+  getReview,
+  getBranchReviews,
+  getPaymentHistoryPage,
 } = require('../controllers/customerController');
 
-// Import Middleware bảo mật và Upload ảnh
 const { verifyToken, authorizeRole } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
+const { bookingLimiter, paymentLimiter } = require('../middlewares/rateLimiters');
 
 const router = express.Router();
 
 // ==========================================
-// 1. PAGE ROUTES (Render EJS - CỦA BẠN)
-// Tuyệt đối KHÔNG DÙNG router.use(verifyToken) ở đầu file 
-// vì sẽ làm chặn luôn trang chủ của Khách vãng lai (Guest).
+// 1. PAGE ROUTES (EJS)
 // ==========================================
 router.get('/', getHomePage);
 router.get('/search', searchBranches);
 router.get('/detail', detailPage);
 
 router.get('/payment', (req, res) => {
-    res.render('customer/payment', { scripts: '<script src="/js/customer-main.js"></script>' });
+  res.render('customer/payment', { scripts: '<script src="/js/customer-main.js"></script>' });
 });
 router.get('/history', (req, res) => {
-    res.render('customer/history', { scripts: '<script src="/js/customer-main.js"></script><script src="/js/customer-history.js"></script>' });
+  res.render('customer/history', {
+    scripts:
+      '<script src="/js/customer-main.js"></script><script src="/js/customer-history.js"></script>',
+  });
 });
 router.get('/payment_history', verifyToken, getPaymentHistoryPage);
 router.get('/profile', (req, res) => {
-    res.render('customer/profile', { scripts: '<script src="/js/customer-main.js"></script>' });
+  res.render('customer/profile', { scripts: '<script src="/js/customer-main.js"></script>' });
 });
 
 // ==========================================
-// 2. PUBLIC API ROUTES
-// Các API dùng để tra cứu trước khi đăng nhập
+// 2. PUBLIC API
 // ==========================================
 router.post('/bookings/check-availability', checkAvailability);
 router.get('/branch/:branchId/reviews', getBranchReviews);
 router.get('/bookings/:bookingId/review', getReview);
 
 // ==========================================
-// 3. PRIVATE API ROUTES (BẮT BUỘC CÓ TOKEN)
-// Gán trực tiếp lớp bảo vệ vào từng Route
+// 3. PRIVATE API — /me/* (preferred)
 // ==========================================
 const protectCustomer = [verifyToken, authorizeRole('customer')];
 
-// --- Thông tin cá nhân của chính mình (Của NA) ---
-router.get('/me/profile', verifyToken, getMyProfile);
-router.put('/me/profile', verifyToken, upload.single('customerAvatar'), updateMyProfile);
+router.get('/me/profile', ...protectCustomer, getMyProfile);
+router.put('/me/profile', ...protectCustomer, upload.single('customerAvatar'), updateMyProfile);
+router.get('/me/bookings', ...protectCustomer, getCustomerBookings);
+router.post('/me/bookings', ...protectCustomer, bookingLimiter, createBooking);
+router.post('/me/bookings/:bookingId/review', ...protectCustomer, submitReview);
+router.put('/me/bookings/:bookingId/cancel', ...protectCustomer, cancelBooking);
+router.put('/me/bookings/:bookingId/pay', ...protectCustomer, paymentLimiter, payRemainder);
+router.post('/me/booking/confirm', ...protectCustomer, paymentLimiter, confirmPayment);
+// alias used by frontend
+router.post('/booking/confirm', ...protectCustomer, paymentLimiter, confirmPayment);
 
-// --- API Đặt chỗ và Xác nhận thanh toán ---
-router.post('/:userId/bookings', verifyToken, createBooking); 
-router.post('/booking/confirm', verifyToken, confirmPayment);
-
-// --- Các API Quản lý cá nhân, Đơn hàng theo UserId (Tham chiếu chéo/Admin) ---
-router.get('/:userId/profile', protectCustomer, getCustomerProfile);
-router.put('/:userId/profile', protectCustomer, updateCustomerProfile);
-router.get('/:userId/bookings', protectCustomer, getCustomerBookings);
-
-// --- Hành động với đơn hàng ---
-router.post('/:userId/bookings/:bookingId/review', protectCustomer, submitReview);
-router.put('/:userId/bookings/:bookingId/cancel', protectCustomer, cancelBooking);
-router.put('/:userId/bookings/:bookingId/pay', protectCustomer, payRemainder);
+// ==========================================
+// 4. DEPRECATED :userId routes — self-only, ownership enforced in controller
+// ==========================================
+router.post('/:userId/bookings', ...protectCustomer, bookingLimiter, createBooking);
+router.get('/:userId/profile', ...protectCustomer, getCustomerProfile);
+router.put('/:userId/profile', ...protectCustomer, updateCustomerProfile);
+router.get('/:userId/bookings', ...protectCustomer, getCustomerBookings);
+router.post('/:userId/bookings/:bookingId/review', ...protectCustomer, submitReview);
+router.put('/:userId/bookings/:bookingId/cancel', ...protectCustomer, cancelBooking);
+router.put('/:userId/bookings/:bookingId/pay', ...protectCustomer, paymentLimiter, payRemainder);
 
 module.exports = router;

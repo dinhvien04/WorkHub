@@ -1,3 +1,9 @@
+﻿async function hostApiFetch(url, options = {}) {
+  if (window.WorkHubAPI && WorkHubAPI.api) return WorkHubAPI.api(url, options);
+  options = options || {};
+  options.credentials = 'same-origin';
+  return fetch(url, options);
+}
 let currentSelectedBranch = 'all';
 let myChart = null; // Dùng 1 biến duy nhất quản lý Chart
 
@@ -6,17 +12,13 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 async function loadDashboardData(branchId) {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        alert('Vui lòng đăng nhập để xem dữ liệu!');
-        return;
-    }
+    
 
     try {
         // Đã sửa đường dẫn URL chuẩn
-        const response = await fetch(`/api/hosts/dashboard-stats?branchId=${branchId}`, {
+        const response = await hostApiFetch(`/api/hosts/dashboard-stats?branchId=${branchId}`, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'same-origin'
         });
 
         const result = await response.json();
