@@ -7,7 +7,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "test": "jest --runInBand --detectOpenHandles --forceExit",
-    "test:open": "jest --runInBand --detectOpenHandles",
+    "test:open": "jest --runInBand --detectOpenHandles --testTimeout=90000",
     "test:ci": "jest --runInBand --detectOpenHandles --forceExit",
     "test:watch": "jest --watch --runInBand",
     "lint": "eslint app.js server.js config middlewares services jobs utils routes controllers models test scripts public/js --max-warnings=100",

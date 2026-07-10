@@ -326,6 +326,7 @@ describe("P1.13 Inline handler CI guard", () => {
       "public/js/security.js",
       "public/js/customer-history.js",
       "public/js/gallery-lightbox.js",
+      "public/js/host-spaces.js",
       "views/layout.ejs",
     ]) {
       const p = path.join(process.cwd(), f);

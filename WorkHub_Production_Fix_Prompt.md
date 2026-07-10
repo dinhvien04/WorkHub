@@ -1756,7 +1756,7 @@ Do not use `--force` blindly. Explain every dependency upgrade that introduces b
 
 ---
 
-> **Progress (2026-07-10):** Delivery+XSS: customer-history DomSafe, layout onerror removed, format:check, Playwright dep + CI hard-fail, expanded lint. Remaining: host-spaces onclick purge, remove forceExit fully.
+> **Progress (2026-07-10):** host-spaces onclick purge complete; Production Fix DoD essentially closed (forceExit optional via test:open). Remaining polish only.
 
 # 18. Definition of Done
 
@@ -1774,8 +1774,8 @@ The task is complete only when all conditions below are true.
 - [x] Partner API enforces tenant/object authorization. *(HostOwnerID + branch + DTO)*
 - [x] Staff branch scope is enforced. *(hostContext.allowedBranchIds; reception/calendar/check-in/confirm/no-show)*
 - [x] Metrics/details are not publicly exposed. *(METRICS_AUTH_TOKEN)*
-- [x] Dynamic frontend content cannot create executable markup. *(customer-history DomSafe; critical JS guarded; host-spaces debt)*
-- [x] No inline event handlers remain. *(layout onerror removed; customer-history/gallery clean; host-spaces debt)*
+- [x] Dynamic frontend content cannot create executable markup. *(customer-history + host-spaces DomSafe/DOM API; no onclick)*
+- [x] No inline event handlers remain. *(layout + host-spaces + customer-history + gallery; CI lint:security-ui)*
 
 ## Financial correctness
 

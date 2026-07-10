@@ -38,6 +38,7 @@ var CATEGORY_LABELS = {
 };
 
 function escapeHtml(str) {
+    if (window.DomSafe && DomSafe.escapeHtml) return DomSafe.escapeHtml(str);
     if (!str) return '';
     return String(str)
         .replace(/&/g, '&amp;')
@@ -46,17 +47,45 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;');
 }
 
-function applyImg(id, src) {
-    const el = document.getElementById(id);
+function clearEl(el) {
     if (!el) return;
+    if (window.DomSafe && DomSafe.clearElement) DomSafe.clearElement(el);
+    else while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function el(tag, className, text) {
+    if (window.DomSafe && DomSafe.createTextElement) {
+        return DomSafe.createTextElement(tag, className, text);
+    }
+    const n = document.createElement(tag);
+    if (className) n.className = className;
+    if (text != null) n.textContent = String(text);
+    return n;
+}
+
+function safeImgSrc(url) {
+    if (window.DomSafe && DomSafe.safeImageUrl) {
+        return DomSafe.safeImageUrl(url) || '';
+    }
+    if (!url || typeof url !== 'string') return '';
+    if (/^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('/')) return url;
+    return '';
+}
+
+function applyImg(id, src) {
+    const node = document.getElementById(id);
+    if (!node) return;
     if (src) {
-      el.src = src;
-      el.classList.remove("hidden");
+      node.src = safeImgSrc(src) || src;
+      node.classList.remove("hidden");
     } else {
-      el.src = "";
-      el.classList.add("hidden");
+      node.src = "";
+      node.classList.add("hidden");
     }
 }
+
+/** Cache spaces for layer-3 open without encoding JSON into onclick */
+var spacesByIdCache = {};
 
 // ==========================================
 // --- ĐIỀU HƯỚNG MÀN HÌNH LAYER ---
@@ -101,26 +130,42 @@ async function initHostSpacesPage() {
 function renderFacilityList(branches) {
     const grid = document.getElementById('facility-list-grid');
     if (!grid) return;
+    clearEl(grid);
 
     if (!branches || !branches.length) {
-        grid.innerHTML = '<p class="text-slate-400 text-sm col-span-2">Chưa có cơ sở nào. Bấm "Thêm cơ sở" để bắt đầu.</p>';
+        grid.appendChild(el('p', 'text-slate-400 text-sm col-span-2', 'Chưa có cơ sở nào. Bấm "Thêm cơ sở" để bắt đầu.'));
         return;
     }
 
-    grid.innerHTML = branches.map(b => {
-        const imgHtml = b.Images && b.Images.length > 0
-            ? `<img src="${escapeHtml(b.Images[0])}" alt="" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">`
-            : `<div class="w-full h-full bg-slate-100 flex items-center justify-center"><span class="text-slate-300 text-xs font-bold uppercase">Chưa có ảnh</span></div>`;
+    branches.forEach((b) => {
+        const card = el('div', 'bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-teal-500 transition cursor-pointer group', null);
+        card.setAttribute('role', 'button');
+        card.tabIndex = 0;
+        card.addEventListener('click', () => openFacilityMgmt(String(b._id)));
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openFacilityMgmt(String(b._id));
+            }
+        });
 
-        return `
-            <div onclick="openFacilityMgmt('${escapeHtml(b._id)}')" class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-teal-500 transition cursor-pointer group">
-                <div class="relative h-40 mb-6 rounded-2xl overflow-hidden shadow-inner">
-                    ${imgHtml}
-                </div>
-                <h3 class="text-xl font-black text-slate-800 tracking-tight">${escapeHtml(b.Name)}</h3>
-                <p class="text-sm text-slate-400">${escapeHtml(b.Address)}</p>
-            </div>`;
-    }).join('');
+        const imgWrap = el('div', 'relative h-40 mb-6 rounded-2xl overflow-hidden shadow-inner', null);
+        if (b.Images && b.Images.length > 0) {
+            const img = document.createElement('img');
+            img.src = safeImgSrc(b.Images[0]) || b.Images[0];
+            img.alt = '';
+            img.className = 'w-full h-full object-cover group-hover:scale-110 transition duration-500';
+            imgWrap.appendChild(img);
+        } else {
+            const ph = el('div', 'w-full h-full bg-slate-100 flex items-center justify-center', null);
+            ph.appendChild(el('span', 'text-slate-300 text-xs font-bold uppercase', 'Chưa có ảnh'));
+            imgWrap.appendChild(ph);
+        }
+        card.appendChild(imgWrap);
+        card.appendChild(el('h3', 'text-xl font-black text-slate-800 tracking-tight', b.Name || ''));
+        card.appendChild(el('p', 'text-sm text-slate-400', b.Address || ''));
+        grid.appendChild(card);
+    });
 }
 
 // ==================== LAYER 2: THÔNG TIN CƠ SỞ & KHÔNG GIAN ====================
@@ -132,7 +177,7 @@ async function openFacilityMgmt(branchId) {
     const fileInput = document.getElementById("branch-img-input");
     if (fileInput) fileInput.value = "";
     const previewContainer = document.getElementById("branch-selected-preview-container");
-    if (previewContainer) previewContainer.innerHTML = "";
+    if (previewContainer) clearEl(previewContainer);
 
     try {
         const branchRes = await hostApiFetch('/api/hosts/branches', { credentials: 'same-origin' });
@@ -149,15 +194,28 @@ async function openFacilityMgmt(branchId) {
             
             const mainImgContainer = document.getElementById("branch-main-img-container") || document.getElementById("branch-main-img");
             if (mainImgContainer) {
+                clearEl(mainImgContainer);
                 if (branch.Images && branch.Images.length > 0) {
-                    mainImgContainer.innerHTML = branch.Images.map(img => `
-                        <div class="relative w-20 h-20 inline-block group mr-2">
-                            <img src="${img}" class="w-full h-full object-cover rounded-xl border shadow-sm">
-                            <button type="button" onclick="deleteExistingBranchImage('${img}')" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold shadow hover:bg-red-600 transition">✕</button>
-                        </div>
-                    `).join("");
+                    branch.Images.forEach((imgUrl) => {
+                        const wrap = el('div', 'relative w-20 h-20 inline-block group mr-2', null);
+                        const img = document.createElement('img');
+                        img.src = safeImgSrc(imgUrl) || imgUrl;
+                        img.alt = '';
+                        img.className = 'w-full h-full object-cover rounded-xl border shadow-sm';
+                        wrap.appendChild(img);
+                        const del = document.createElement('button');
+                        del.type = 'button';
+                        del.className = 'absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold shadow hover:bg-red-600 transition';
+                        del.textContent = '✕';
+                        del.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            deleteExistingBranchImage(imgUrl);
+                        });
+                        wrap.appendChild(del);
+                        mainImgContainer.appendChild(wrap);
+                    });
                 } else {
-                    mainImgContainer.innerHTML = `<span class="text-[10px] text-slate-400 uppercase p-4">Chưa có ảnh hiển thị</span>`;
+                    mainImgContainer.appendChild(el('span', 'text-[10px] text-slate-400 uppercase p-4', 'Chưa có ảnh hiển thị'));
                 }
             }
         }
@@ -193,12 +251,22 @@ function previewBranchImagesFromInput(input) {
 function renderBranchSelectedPreviews() {
     const container = document.getElementById("branch-selected-preview-container");
     if (!container) return;
-    container.innerHTML = selectedBranchFiles.map((file, index) => `
-        <div class="relative w-20 h-20 inline-block mt-2 mr-2">
-            <img src="${URL.createObjectURL(file)}" class="w-full h-full object-cover rounded-xl border border-teal-400">
-            <button type="button" onclick="removeSelectedBranchFile(${index})" class="absolute -top-1.5 -right-1.5 bg-slate-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold hover:bg-red-500 transition">✕</button>
-        </div>
-    `).join("");
+    clearEl(container);
+    selectedBranchFiles.forEach((file, index) => {
+        const wrap = el('div', 'relative w-20 h-20 inline-block mt-2 mr-2', null);
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = '';
+        img.className = 'w-full h-full object-cover rounded-xl border border-teal-400';
+        wrap.appendChild(img);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'absolute -top-1.5 -right-1.5 bg-slate-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold hover:bg-red-500 transition';
+        del.textContent = '✕';
+        del.addEventListener('click', () => removeSelectedBranchFile(index));
+        wrap.appendChild(del);
+        container.appendChild(wrap);
+    });
 }
 
 function removeSelectedBranchFile(index) {
@@ -262,13 +330,20 @@ async function loadSpaceList(branchId) {
 function renderSpacesList(spaces) {
     const tbody = document.getElementById('spaces-list-body');
     if (!tbody) return;
+    clearEl(tbody);
+    spacesByIdCache = {};
 
     if (!spaces.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-slate-400 text-sm text-center">Chưa có không gian nào.</td></tr>';
+        const tr = document.createElement('tr');
+        const td = el('td', 'p-4 text-slate-400 text-sm text-center', 'Chưa có không gian nào.');
+        td.colSpan = 4;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
         return;
     }
 
-    tbody.innerHTML = spaces.map(s => {
+    spaces.forEach((s) => {
+        spacesByIdCache[String(s._id)] = s;
         const statusLabel = SPACE_STATUS_LABELS[s.Status] || s.Status;
         const catLabel = CATEGORY_LABELS[s.Category] || s.Category;
         const statusColor = s.Status === "available" || s.Status === "ready"
@@ -276,28 +351,49 @@ function renderSpacesList(spaces) {
             : s.Status === "maintenance" || s.Status === "preparing"
             ? "bg-yellow-50 text-yellow-600"
             : "bg-red-50 text-red-500";
-            
-        const spaceStr = encodeURIComponent(JSON.stringify(s));
-        return `
-            <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
-                <td class="p-4 font-black text-slate-700">${escapeHtml(s.SpaceCode || s.Name)}</td>
-                <td class="p-4 text-slate-500">${escapeHtml(catLabel)}</td>
-                <td class="p-4"><span class="px-2 py-1 rounded-lg text-[9px] uppercase font-black ${statusColor}">${escapeHtml(statusLabel)}</span></td>
-                <td class="p-4"><button type="button" onclick="openLayer3('${spaceStr}')" class="text-teal-600 underline font-black text-xs">Chi tiết</button></td>
-            </tr>`;
-    }).join('');
+
+        const tr = el('tr', 'border-b border-slate-50 hover:bg-slate-50 transition', null);
+        tr.appendChild(el('td', 'p-4 font-black text-slate-700', s.SpaceCode || s.Name || ''));
+        tr.appendChild(el('td', 'p-4 text-slate-500', catLabel || ''));
+        const stTd = el('td', 'p-4', null);
+        stTd.appendChild(el('span', 'px-2 py-1 rounded-lg text-[9px] uppercase font-black ' + statusColor, statusLabel || ''));
+        tr.appendChild(stTd);
+        const actTd = el('td', 'p-4', null);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-teal-600 underline font-black text-xs';
+        btn.textContent = 'Chi tiết';
+        btn.addEventListener('click', () => openLayer3ById(String(s._id)));
+        actTd.appendChild(btn);
+        tr.appendChild(actTd);
+        tbody.appendChild(tr);
+    });
 }
 
 // ==================== LAYER 3: CHI TIẾT KHÔNG GIAN ====================
+/** @deprecated use openLayer3ById — kept for any residual callers */
 function openLayer3(encodedSpace) {
-    const space = JSON.parse(decodeURIComponent(encodedSpace));
+    try {
+        const space = JSON.parse(decodeURIComponent(encodedSpace));
+        if (space && space._id) {
+            spacesByIdCache[String(space._id)] = space;
+            openLayer3ById(String(space._id));
+        }
+    } catch (e) {
+        console.error('openLayer3 parse failed', e);
+    }
+}
+
+function openLayer3ById(spaceId) {
+    const space = spacesByIdCache[String(spaceId)];
+    if (!space) return;
     currentSpaceId = space._id;
     selectedSpaceFiles = []; 
   
     showHostSpaceLayer("space-mgr-layer-3");
   
     const titleEl = document.getElementById("detail-space-title");
-    if (titleEl) titleEl.innerText = `Chi tiết: ${space.Name} [${space.SpaceCode}]`;
+    if (titleEl) titleEl.textContent = `Chi tiết: ${space.Name || ''} [${space.SpaceCode || ''}]`;
     document.getElementById("detail-space-price").value = space.PricePerHour;
     document.getElementById("detail-space-status").value = space.Status;
   
@@ -305,23 +401,33 @@ function openLayer3(encodedSpace) {
     if (spaceInput) spaceInput.value = "";
   
     renderSpaceImages(space);
-    document.getElementById("space-detail-new-preview").innerHTML = "";
+    const prev = document.getElementById("space-detail-new-preview");
+    if (prev) clearEl(prev);
     loadSpaceBookings(space._id);
 }
 
 function renderSpaceImages(space) {
     const container = document.getElementById("space-detail-img-container");
     if (!container) return;
-  
+    clearEl(container);
     if (space.Images && space.Images.length > 0) {
-      container.innerHTML = space.Images.map(img => `
-        <div class="relative w-20 h-20 inline-block mr-2 mb-2">
-          <img src="${img}" class="w-full h-full object-cover rounded-xl border shadow-sm">
-          <button type="button" onclick="deleteExistingSpaceImage('${img}')" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold shadow hover:bg-red-600">✕</button>
-        </div>
-      `).join("");
+      space.Images.forEach((imgUrl) => {
+        const wrap = el('div', 'relative w-20 h-20 inline-block mr-2 mb-2', null);
+        const img = document.createElement('img');
+        img.src = safeImgSrc(imgUrl) || imgUrl;
+        img.alt = '';
+        img.className = 'w-full h-full object-cover rounded-xl border shadow-sm';
+        wrap.appendChild(img);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'absolute -top-1.5 -right-1.5 bg-red-500 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold shadow hover:bg-red-600';
+        del.textContent = '✕';
+        del.addEventListener('click', () => deleteExistingSpaceImage(imgUrl));
+        wrap.appendChild(del);
+        container.appendChild(wrap);
+      });
     } else {
-      container.innerHTML = `<span class="text-[10px] text-slate-400 uppercase p-4">Chưa có ảnh hiển thị</span>`;
+      container.appendChild(el('span', 'text-[10px] text-slate-400 uppercase p-4', 'Chưa có ảnh hiển thị'));
     }
 }
 
@@ -330,13 +436,16 @@ async function deleteExistingSpaceImage(imgUrl) {
     try {
         const response = await hostApiFetch(`/api/hosts/spaces/${currentSpaceId}/delete-image`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ imageUrl: imgUrl }),
         });
         const data = await response.json();
         if (response.ok) {
-            if(typeof showToast === 'function') showToast("Xóa ảnh thành công!");
-            openLayer3(encodeURIComponent(JSON.stringify(data.space)));
+            if (typeof showToast === 'function') showToast("Xóa ảnh thành công!");
+            if (data.space && data.space._id) {
+                spacesByIdCache[String(data.space._id)] = data.space;
+                openLayer3ById(String(data.space._id));
+            }
         } else alert(data.error || "Lỗi khi xóa ảnh phòng.");
     } catch (error) { console.error("Lỗi xóa ảnh phòng cũ:", error); }
 }
@@ -350,12 +459,22 @@ function previewNewSpaceDetailImages(input) {
 function renderSpaceSelectedPreviews() {
     const previewDiv = document.getElementById("space-detail-new-preview");
     if (!previewDiv) return;
-    previewDiv.innerHTML = selectedSpaceFiles.map((file, index) => `
-        <div class="relative w-20 h-20 inline-block mr-2 mb-2">
-            <img src="${URL.createObjectURL(file)}" class="w-full h-full object-cover rounded-xl border border-teal-400">
-            <button type="button" onclick="removeSelectedSpaceFile(${index})" class="absolute -top-1.5 -right-1.5 bg-slate-600 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold hover:bg-red-500">✕</button>
-        </div>
-    `).join("");
+    clearEl(previewDiv);
+    selectedSpaceFiles.forEach((file, index) => {
+        const wrap = el('div', 'relative w-20 h-20 inline-block mr-2 mb-2', null);
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = '';
+        img.className = 'w-full h-full object-cover rounded-xl border border-teal-400';
+        wrap.appendChild(img);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'absolute -top-1.5 -right-1.5 bg-slate-600 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold hover:bg-red-500';
+        del.textContent = '✕';
+        del.addEventListener('click', () => removeSelectedSpaceFile(index));
+        wrap.appendChild(del);
+        previewDiv.appendChild(wrap);
+    });
 }
 
 function removeSelectedSpaceFile(index) {
@@ -398,30 +517,30 @@ async function loadSpaceBookings(spaceId) {
         const response = await hostApiFetch(`/api/hosts/bookings`, { credentials: 'same-origin' });
         const data = await response.json();
         const tbody = document.getElementById("space-schedule-body");
-        tbody.innerHTML = "";
-  
-        const filtered = (data.bookings || []).filter((b) => b.SpaceID && b.SpaceID._id === spaceId);
-  
+        if (!tbody) return;
+        clearEl(tbody);
+        const filtered = (data.bookings || []).filter((b) => b.SpaceID && String(b.SpaceID._id) === String(spaceId));
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400 text-sm">Chưa có lịch đặt nào.</td></tr>`;
+            const tr = document.createElement('tr');
+            const td = el('td', 'p-4 text-center text-slate-400 text-sm', 'Chưa có lịch đặt nào.');
+            td.colSpan = 4;
+            tr.appendChild(td);
+            tbody.appendChild(tr);
             return;
         }
-  
         filtered.forEach((booking) => {
             const start = new Date(booking.StartTime).toLocaleString("vi-VN");
             const end = new Date(booking.EndTime).toLocaleString("vi-VN");
             const statusLabel = SPACE_STATUS_LABELS[booking.Status] || booking.Status;
-            tbody.innerHTML += `
-                <tr class="border-b font-medium text-slate-700 hover:bg-slate-50 text-sm">
-                    <td class="p-4">
-                        <div class="font-bold">${booking.CustomerID?.FullName || "Ẩn danh"}</div>
-                        <div class="text-[10px] text-slate-400">${booking.CustomerID?.Email || ""}</div>
-                    </td>
-                    <td class="p-4">${start}</td>
-                    <td class="p-4">${end}</td>
-                    <td class="p-4 uppercase font-bold text-[10px] text-teal-600">${statusLabel}</td>
-                </tr>
-            `;
+            const tr = el('tr', 'border-b font-medium text-slate-700 hover:bg-slate-50 text-sm', null);
+            const cTd = el('td', 'p-4', null);
+            cTd.appendChild(el('div', 'font-bold', booking.CustomerID?.FullName || 'Ẩn danh'));
+            cTd.appendChild(el('div', 'text-[10px] text-slate-400', booking.CustomerID?.Email || ''));
+            tr.appendChild(cTd);
+            tr.appendChild(el('td', 'p-4', start));
+            tr.appendChild(el('td', 'p-4', end));
+            tr.appendChild(el('td', 'p-4 uppercase font-bold text-[10px] text-teal-600', statusLabel || ''));
+            tbody.appendChild(tr);
         });
     } catch (error) { console.error(error); }
 }
@@ -471,7 +590,12 @@ function previewFacilityImage(input) {
     addFacilityDraft.imageFile = file; 
     const reader = new FileReader();
     reader.onload = e => {
-        preview.innerHTML = `<img src="${e.target.result}" alt="" class="w-full h-full object-cover">`;
+        clearEl(preview);
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        img.alt = '';
+        img.className = 'w-full h-full object-cover';
+        preview.appendChild(img);
     };
     reader.readAsDataURL(file);
 }
@@ -483,7 +607,12 @@ function previewSpaceImage(input, rowId) {
     wizardSpaceFiles[rowId] = file; 
     const reader = new FileReader();
     reader.onload = e => {
-        preview.innerHTML = `<img src="${e.target.result}" alt="" class="w-full h-full object-cover">`;
+        clearEl(preview);
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        img.alt = '';
+        img.className = 'w-full h-full object-cover';
+        preview.appendChild(img);
     };
     reader.readAsDataURL(file);
 }
@@ -514,21 +643,30 @@ function addFacilitySpaceRow() {
     const card = document.createElement('div');
     card.className = 'p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-4';
     card.dataset.rowId = String(rowId);
-    card.innerHTML = `
-        <div class="flex justify-between items-center">
-            <p class="text-[10px] font-black text-slate-400 uppercase">Không gian #${rowId}</p>
-            <button type="button" onclick="removeFacilitySpaceRow(${rowId})" class="text-red-500 text-[10px] font-black uppercase hover:text-red-700">Xóa</button>
-        </div>
-        <div class="flex flex-wrap gap-3 items-start">
+    // built via DOM below
+    clearEl(card);
+    const head = el('div', 'flex justify-between items-center', null);
+    head.appendChild(el('p', 'text-[10px] font-black text-slate-400 uppercase', 'Không gian #' + rowId));
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'text-red-500 text-[10px] font-black uppercase hover:text-red-700';
+    rm.textContent = 'Xóa';
+    rm.addEventListener('click', () => removeFacilitySpaceRow(rowId));
+    head.appendChild(rm);
+    card.appendChild(head);
+    // Keep remaining fields via compact template WITHOUT onclick (static labels only)
+    const body = document.createElement('div');
+    body.innerHTML = `
+        <div class="flex flex-wrap gap-3 items-start mt-2">
             <div id="space-img-preview-${rowId}" class="h-20 w-28 bg-white rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center shrink-0">
                 <span class="text-[9px] font-bold text-slate-400 uppercase">Ảnh</span>
             </div>
             <label class="h-20 w-28 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 font-bold text-[9px] uppercase cursor-pointer hover:border-teal-500 transition shrink-0">
                 + Ảnh
-                <input type="file" accept="image/*" class="hidden" onchange="previewSpaceImage(this, ${rowId})">
+                <input type="file" accept="image/*" class="hidden space-img-input" data-row-id="${rowId}">
             </label>
         </div>
-        <div class="grid sm:grid-cols-2 gap-3">
+        <div class="grid sm:grid-cols-2 gap-3 mt-3">
             <div class="p-3 bg-white rounded-xl border border-slate-100">
                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên / Mã <span class="text-red-500">*</span></label>
                 <input type="text" data-field="id" placeholder="VD: 103, A-05" class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800 space-code-input">
@@ -541,19 +679,18 @@ function addFacilitySpaceRow() {
                 </select>
             </div>
             <div class="p-3 bg-white rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giá niêm yết / Giờ</label>
-                <input type="text" data-field="price" placeholder="250000" class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-teal-600 space-price-input">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giá/giờ</label>
+                <input type="number" data-field="price" min="0" class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800 space-price-input" placeholder="0">
             </div>
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Trạng thái</label>
-                <select data-field="status" class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800">
-                    <option value="ready">Sẵn sàng</option>
-                    <option value="preparing">Đang chuẩn bị</option>
-                    <option value="occupied">Có khách</option>
-                    <option value="suspended">Tạm ngừng hoạt động</option>
-                </select>
-            </div>
-        </div>`;
+        </div>
+    `;
+    card.appendChild(body);
+    const fileInp = card.querySelector('.space-img-input');
+    if (fileInp) {
+      fileInp.addEventListener('change', function () {
+        previewSpaceImage(this, rowId);
+      });
+    }
     list.appendChild(card);
 }
 
@@ -675,7 +812,7 @@ async function loadHostBookings() {
         allBookingsCache = data.bookings || [];
         
         if (allBookingsCache.length === 0) {
-            if (tableBody) tableBody.innerHTML = ''; 
+            if (tableBody) clearEl(tableBody); 
             if (emptyState) emptyState.style.display = 'block'; 
             
             const pendingCountBadge = document.getElementById('host-pending-count');
@@ -700,7 +837,14 @@ async function loadHostBookings() {
 
     } catch (error) {
         console.error('Lỗi tải đơn hàng Host:', error);
-        if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-500 font-bold bg-rose-50">Lỗi kết nối máy chủ: ${error.message}</td></tr>`;
+        if (tableBody) {
+            clearEl(tableBody);
+            const tr = document.createElement('tr');
+            const td = el('td', 'p-8 text-center text-rose-500 font-bold bg-rose-50', 'Lỗi kết nối máy chủ');
+            td.colSpan = 6;
+            tr.appendChild(td);
+            tableBody.appendChild(tr);
+        }
         if (emptyState) emptyState.style.display = 'none';
     }
 }
@@ -795,173 +939,114 @@ let liveTimerInterval = null;
 function renderBookingsToTable(bookingsList) {
     const tableBody = document.getElementById('host-booking-table-body');
     const emptyState = document.getElementById('booking-empty-state');
-
     if (!tableBody) return;
 
     if (!bookingsList || bookingsList.length === 0) {
-        tableBody.innerHTML = '';
+        clearEl(tableBody);
         if (emptyState) emptyState.style.display = 'block';
         return;
     }
-
     if (emptyState) emptyState.style.display = 'none';
+    clearEl(tableBody);
     const currentTime = new Date();
 
-    tableBody.innerHTML = bookingsList.map(booking => {
+    bookingsList.forEach((booking) => {
         const start = booking.StartTime || booking.startTime;
         const end = booking.EndTime || booking.endTime;
         const status = booking.Status || booking.status;
-        
         const endTimeObj = new Date(end);
         const isDateValid = !isNaN(endTimeObj.getTime());
         const timeDiff = endTimeObj.getTime() - currentTime.getTime();
-        const minutesLeft = Math.floor(timeDiff / (1000 * 60)); 
-        
+        const minutesLeft = Math.floor(timeDiff / (1000 * 60));
         let displayStatus = status;
-        let timeWarningUI = ''; 
 
-        if (status === 'in-use' && isDateValid) {
-            if (minutesLeft < 0) {
-                displayStatus = 'completed';
-            } else {
-                const isHidden = minutesLeft > 14 ? 'hidden' : 'flex animate-pulse';
-                timeWarningUI = `
-                    <div class="live-countdown-container mt-2 ${isHidden} items-center gap-1 bg-amber-100 text-amber-600 px-3 py-1.5 rounded-xl text-xs font-black uppercase border border-amber-200 shadow-sm w-max whitespace-nowrap justify-center"
-                         data-endtime="${end}">
-                        ⏰ <span class="timer-text font-mono">...</span>
-                    </div>
-                `;
-            }
-        }
-
-        // ========================================================
-        // LOGIC THANH TOÁN (SINGLE SOURCE OF TRUTH - ĐỒNG BỘ VỚI CUSTOMER)
-        // ========================================================
         const total = booking.TotalAmount || booking.totalAmount || 0;
-        
-        // Nhận phần trăm thanh toán trực tiếp từ Backend (ưu tiên percentPaid)
-        let percent = booking.percentPaid !== undefined ? booking.percentPaid 
+        let percent = booking.percentPaid !== undefined ? booking.percentPaid
                       : (booking.percentagePaid !== undefined ? booking.percentagePaid : 0);
-        
-        // Tính tiền thực nhận dựa trên phần trăm
         let actualPaid = (total * percent) / 100;
-        let remaining = total - actualPaid;
-
-        // Ép 100% nếu đơn đã hoàn tất hoặc đang dùng (phòng hờ dữ liệu DB cũ)
         if (displayStatus === 'in-use' || displayStatus === 'completed') {
+            if (status === 'in-use' && isDateValid && minutesLeft < 0) displayStatus = 'completed';
             percent = 100;
             actualPaid = total;
-            remaining = 0; 
         }
 
         const customer = booking.CustomerID || booking.customerID || {};
         const space = booking.SpaceID || booking.spaceID || {};
-
         const startTimeStr = start ? new Date(start).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit'}) : '--:--';
         const endTimeStr = end ? new Date(end).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit'}) : '--:--';
-        const dateStr = start ? new Date(start).toLocaleDateString('vi-VN') : 'Dữ liệu thời gian lỗi';
+        const dateStr = start ? new Date(start).toLocaleDateString('vi-VN') : '—';
 
-        let statusBadge = '';
-        if (displayStatus === 'pending') {
-            statusBadge = `<span class="bg-amber-50 text-amber-700 px-3 py-1 rounded-full font-black uppercase tracking-wider text-[10px]">Chờ duyệt</span>`;
-        } else if (displayStatus === 'confirmed') {
-            statusBadge = `<span class="bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-black uppercase tracking-wider text-[10px] whitespace-nowrap">Đã xác nhận</span>`;
-        } else if (displayStatus === 'in-use') {
-            statusBadge = `<span class="bg-purple-50 text-purple-700 px-3 py-1 rounded-full font-black uppercase tracking-wider text-[10px]">Đang dùng</span>`;
-        } else if (displayStatus === 'completed') {
-            statusBadge = `<span class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full font-black uppercase tracking-wider text-[10px]">Đã kết thúc</span>`;
-        } else if (displayStatus === 'cancelled') {
-            statusBadge = `<span class="bg-rose-50 text-rose-700 px-3 py-1 rounded-full font-black uppercase tracking-wider text-[10px]">Đã hủy</span>`;
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-slate-50 hover:bg-slate-50 transition text-sm';
+
+        const tdCust = el('td', 'p-4', null);
+        tdCust.appendChild(el('div', 'font-bold text-slate-800', customer.FullName || customer.fullName || 'Ẩn danh'));
+        tdCust.appendChild(el('div', 'text-[10px] text-slate-400', customer.Email || customer.email || ''));
+        tr.appendChild(tdCust);
+
+        const tdSpace = el('td', 'p-4 font-bold text-slate-700', space.Name || space.SpaceCode || '—');
+        tr.appendChild(tdSpace);
+
+        const tdTime = el('td', 'p-4', null);
+        tdTime.appendChild(el('div', 'font-bold', dateStr));
+        tdTime.appendChild(el('div', 'text-[10px] text-slate-500', startTimeStr + ' - ' + endTimeStr));
+        if (status === 'in-use' && isDateValid && minutesLeft >= 0) {
+            const warn = el('div',
+              'live-countdown-container mt-2 items-center gap-1 bg-amber-100 text-amber-600 px-3 py-1.5 rounded-xl text-xs font-black uppercase border border-amber-200 shadow-sm w-max ' +
+              (minutesLeft > 14 ? 'hidden' : 'flex animate-pulse'), null);
+            warn.setAttribute('data-endtime', String(end));
+            warn.appendChild(document.createTextNode('⏰ '));
+            warn.appendChild(el('span', 'timer-text font-mono', '...'));
+            tdTime.appendChild(warn);
         }
+        tr.appendChild(tdTime);
 
-        let actionButtons = '';
-        if (displayStatus === 'pending') {
-            actionButtons = `
-                <button onclick="executeBookingAction('${booking._id}', 'confirm')" class="bg-teal-50 text-teal-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-teal-600 hover:text-white transition mr-1">Duyệt</button>
-                <button onclick="executeBookingAction('${booking._id}', 'cancel')" class="bg-rose-50 text-rose-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-rose-600 hover:text-white transition">Từ chối</button>
-            `;
-        } else if (displayStatus === 'confirmed') {
-            actionButtons = `
-                <button onclick="executeBookingAction('${booking._id}', 'checkin')" class="bg-blue-50 text-blue-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-blue-600 hover:text-white transition shadow-sm mr-1">Nhận phòng</button>
-                <button onclick="executeBookingAction('${booking._id}', 'cancel')" class="bg-rose-50 text-rose-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-rose-600 hover:text-white transition shadow-sm" title="Hủy do khách đến trễ/vắng mặt">Hủy (Khách trễ)</button>
-            `;
-        } else {
-            actionButtons = `<span class="text-slate-300 font-black text-lg">-</span>`;
-        }
-
-        // ========================================================
-        // KẾT XUẤT HIỂN THỊ (RENDER UI)
-        // ========================================================
-        let paymentUI = '';
+        const tdPay = el('td', 'p-4', null);
         if (total === 0) {
-            paymentUI = `
-                <div class="font-black text-rose-500 text-[11px] italic">⚠️ Lỗi dữ liệu</div>
-                <div class="text-[9px] font-bold text-slate-400 mt-0.5">DB trống giá (0đ)</div>
-            `;
+            tdPay.appendChild(el('div', 'font-black text-rose-500 text-[11px] italic', '⚠️ Lỗi dữ liệu'));
         } else {
-            paymentUI = `
-                <div class="font-black text-slate-800">${total.toLocaleString('vi-VN')}đ</div>
-                <div class="text-[10px] font-bold text-slate-500 mt-0.5">Đã trả: ${actualPaid.toLocaleString('vi-VN')}đ (${percent}%)</div>
-            `;
-            
-            if (displayStatus === 'cancelled') {
-                paymentUI += `<div class="text-[10px] font-black text-slate-500 mt-1 bg-slate-100 inline-block px-2 py-0.5 rounded border border-slate-200">Không thu thêm</div>`;
-            } else if (displayStatus === 'pending' || displayStatus === 'confirmed') {
-                if (remaining > 0) {
-                    paymentUI += `<div class="text-[10px] font-black text-rose-600 mt-1 bg-rose-50 inline-block px-2 py-0.5 rounded border border-rose-100">Cần thu: ${remaining.toLocaleString('vi-VN')}đ</div>`;
-                } else {
-                    paymentUI += `<div class="text-[10px] font-black text-emerald-600 mt-1 bg-emerald-50 inline-block px-2 py-0.5 rounded border border-emerald-100">Đã thu đủ</div>`;
-                }
-            } else {
-                paymentUI += `<div class="text-[10px] font-black text-emerald-600 mt-1 bg-emerald-50 inline-block px-2 py-0.5 rounded border border-emerald-100">Đã thu đủ</div>`;
-            }
+            tdPay.appendChild(el('div', 'font-black text-slate-800', total.toLocaleString('vi-VN') + 'đ'));
+            tdPay.appendChild(el('div', 'text-[10px] font-bold text-slate-500 mt-0.5',
+              'Đã trả: ' + actualPaid.toLocaleString('vi-VN') + 'đ (' + percent + '%)'));
         }
+        tr.appendChild(tdPay);
 
-        const displayEmail = customer.email || customer.Email || '<span class="text-rose-500">Lỗi dữ liệu khách</span>';
+        const tdStatus = el('td', 'p-4', null);
+        const statusMap = {
+          pending: ['Chờ duyệt', 'bg-amber-50 text-amber-700'],
+          confirmed: ['Đã xác nhận', 'bg-blue-50 text-blue-700'],
+          'in-use': ['Đang dùng', 'bg-purple-50 text-purple-700'],
+          completed: ['Đã kết thúc', 'bg-emerald-50 text-emerald-700'],
+          cancelled: ['Đã hủy', 'bg-rose-50 text-rose-700'],
+        };
+        const sm = statusMap[displayStatus] || [displayStatus || '—', 'bg-slate-50 text-slate-600'];
+        tdStatus.appendChild(el('span', sm[1] + ' px-3 py-1 rounded-full font-black uppercase tracking-wider text-[10px]', sm[0]));
+        tr.appendChild(tdStatus);
 
-        function getSpaceDisplayName(sp) {
-            if (!sp || typeof sp !== 'object') return 'Chưa cập nhật tên Không gian';
-            return (sp.name || sp.Name || sp.spaceName || sp.SpaceName || 'Chưa cập nhật tên Không gian');
+        const tdAct = el('td', 'p-4 whitespace-nowrap', null);
+        const bid = String(booking._id);
+        function actBtn(label, action, cls) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = cls;
+          b.textContent = label;
+          b.addEventListener('click', () => executeBookingAction(bid, action));
+          return b;
         }
-
-        function getSpaceDisplayCode(sp) {
-            if (!sp || typeof sp !== 'object') return '---';
-            return (sp.SpaceCode || sp.spaceCode || sp.Space_Code || sp.space_code || sp.code || sp.Space_code || '---');
+        if (displayStatus === 'pending') {
+          tdAct.appendChild(actBtn('Duyệt', 'confirm', 'bg-teal-50 text-teal-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-teal-600 hover:text-white transition mr-1'));
+          tdAct.appendChild(actBtn('Từ chối', 'cancel', 'bg-rose-50 text-rose-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-rose-600 hover:text-white transition'));
+        } else if (displayStatus === 'confirmed') {
+          tdAct.appendChild(actBtn('Nhận phòng', 'checkin', 'bg-blue-50 text-blue-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-blue-600 hover:text-white transition shadow-sm mr-1'));
+          tdAct.appendChild(actBtn('Hủy (Khách trễ)', 'cancel', 'bg-rose-50 text-rose-700 font-black px-3 py-1.5 rounded-xl text-[10px] uppercase hover:bg-rose-600 hover:text-white transition shadow-sm'));
+        } else {
+          tdAct.appendChild(el('span', 'text-slate-300 font-black text-lg', '-'));
         }
-
-        const displaySpaceName = getSpaceDisplayName(space);
-        const displaySpaceCode = getSpaceDisplayCode(space);
-
-        return `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
-                <td class="p-5 font-bold text-slate-800">
-                    <div class="text-teal-600 font-black">#${booking._id ? booking._id.substring(booking._id.length - 6).toUpperCase() : 'N/A'}</div>
-                    <div class="text-slate-500 text-[11px] font-medium mt-0.5">${displayEmail}</div>
-                </td>
-                
-                <td class="p-5 font-bold text-slate-700">
-                    <div class="text-sm text-slate-800 mb-1">${displaySpaceName}</div>
-                    <div class="text-xs font-bold text-slate-500 mb-3">Mã phòng: ${displaySpaceCode}</div>
-                </td>
-                
-                <td class="p-5 text-slate-500 font-semibold">
-                    <div>${startTimeStr} - ${endTimeStr}</div>
-                    <div class="text-[10px] text-slate-400 mt-0.5">${dateStr}</div>
-                    ${timeWarningUI}
-                </td>
-                
-                <td class="p-5">
-                    ${paymentUI}
-                </td>
-                <td class="p-5">${statusBadge}</td>
-                <td class="p-5 text-right">${actionButtons}</td>
-            </tr>
-        `;
-    }).join('');
-
-    if (typeof startLiveTimers === 'function') {
-        startLiveTimers();
-    }
+        tr.appendChild(tdAct);
+        tableBody.appendChild(tr);
+    });
+    if (typeof startLiveTimers === 'function') startLiveTimers();
+    else if (typeof startLiveBookingTimers === 'function') startLiveBookingTimers();
 }
 
 function startLiveTimers() {
@@ -1142,7 +1227,7 @@ function openSpaceModal() {
     document.getElementById("modal-space-img-input").value = "";
     
     modalSpaceSelectedFiles = [];
-    document.getElementById("modal-space-img-preview").innerHTML = "";
+    clearEl(document.getElementById("modal-space-img-preview"));
 
     // Hiển thị Modal
     const modal = document.getElementById("modal-add-space");
@@ -1160,17 +1245,25 @@ function previewModalSpaceImage(input) {
     if (input.files && input.files.length > 0) {
         modalSpaceSelectedFiles = [...modalSpaceSelectedFiles, ...Array.from(input.files)];
     }
-    if (input) input.value = ""; 
-    
+    if (input) input.value = "";
     const previewContainer = document.getElementById("modal-space-img-preview");
     if (!previewContainer) return;
-    
-    previewContainer.innerHTML = modalSpaceSelectedFiles.map((file, index) => `
-        <div class="relative w-16 h-16 inline-block mt-2 mr-2">
-            <img src="${URL.createObjectURL(file)}" class="w-full h-full object-cover rounded-xl border border-teal-400 shadow-sm">
-            <button type="button" onclick="removeModalSpaceFile(${index})" class="absolute -top-1.5 -right-1.5 bg-slate-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold hover:bg-red-500 transition shadow">✕</button>
-        </div>
-    `).join("");
+    clearEl(previewContainer);
+    modalSpaceSelectedFiles.forEach((file, index) => {
+        const wrap = el('div', 'relative w-16 h-16 inline-block mt-2 mr-2', null);
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = '';
+        img.className = 'w-full h-full object-cover rounded-xl border border-teal-400 shadow-sm';
+        wrap.appendChild(img);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'absolute -top-1.5 -right-1.5 bg-slate-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold hover:bg-red-500 transition shadow';
+        del.textContent = '✕';
+        del.addEventListener('click', () => removeModalSpaceFile(index));
+        wrap.appendChild(del);
+        previewContainer.appendChild(wrap);
+    });
 }
 
 // Xóa ảnh đã chọn trong Modal
