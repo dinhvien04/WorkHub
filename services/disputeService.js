@@ -1,43 +1,51 @@
-'use strict';
+"use strict";
 
-const Dispute = require('../models/Dispute');
-const Booking = require('../models/Booking');
-const refundService = require('./refundService');
-const { notifyUser } = require('./notificationService');
-const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
+const Dispute = require("../models/Dispute");
+const Booking = require("../models/Booking");
+const refundService = require("./refundService");
+const { notifyUser } = require("./notificationService");
+const {
+  ValidationError,
+  NotFoundError,
+  ForbiddenError,
+} = require("../utils/errors");
 
 async function openDispute({ bookingId, userId, reason }) {
   const booking = await Booking.findById(bookingId);
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   if (
     String(booking.CustomerID) !== String(userId) &&
     String(booking.HostID) !== String(userId)
   ) {
-    throw new ForbiddenError('Không có quyền mở dispute.');
+    throw new ForbiddenError("Không có quyền mở dispute.");
   }
   const existing = await Dispute.findOne({
     BookingID: bookingId,
-    Status: { $in: ['open', 'under_review', 'appealed'] },
+    Status: { $in: ["open", "under_review", "appealed"] },
   });
-  if (existing) throw new ValidationError('Đã có dispute đang mở.');
+  if (existing) throw new ValidationError("Đã có dispute đang mở.");
 
   const d = await Dispute.create({
     BookingID: bookingId,
     CustomerID: booking.CustomerID,
     HostID: booking.HostID,
     OpenedBy: userId,
-    Reason: String(reason || '').slice(0, 2000),
-    Status: 'open',
+    Reason: String(reason || "").slice(0, 2000),
+    Status: "open",
   });
-  booking.Status = booking.Status === 'completed' ? 'completed' : booking.Status;
+  booking.Status =
+    booking.Status === "completed" ? "completed" : booking.Status;
   await booking.save();
 
   await notifyUser({
-    userId: String(booking.CustomerID) === String(userId) ? booking.HostID : booking.CustomerID,
-    title: 'Dispute mới',
-    body: String(reason || '').slice(0, 120),
-    type: 'admin',
-    entityType: 'Dispute',
+    userId:
+      String(booking.CustomerID) === String(userId)
+        ? booking.HostID
+        : booking.CustomerID,
+    title: "Dispute mới",
+    body: String(reason || "").slice(0, 120),
+    type: "admin",
+    entityType: "Dispute",
     entityId: d._id,
   });
   return d;
@@ -45,8 +53,8 @@ async function openDispute({ bookingId, userId, reason }) {
 
 async function listDisputes({ role, userId, status, page = 1, limit = 20 }) {
   const filter = {};
-  if (role === 'customer') filter.CustomerID = userId;
-  else if (role === 'host') filter.HostID = userId;
+  if (role === "customer") filter.CustomerID = userId;
+  else if (role === "host") filter.HostID = userId;
   if (status) filter.Status = status;
   const skip = (page - 1) * limit;
   const [items, total] = await Promise.all([
@@ -56,22 +64,28 @@ async function listDisputes({ role, userId, status, page = 1, limit = 20 }) {
   return { items, total, page, limit };
 }
 
-async function resolveDispute({ disputeId, adminId, resolution, refundAmount = 0, reject = false }) {
+async function resolveDispute({
+  disputeId,
+  adminId,
+  resolution,
+  refundAmount = 0,
+  reject = false,
+}) {
   const d = await Dispute.findById(disputeId);
-  if (!d) throw new NotFoundError('Không tìm thấy dispute.');
-  if (!['open', 'under_review', 'appealed'].includes(d.Status)) {
-    throw new ValidationError('Dispute không thể resolve.');
+  if (!d) throw new NotFoundError("Không tìm thấy dispute.");
+  if (!["open", "under_review", "appealed"].includes(d.Status)) {
+    throw new ValidationError("Dispute không thể resolve.");
   }
   if (reject) {
-    d.Status = 'rejected';
-    d.Resolution = resolution || 'Rejected';
+    d.Status = "rejected";
+    d.Resolution = resolution || "Rejected";
     d.ResolvedBy = adminId;
     d.ResolvedAt = new Date();
     await d.save();
     return d;
   }
-  d.Status = 'resolved';
-  d.Resolution = resolution || 'Resolved';
+  d.Status = "resolved";
+  d.Resolution = resolution || "Resolved";
   d.RefundAmount = Math.max(0, Number(refundAmount) || 0);
   d.ResolvedBy = adminId;
   d.ResolvedAt = new Date();
@@ -81,7 +95,7 @@ async function resolveDispute({ disputeId, adminId, resolution, refundAmount = 0
     await refundService.requestRefund({
       bookingId: d.BookingID,
       userId: adminId,
-      role: 'admin',
+      role: "admin",
       amount: d.RefundAmount,
       reason: `Dispute ${d._id}: ${d.Resolution}`,
       idempotencyKey: `dispute-refund-${d._id}`,
@@ -92,7 +106,7 @@ async function resolveDispute({ disputeId, adminId, resolution, refundAmount = 0
         refundId: refund._id,
         actorId: adminId,
         approve: true,
-        role: 'admin',
+        role: "admin",
       });
     }
   }
@@ -100,7 +114,7 @@ async function resolveDispute({ disputeId, adminId, resolution, refundAmount = 0
 }
 
 async function RefundLatest(bookingId) {
-  const Refund = require('../models/Refund');
+  const Refund = require("../models/Refund");
   return Refund.findOne({ BookingID: bookingId }).sort({ createdAt: -1 });
 }
 

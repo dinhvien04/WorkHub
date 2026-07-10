@@ -1,32 +1,41 @@
-'use strict';
+"use strict";
 
-const PricingRule = require('../models/PricingRule');
+const PricingRule = require("../models/PricingRule");
 
 /** Duration tier bounds (hours). Longest matching package with a price wins when cheaper. */
 const DURATION_TIERS = [
-  { key: 'monthly', minHours: 160, field: 'PricePerMonth', label: 'Theo tháng' },
-  { key: 'weekly', minHours: 40, field: 'PricePerWeek', label: 'Theo tuần' },
-  { key: 'daily', minHours: 8, field: 'PricePerDay', label: 'Theo ngày' },
-  { key: 'half_day', minHours: 4, field: 'PricePerHalfDay', label: 'Nửa ngày' },
-  { key: 'hourly', minHours: 0, field: null, label: 'Theo giờ' },
+  {
+    key: "monthly",
+    minHours: 160,
+    field: "PricePerMonth",
+    label: "Theo tháng",
+  },
+  { key: "weekly", minHours: 40, field: "PricePerWeek", label: "Theo tuần" },
+  { key: "daily", minHours: 8, field: "PricePerDay", label: "Theo ngày" },
+  { key: "half_day", minHours: 4, field: "PricePerHalfDay", label: "Nửa ngày" },
+  { key: "hourly", minHours: 0, field: null, label: "Theo giờ" },
 ];
 
 /**
  * Pick duration package: use the longest tier that hours meet and price is set.
  * Fall back to pure hourly when no package price exists.
  */
-function selectDurationPackage(hours, durationPrices = {}, basePricePerHour = 0) {
+function selectDurationPackage(
+  hours,
+  durationPrices = {},
+  basePricePerHour = 0,
+) {
   const hourlyTotal = Math.max(0, Math.round(basePricePerHour * hours));
   let chosen = {
-    tier: 'hourly',
-    label: 'Theo giờ',
+    tier: "hourly",
+    label: "Theo giờ",
     packagePrice: null,
     billableHours: hours,
     baseAmount: hourlyTotal,
   };
 
   for (const tier of DURATION_TIERS) {
-    if (tier.key === 'hourly') continue;
+    if (tier.key === "hourly") continue;
     if (hours < tier.minHours) continue;
     const price = durationPrices[tier.field];
     if (price == null || Number(price) <= 0) continue;
@@ -61,17 +70,19 @@ function applyRulesToUnit(unit, hours, startDate, rules) {
   const applied = [];
   let next = unit;
 
-  const sorted = [...rules].sort((a, b) => (a.Priority ?? 100) - (b.Priority ?? 100));
+  const sorted = [...rules].sort(
+    (a, b) => (a.Priority ?? 100) - (b.Priority ?? 100),
+  );
 
   for (const r of sorted) {
-    if (r.Status && r.Status !== 'active' && r.Status !== 'preview') continue;
+    if (r.Status && r.Status !== "active" && r.Status !== "preview") continue;
     if (r.DayOfWeek?.length && !r.DayOfWeek.includes(dow)) continue;
     if (r.HourStart != null && r.HourEnd != null) {
       if (hour < r.HourStart || hour >= r.HourEnd) continue;
     }
     if (r.MinHours != null && hours < r.MinHours) continue;
-    if (r.Type === 'weekend' && dow !== 0 && dow !== 6) continue;
-    if (r.Type === 'last_minute') {
+    if (r.Type === "weekend" && dow !== 0 && dow !== 6) continue;
+    if (r.Type === "last_minute") {
       const hoursUntil = (startDate - new Date()) / 3600000;
       if (hoursUntil > 24) continue;
     }
@@ -83,7 +94,7 @@ function applyRulesToUnit(unit, hours, startDate, rules) {
       multiplier: r.Multiplier,
       fixedAdjust: r.FixedAdjust || 0,
       priority: r.Priority ?? 100,
-      status: r.Status || 'active',
+      status: r.Status || "active",
     });
   }
 
@@ -125,13 +136,13 @@ async function quotePrice({
     query.$and = [
       {
         $or: [
-          { Status: 'active' },
-          { _id: { $in: includeDraftIds }, Status: 'draft' },
+          { Status: "active" },
+          { _id: { $in: includeDraftIds }, Status: "draft" },
         ],
       },
     ];
   } else {
-    query.Status = 'active';
+    query.Status = "active";
   }
 
   const dbRules = await PricingRule.find(query).sort({ Priority: 1 }).lean();
@@ -139,26 +150,32 @@ async function quotePrice({
   // Mark draft ones as preview for appliedRules display
   const rules = [
     ...dbRules.map((r) =>
-      r.Status === 'draft' ? { ...r, Status: 'preview' } : r
+      r.Status === "draft" ? { ...r, Status: "preview" } : r,
     ),
-    ...extraRules.map((r) => ({ ...r, Status: r.Status || 'preview' })),
+    ...extraRules.map((r) => ({ ...r, Status: r.Status || "preview" })),
   ];
 
   // For package tiers, apply rules as a factor on package total via effective hourly
   let unit = basePricePerHour;
-  const { unit: adjustedUnit, applied } = applyRulesToUnit(unit, hours, startDate, rules);
+  const { unit: adjustedUnit, applied } = applyRulesToUnit(
+    unit,
+    hours,
+    startDate,
+    rules,
+  );
   unit = adjustedUnit;
 
   let totalAmount;
   let pricePerHour;
-  if (pkg.tier === 'hourly' || !pkg.packagePrice) {
+  if (pkg.tier === "hourly" || !pkg.packagePrice) {
     totalAmount = Math.max(0, Math.round(unit * hours));
     pricePerHour = Math.round(unit);
   } else {
     // Scale package by same ratio as hourly adjustment
     const ratio = basePricePerHour > 0 ? unit / basePricePerHour : 1;
     totalAmount = Math.max(0, Math.round(pkg.baseAmount * ratio));
-    pricePerHour = hours > 0 ? Math.round(totalAmount / hours) : Math.round(unit);
+    pricePerHour =
+      hours > 0 ? Math.round(totalAmount / hours) : Math.round(unit);
   }
 
   return {
@@ -206,8 +223,8 @@ async function previewPricingRule({
   } else if (rule) {
     extraRules = [
       {
-        Name: rule.name || rule.Name || 'Preview',
-        Type: rule.type || rule.Type || 'peak_hour',
+        Name: rule.name || rule.Name || "Preview",
+        Type: rule.type || rule.Type || "peak_hour",
         Multiplier: Number(rule.multiplier ?? rule.Multiplier ?? 1),
         FixedAdjust: Number(rule.fixedAdjust ?? rule.FixedAdjust ?? 0),
         Priority: Number(rule.priority ?? rule.Priority ?? 100),
@@ -215,7 +232,7 @@ async function previewPricingRule({
         HourStart: rule.hourStart ?? rule.HourStart ?? null,
         HourEnd: rule.hourEnd ?? rule.HourEnd ?? null,
         MinHours: rule.minHours ?? rule.MinHours ?? null,
-        Status: 'preview',
+        Status: "preview",
       },
     ];
   }
@@ -238,7 +255,11 @@ async function previewPricingRule({
     delta: withRule.totalAmount - without.totalAmount,
     deltaPercent:
       without.totalAmount > 0
-        ? Math.round(((withRule.totalAmount - without.totalAmount) / without.totalAmount) * 10000) / 100
+        ? Math.round(
+            ((withRule.totalAmount - without.totalAmount) /
+              without.totalAmount) *
+              10000,
+          ) / 100
         : 0,
   };
 }
@@ -249,11 +270,11 @@ async function previewPricingRule({
 async function publishPricingRule({ hostId, ruleId }) {
   const rule = await PricingRule.findOne({ _id: ruleId, HostID: hostId });
   if (!rule) {
-    const { NotFoundError } = require('../utils/errors');
-    throw new NotFoundError('Không tìm thấy pricing rule.');
+    const { NotFoundError } = require("../utils/errors");
+    throw new NotFoundError("Không tìm thấy pricing rule.");
   }
-  if (rule.Status === 'active') return rule;
-  rule.Status = 'active';
+  if (rule.Status === "active") return rule;
+  rule.Status = "active";
   await rule.save();
   return rule;
 }

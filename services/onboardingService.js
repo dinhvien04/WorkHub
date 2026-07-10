@@ -1,8 +1,8 @@
-'use strict';
+"use strict";
 
-const HostProfile = require('../models/Host_Profile');
-const Branch = require('../models/Branch');
-const Space = require('../models/Space');
+const HostProfile = require("../models/Host_Profile");
+const Branch = require("../models/Branch");
+const Space = require("../models/Space");
 
 /**
  * Host onboarding checklist with progress 0–100.
@@ -13,65 +13,65 @@ async function getHostOnboarding(hostId) {
   const spaceCount = await Space.countDocuments({ HostID: hostId });
   const publishedSpaces = await Space.countDocuments({
     HostID: hostId,
-    Status: 'available',
+    Status: "available",
   });
 
   const steps = [
     {
-      id: 'account',
-      label: 'Tài khoản host',
+      id: "account",
+      label: "Tài khoản host",
       done: true,
-      href: '/host/dashboard',
-      cta: 'Vào dashboard',
+      href: "/host/dashboard",
+      cta: "Vào dashboard",
     },
     {
-      id: 'business',
-      label: 'Thông tin doanh nghiệp',
+      id: "business",
+      label: "Thông tin doanh nghiệp",
       done: !!(profile?.CompanyName && profile?.Hotline),
-      href: '/host/profile',
-      cta: 'Cập nhật hồ sơ',
+      href: "/host/profile",
+      cta: "Cập nhật hồ sơ",
     },
     {
-      id: 'document',
-      label: 'Giấy tờ xác minh',
+      id: "document",
+      label: "Giấy tờ xác minh",
       done: !!profile?.VerificationDocument,
-      href: '/host/profile',
-      cta: 'Tải giấy tờ',
+      href: "/host/profile",
+      cta: "Tải giấy tờ",
     },
     {
-      id: 'payout',
-      label: 'Tài khoản nhận tiền',
+      id: "payout",
+      label: "Tài khoản nhận tiền",
       done: !!(profile?.BankName && profile?.BankNumber),
-      href: '/host/profile',
-      cta: 'Thêm ngân hàng',
+      href: "/host/profile",
+      cta: "Thêm ngân hàng",
     },
     {
-      id: 'first_branch',
-      label: 'Chi nhánh đầu tiên',
+      id: "first_branch",
+      label: "Chi nhánh đầu tiên",
       done: branchCount > 0,
-      href: '/host/spaces',
-      cta: 'Tạo chi nhánh',
+      href: "/host/spaces",
+      cta: "Tạo chi nhánh",
     },
     {
-      id: 'first_space',
-      label: 'Không gian đầu tiên',
+      id: "first_space",
+      label: "Không gian đầu tiên",
       done: spaceCount > 0,
-      href: '/host/spaces',
-      cta: 'Tạo không gian',
+      href: "/host/spaces",
+      cta: "Tạo không gian",
     },
     {
-      id: 'verified',
-      label: 'Admin đã duyệt',
+      id: "verified",
+      label: "Admin đã duyệt",
       done: !!profile?.IsVerified,
-      href: '/host/onboarding',
-      cta: 'Chờ duyệt',
+      href: "/host/onboarding",
+      cta: "Chờ duyệt",
     },
     {
-      id: 'publish',
-      label: 'Có listing available',
+      id: "publish",
+      label: "Có listing available",
       done: publishedSpaces > 0,
-      href: '/host/spaces',
-      cta: 'Xuất bản listing',
+      href: "/host/spaces",
+      cta: "Xuất bản listing",
     },
   ];
 

@@ -1,8 +1,8 @@
-'use strict';
+"use strict";
 
-const logger = require('../utils/logger');
-const env = require('../config/env');
-const emailTemplates = require('./emailTemplates');
+const logger = require("../utils/logger");
+const env = require("../config/env");
+const emailTemplates = require("./emailTemplates");
 
 const outbox = [];
 
@@ -10,13 +10,13 @@ function publicBaseUrl() {
   return (
     process.env.PUBLIC_BASE_URL ||
     process.env.APP_URL ||
-    'http://localhost:3000'
-  ).replace(/\/$/, '');
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
 }
 
 async function sendViaResend({ to, subject, text, html }) {
   if (!env.RESEND_API_KEY) {
-    throw new Error('RESEND_API_KEY is not configured');
+    throw new Error("RESEND_API_KEY is not configured");
   }
   const body = {
     from: env.EMAIL_FROM,
@@ -26,11 +26,11 @@ async function sendViaResend({ to, subject, text, html }) {
   };
   if (html) body.html = html;
 
-  const res = await globalThis.fetch('https://api.resend.com/emails', {
-    method: 'POST',
+  const res = await globalThis.fetch("https://api.resend.com/emails", {
+    method: "POST",
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
   });
@@ -38,25 +38,25 @@ async function sendViaResend({ to, subject, text, html }) {
     const errBody = await res.text();
     throw new Error(`Resend failed: ${res.status} ${errBody}`);
   }
-  return { ok: true, provider: 'resend' };
+  return { ok: true, provider: "resend" };
 }
 
 async function dispatch({ to, subject, text, html }) {
   const payload = {
     to,
-    subject: subject || 'WorkHub',
-    body: text || '',
-    html: html || '',
+    subject: subject || "WorkHub",
+    body: text || "",
+    html: html || "",
     createdAt: new Date(),
   };
 
   if (env.isProduction) {
     if (!env.EMAIL_PROVIDER || !env.EMAIL_FROM) {
       throw new Error(
-        'Email provider is not configured for production (EMAIL_PROVIDER, EMAIL_FROM).'
+        "Email provider is not configured for production (EMAIL_PROVIDER, EMAIL_FROM).",
       );
     }
-    if (env.EMAIL_PROVIDER === 'resend') {
+    if (env.EMAIL_PROVIDER === "resend") {
       await sendViaResend({
         to,
         subject: payload.subject,
@@ -64,21 +64,21 @@ async function dispatch({ to, subject, text, html }) {
         html: payload.html || undefined,
       });
       logger.info(`Email dispatched to ${to}: ${payload.subject}`);
-      return { ok: true, provider: 'resend' };
+      return { ok: true, provider: "resend" };
     }
     throw new Error(`Unsupported EMAIL_PROVIDER: ${env.EMAIL_PROVIDER}`);
   }
 
   outbox.push(payload);
   logger.info(`[DEV EMAIL] queued for ${to}: ${payload.subject}`);
-  return { ok: true, provider: 'dev-outbox' };
+  return { ok: true, provider: "dev-outbox" };
 }
 
 /**
  * Render template + send. Never throws to callers via safeSend helpers.
  */
 async function sendTemplate(templateName, { to, ...data }) {
-  if (!to) throw new Error('Missing email recipient');
+  if (!to) throw new Error("Missing email recipient");
   const rendered = emailTemplates.render(templateName, {
     ...data,
     baseUrl: data.baseUrl || publicBaseUrl(),
@@ -100,7 +100,7 @@ function safeSendTemplate(templateName, opts) {
 }
 
 async function sendPasswordResetOtp({ to, otp }) {
-  return sendTemplate('password_reset', { to, otp });
+  return sendTemplate("password_reset", { to, otp });
 }
 
 async function sendGeneric({ to, subject, text, html }) {
@@ -108,7 +108,7 @@ async function sendGeneric({ to, subject, text, html }) {
     return dispatch({ to, subject, text, html });
   }
   // Prefer generic template for HTML wrapper
-  const rendered = emailTemplates.render('generic', {
+  const rendered = emailTemplates.render("generic", {
     subject,
     title: subject,
     body: text,

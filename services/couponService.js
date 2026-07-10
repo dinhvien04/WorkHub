@@ -1,12 +1,16 @@
-'use strict';
+"use strict";
 
-const Coupon = require('../models/Coupon');
-const CouponRedemption = require('../models/CouponRedemption');
-const { ValidationError, NotFoundError, ConflictError } = require('../utils/errors');
+const Coupon = require("../models/Coupon");
+const CouponRedemption = require("../models/CouponRedemption");
+const {
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+} = require("../utils/errors");
 
 function computeDiscount(coupon, orderAmount) {
   let discount = 0;
-  if (coupon.Type === 'percent') {
+  if (coupon.Type === "percent") {
     discount = Math.round((orderAmount * coupon.Value) / 100);
   } else {
     discount = Math.round(coupon.Value);
@@ -18,36 +22,47 @@ function computeDiscount(coupon, orderAmount) {
   return Math.max(0, discount);
 }
 
-async function validateCoupon({ code, userId, orderAmount, branchId = null, hostId = null }) {
-  if (!code) throw new ValidationError('Thiếu mã giảm giá.');
+async function validateCoupon({
+  code,
+  userId,
+  orderAmount,
+  branchId = null,
+  hostId = null,
+}) {
+  if (!code) throw new ValidationError("Thiếu mã giảm giá.");
   const coupon = await Coupon.findOne({
     Code: String(code).trim().toUpperCase(),
-    Status: 'active',
+    Status: "active",
   });
-  if (!coupon) throw new NotFoundError('Mã giảm giá không hợp lệ.');
+  if (!coupon) throw new NotFoundError("Mã giảm giá không hợp lệ.");
 
   const now = new Date();
-  if (coupon.StartsAt && now < coupon.StartsAt) throw new ValidationError('Mã chưa có hiệu lực.');
-  if (coupon.EndsAt && now > coupon.EndsAt) throw new ValidationError('Mã đã hết hạn.');
+  if (coupon.StartsAt && now < coupon.StartsAt)
+    throw new ValidationError("Mã chưa có hiệu lực.");
+  if (coupon.EndsAt && now > coupon.EndsAt)
+    throw new ValidationError("Mã đã hết hạn.");
   if (coupon.MinOrderAmount && orderAmount < coupon.MinOrderAmount) {
-    throw new ValidationError(`Đơn tối thiểu ${coupon.MinOrderAmount.toLocaleString('vi-VN')}đ.`);
+    throw new ValidationError(
+      `Đơn tối thiểu ${coupon.MinOrderAmount.toLocaleString("vi-VN")}đ.`,
+    );
   }
   if (coupon.UsageLimit != null && coupon.UsedCount >= coupon.UsageLimit) {
-    throw new ValidationError('Mã đã hết lượt sử dụng.');
+    throw new ValidationError("Mã đã hết lượt sử dụng.");
   }
   if (coupon.HostID && hostId && String(coupon.HostID) !== String(hostId)) {
-    throw new ValidationError('Mã không áp dụng cho host này.');
+    throw new ValidationError("Mã không áp dụng cho host này.");
   }
   if (coupon.BranchIDs?.length && branchId) {
     const ok = coupon.BranchIDs.some((b) => String(b) === String(branchId));
-    if (!ok) throw new ValidationError('Mã không áp dụng cho cơ sở này.');
+    if (!ok) throw new ValidationError("Mã không áp dụng cho cơ sở này.");
   }
   if (userId && coupon.PerUserLimit) {
     const used = await CouponRedemption.countDocuments({
       CouponID: coupon._id,
       UserID: userId,
     });
-    if (used >= coupon.PerUserLimit) throw new ValidationError('Bạn đã dùng hết lượt mã này.');
+    if (used >= coupon.PerUserLimit)
+      throw new ValidationError("Bạn đã dùng hết lượt mã này.");
   }
 
   const discountAmount = computeDiscount(coupon, orderAmount);
@@ -64,16 +79,20 @@ async function validateCoupon({ code, userId, orderAmount, branchId = null, host
  */
 async function redeemCoupon({ couponId, userId, bookingId, discountAmount }) {
   const coupon = await Coupon.findById(couponId);
-  if (!coupon) throw new NotFoundError('Coupon không tồn tại.');
+  if (!coupon) throw new NotFoundError("Coupon không tồn tại.");
 
   // Conditional global usage limit
-  const filter = { _id: couponId, Status: 'active' };
+  const filter = { _id: couponId, Status: "active" };
   if (coupon.UsageLimit != null) {
     filter.UsedCount = { $lt: coupon.UsageLimit };
   }
-  const updated = await Coupon.findOneAndUpdate(filter, { $inc: { UsedCount: 1 } }, { new: true });
+  const updated = await Coupon.findOneAndUpdate(
+    filter,
+    { $inc: { UsedCount: 1 } },
+    { new: true },
+  );
   if (!updated) {
-    throw new ConflictError('Mã đã hết lượt sử dụng.');
+    throw new ConflictError("Mã đã hết lượt sử dụng.");
   }
 
   // Per-user limit after claim
@@ -85,7 +104,7 @@ async function redeemCoupon({ couponId, userId, bookingId, discountAmount }) {
     if (used >= coupon.PerUserLimit) {
       // Roll back global count
       await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
-      throw new ConflictError('Bạn đã dùng hết lượt mã này.');
+      throw new ConflictError("Bạn đã dùng hết lượt mã này.");
     }
   }
 
@@ -101,7 +120,7 @@ async function redeemCoupon({ couponId, userId, bookingId, discountAmount }) {
     // Roll back usage on duplicate / failure
     await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
     if (err.code === 11000) {
-      throw new ConflictError('Coupon đã được áp dụng cho booking này.');
+      throw new ConflictError("Coupon đã được áp dụng cho booking này.");
     }
     throw err;
   }

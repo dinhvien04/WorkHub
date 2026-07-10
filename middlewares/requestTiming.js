@@ -1,14 +1,14 @@
-'use strict';
+"use strict";
 
-const logger = require('../utils/logger');
-const metrics = require('../utils/metrics');
+const logger = require("../utils/logger");
+const metrics = require("../utils/metrics");
 
 /**
  * Record request duration; set Server-Timing header (no PII).
  */
 function requestTiming(req, res, next) {
   const start = process.hrtime.bigint();
-  res.on('finish', () => {
+  res.on("finish", () => {
     const ns = Number(process.hrtime.bigint() - start);
     const ms = Math.round(ns / 1e6);
     try {
@@ -31,7 +31,7 @@ function requestTiming(req, res, next) {
           requestId: req.requestId,
           traceId: req.trace?.traceId,
         },
-        'slow_or_error_request'
+        "slow_or_error_request",
       );
     }
   });
@@ -40,8 +40,8 @@ function requestTiming(req, res, next) {
     const ns = Number(process.hrtime.bigint() - start);
     const ms = Math.round(ns / 1e6);
     if (!res.headersSent) {
-      res.setHeader('Server-Timing', `app;dur=${ms}`);
-      res.setHeader('X-Response-Time', `${ms}ms`);
+      res.setHeader("Server-Timing", `app;dur=${ms}`);
+      res.setHeader("X-Response-Time", `${ms}ms`);
     }
     return origEnd.apply(this, args);
   };

@@ -28,7 +28,8 @@
     <link rel="stylesheet" href="/css/style.css">
     <% } else { %>
     <% /* Prefer minified bundle when present (npm run build:css) */ %>
-    <link rel="stylesheet" href="/css/app.min.css" onerror="this.onerror=null;this.href='/css/utilities.css';">
+    <% /* Built CSS required in production (npm run build:css); no inline onerror fallback */ %>
+    <link rel="stylesheet" href="/css/app.min.css">
     <link rel="stylesheet" href="/css/style.css">
     <% } %>
     <% if (typeof loadChartJs !== 'undefined' && loadChartJs) { %>

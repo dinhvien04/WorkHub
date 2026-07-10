@@ -1,10 +1,10 @@
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
-const DeadLetter = require('../models/DeadLetter');
-const BackgroundJob = require('../models/BackgroundJob');
-const logger = require('../utils/logger');
+const fs = require("fs");
+const path = require("path");
+const DeadLetter = require("../models/DeadLetter");
+const BackgroundJob = require("../models/BackgroundJob");
+const logger = require("../utils/logger");
 
 /**
  * Durable job queue (Mongo) with retry + dead letter.
@@ -17,14 +17,18 @@ function registerHandler(type, fn) {
   handlers.set(type, fn);
 }
 
-async function withRetry(fn, { queue = 'default', payload = {}, maxAttempts = 3 } = {}) {
+async function withRetry(
+  fn,
+  { queue = "default", payload = {}, maxAttempts = 3 } = {},
+) {
   let lastErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn(attempt);
     } catch (err) {
       lastErr = err;
-      const delay = Math.min(2000, 100 * 2 ** attempt) + Math.floor(Math.random() * 50);
+      const delay =
+        Math.min(2000, 100 * 2 ** attempt) + Math.floor(Math.random() * 50);
       logger.warn(`Queue ${queue} attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -32,16 +36,16 @@ async function withRetry(fn, { queue = 'default', payload = {}, maxAttempts = 3 
   await DeadLetter.create({
     Queue: queue,
     Payload: payload,
-    Error: lastErr?.message || 'unknown',
+    Error: lastErr?.message || "unknown",
     Attempts: maxAttempts,
-    Status: 'open',
+    Status: "open",
   });
   throw lastErr;
 }
 
 async function enqueue({
-  type = 'generic',
-  queue = 'default',
+  type = "generic",
+  queue = "default",
   payload = {},
   ownerUserId = null,
   maxAttempts = 3,
@@ -53,7 +57,7 @@ async function enqueue({
     Payload: payload,
     OwnerUserID: ownerUserId,
     MaxAttempts: maxAttempts,
-    Status: 'queued',
+    Status: "queued",
     RunAfter: runAfter ? new Date(runAfter) : new Date(),
   });
   return job;
@@ -77,15 +81,15 @@ async function processNextJob() {
   const now = new Date();
   const job = await BackgroundJob.findOneAndUpdate(
     {
-      Status: 'queued',
+      Status: "queued",
       RunAfter: { $lte: now },
       Attempts: { $lt: 10 },
     },
     {
-      $set: { Status: 'running' },
+      $set: { Status: "running" },
       $inc: { Attempts: 1 },
     },
-    { sort: { RunAfter: 1, createdAt: 1 }, returnDocument: 'after' }
+    { sort: { RunAfter: 1, createdAt: 1 }, returnDocument: "after" },
   );
   if (!job) return null;
 
@@ -99,20 +103,20 @@ async function processNextJob() {
       payload: { jobId: job._id, type: job.Type, ...job.Payload },
       maxAttempts: Math.min(job.MaxAttempts || 3, 3),
     });
-    job.Status = 'completed';
+    job.Status = "completed";
     job.Result = result || { ok: true };
     job.CompletedAt = new Date();
-    job.Error = '';
+    job.Error = "";
     await job.save();
     try {
-      require('../utils/metrics').incJobsProcessed();
+      require("../utils/metrics").incJobsProcessed();
     } catch {
       /* ignore */
     }
     return job;
   } catch (err) {
-    job.Status = 'failed';
-    job.Error = err.message || 'failed';
+    job.Status = "failed";
+    job.Error = err.message || "failed";
     await job.save();
     return job;
   }
@@ -129,11 +133,18 @@ async function processBatch({ limit = 5 } = {}) {
 }
 
 async function listDeadLetters({ limit = 50 } = {}) {
-  return DeadLetter.find({ Status: 'open' }).sort({ createdAt: -1 }).limit(limit).lean();
+  return DeadLetter.find({ Status: "open" })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
 }
 
 async function discardDeadLetter(id) {
-  return DeadLetter.findByIdAndUpdate(id, { $set: { Status: 'discarded' } }, { new: true });
+  return DeadLetter.findByIdAndUpdate(
+    id,
+    { $set: { Status: "discarded" } },
+    { new: true },
+  );
 }
 
 /**
@@ -142,20 +153,20 @@ async function discardDeadLetter(id) {
 async function replayDeadLetter(id) {
   const dl = await DeadLetter.findById(id);
   if (!dl) {
-    const err = new Error('Dead letter not found');
+    const err = new Error("Dead letter not found");
     err.statusCode = 404;
     throw err;
   }
   const payload = dl.Payload || {};
-  const type = payload.type || 'generic';
+  const type = payload.type || "generic";
   const job = await enqueue({
     type,
-    queue: dl.Queue || 'default',
+    queue: dl.Queue || "default",
     payload: payload.payload || payload,
     ownerUserId: payload.ownerUserId || null,
     maxAttempts: 3,
   });
-  dl.Status = 'replayed';
+  dl.Status = "replayed";
   await dl.save();
   return { deadLetter: dl, job };
 }
@@ -163,17 +174,17 @@ async function replayDeadLetter(id) {
 async function retryFailedJob(jobId) {
   const job = await BackgroundJob.findById(jobId);
   if (!job) {
-    const err = new Error('Job not found');
+    const err = new Error("Job not found");
     err.statusCode = 404;
     throw err;
   }
-  if (job.Status !== 'failed' && job.Status !== 'completed') {
-    const err = new Error('Chỉ retry job failed/completed.');
+  if (job.Status !== "failed" && job.Status !== "completed") {
+    const err = new Error("Chỉ retry job failed/completed.");
     err.statusCode = 400;
     throw err;
   }
-  job.Status = 'queued';
-  job.Error = '';
+  job.Status = "queued";
+  job.Error = "";
   job.RunAfter = new Date();
   job.CompletedAt = null;
   await job.save();
@@ -181,74 +192,73 @@ async function retryFailedJob(jobId) {
 }
 
 // —— Built-in handlers ——
-registerHandler('email', async (payload) => {
-  const emailService = require('./emailService');
+registerHandler("email", async (payload) => {
+  const emailService = require("./emailService");
   await emailService.sendGeneric({
     to: payload.to,
-    subject: payload.subject || 'WorkHub',
-    text: payload.text || payload.body || '',
+    subject: payload.subject || "WorkHub",
+    text: payload.text || payload.body || "",
   });
   return { sent: true, to: payload.to };
 });
 
-registerHandler('export_ledger', async (payload, job) => {
-  const ledgerService = require('./ledgerService');
-  const exportService = require('./exportService');
+registerHandler("export_ledger", async (payload, job) => {
+  const ledgerService = require("./ledgerService");
+  const exportService = require("./exportService");
   const hostId = payload.hostId || job.OwnerUserID;
   const data = await ledgerService.listLedger(hostId, { page: 1, limit: 2000 });
   const csv = exportService.ledgerToCsv(data.items);
-  const dir = path.join(process.cwd(), 'tmp', 'exports');
+  const dir = path.join(process.cwd(), "tmp", "exports");
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `ledger-${hostId}-${Date.now()}.csv`);
-  fs.writeFileSync(file, csv, 'utf8');
+  fs.writeFileSync(file, csv, "utf8");
   return { file: path.relative(process.cwd(), file), rows: data.items.length };
 });
 
-registerHandler('export_bookings', async (payload, job) => {
-  const Booking = require('../models/Booking');
+registerHandler("export_bookings", async (payload, job) => {
+  const Booking = require("../models/Booking");
   const hostId = payload.hostId || job.OwnerUserID;
   const items = await Booking.find({ HostID: hostId })
     .sort({ createdAt: -1 })
     .limit(2000)
     .lean();
-  const header = 'id,status,start,end,total,customer\n';
+  const header = "id,status,start,end,total,customer\n";
   const rows = items
-    .map(
-      (b) =>
-        [
-          b._id,
-          b.Status,
-          b.StartTime?.toISOString?.() || b.StartTime,
-          b.EndTime?.toISOString?.() || b.EndTime,
-          b.TotalAmount,
-          b.CustomerID,
-        ].join(',')
+    .map((b) =>
+      [
+        b._id,
+        b.Status,
+        b.StartTime?.toISOString?.() || b.StartTime,
+        b.EndTime?.toISOString?.() || b.EndTime,
+        b.TotalAmount,
+        b.CustomerID,
+      ].join(","),
     )
-    .join('\n');
-  const dir = path.join(process.cwd(), 'tmp', 'exports');
+    .join("\n");
+  const dir = path.join(process.cwd(), "tmp", "exports");
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `bookings-${hostId}-${Date.now()}.csv`);
-  fs.writeFileSync(file, header + rows + '\n', 'utf8');
+  fs.writeFileSync(file, header + rows + "\n", "utf8");
   return { file: path.relative(process.cwd(), file), rows: items.length };
 });
 
-registerHandler('booking_reminder', async (payload) => {
-  const { notifyUser } = require('./notificationService');
+registerHandler("booking_reminder", async (payload) => {
+  const { notifyUser } = require("./notificationService");
   await notifyUser({
     userId: payload.userId,
-    title: payload.title || 'Nhắc lịch booking',
-    body: payload.body || '',
-    type: 'booking',
-    entityType: 'Booking',
+    title: payload.title || "Nhắc lịch booking",
+    body: payload.body || "",
+    type: "booking",
+    entityType: "Booking",
     entityId: payload.bookingId,
-    link: payload.link || '/history',
+    link: payload.link || "/history",
   });
   try {
-    const pushService = require('./pushService');
+    const pushService = require("./pushService");
     await pushService.notifyPush(payload.userId, {
-      title: payload.title || 'Nhắc lịch booking',
-      body: payload.body || '',
-      url: payload.link || '/history',
+      title: payload.title || "Nhắc lịch booking",
+      body: payload.body || "",
+      url: payload.link || "/history",
     });
   } catch {
     /* optional */
@@ -256,7 +266,7 @@ registerHandler('booking_reminder', async (payload) => {
   return { notified: true };
 });
 
-registerHandler('generic', async (payload) => payload);
+registerHandler("generic", async (payload) => payload);
 
 module.exports = {
   withRetry,

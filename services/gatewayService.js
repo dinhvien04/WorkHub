@@ -1,33 +1,38 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const GatewayPayment = require('../models/GatewayPayment');
-const Booking = require('../models/Booking');
-const PaymentHistory = require('../models/Payment_History');
-const WebhookEvent = require('../models/WebhookEvent');
-const ledgerService = require('./ledgerService');
-const { notifyUser } = require('./notificationService');
-const env = require('../config/env');
+const crypto = require("crypto");
+const GatewayPayment = require("../models/GatewayPayment");
+const Booking = require("../models/Booking");
+const PaymentHistory = require("../models/Payment_History");
+const WebhookEvent = require("../models/WebhookEvent");
+const ledgerService = require("./ledgerService");
+const { notifyUser } = require("./notificationService");
+const env = require("../config/env");
 const {
   ValidationError,
   NotFoundError,
   ForbiddenError,
-} = require('../utils/errors');
-const providers = require('./gatewayProviders');
+} = require("../utils/errors");
+const providers = require("./gatewayProviders");
 
 function webhookSecret() {
   // Never fall back to JWT in production (env validates at startup)
   if (env.isProduction) {
-    return process.env.GATEWAY_WEBHOOK_SECRET || '';
+    return process.env.GATEWAY_WEBHOOK_SECRET || "";
   }
   return process.env.GATEWAY_WEBHOOK_SECRET || env.JWT_SECRET;
 }
 
-function signPayload(body, provider = 'workhub_mock') {
+function signPayload(body, provider = "workhub_mock") {
   return providers.signForProvider(provider, body);
 }
 
-function verifySignature(rawBody, signature, provider = 'workhub_mock', event = null) {
+function verifySignature(
+  rawBody,
+  signature,
+  provider = "workhub_mock",
+  event = null,
+) {
   return providers.verifyForProvider(provider, rawBody, signature, event);
 }
 
@@ -37,7 +42,7 @@ function verifySignature(rawBody, signature, provider = 'workhub_mock', event = 
 async function getPaidNet(bookingId) {
   const payments = await PaymentHistory.find({
     BookingID: bookingId,
-    Status: { $in: ['successful', 'partially_refunded'] },
+    Status: { $in: ["successful", "partially_refunded"] },
   }).lean();
   let paid = 0;
   for (const p of payments) {
@@ -51,10 +56,12 @@ async function getPaidNet(bookingId) {
  * Server-side amount from paymentType. Client must not send amount/provider.
  */
 async function resolveCheckoutAmount(booking, paymentType) {
-  const type = String(paymentType || 'deposit').toLowerCase();
-  const allowed = new Set(['deposit', 'remaining_balance', 'full_payment']);
+  const type = String(paymentType || "deposit").toLowerCase();
+  const allowed = new Set(["deposit", "remaining_balance", "full_payment"]);
   if (!allowed.has(type)) {
-    throw new ValidationError('paymentType không hợp lệ (deposit|remaining_balance|full_payment).');
+    throw new ValidationError(
+      "paymentType không hợp lệ (deposit|remaining_balance|full_payment).",
+    );
   }
 
   const total = Math.round(Number(booking.TotalAmount) || 0);
@@ -62,16 +69,18 @@ async function resolveCheckoutAmount(booking, paymentType) {
   const remaining = Math.max(0, total - paid);
 
   if (remaining <= 0) {
-    throw new ValidationError('Booking đã thanh toán đủ.');
+    throw new ValidationError("Booking đã thanh toán đủ.");
   }
 
   let amount;
-  if (type === 'full_payment') {
+  if (type === "full_payment") {
     if (paid > 0) {
-      throw new ValidationError('full_payment chỉ khi chưa có thanh toán thành công.');
+      throw new ValidationError(
+        "full_payment chỉ khi chưa có thanh toán thành công.",
+      );
     }
     amount = total;
-  } else if (type === 'remaining_balance') {
+  } else if (type === "remaining_balance") {
     amount = remaining;
   } else {
     // deposit: 30% of total, capped by remaining
@@ -83,9 +92,9 @@ async function resolveCheckoutAmount(booking, paymentType) {
   }
 
   amount = Math.round(amount);
-  if (amount <= 0) throw new ValidationError('Số tiền checkout không hợp lệ.');
+  if (amount <= 0) throw new ValidationError("Số tiền checkout không hợp lệ.");
   if (paid + amount > total) {
-    throw new ValidationError('Số tiền sẽ vượt tổng booking.');
+    throw new ValidationError("Số tiền sẽ vượt tổng booking.");
   }
   return { amount, paymentType: type, paid, remaining, total };
 }
@@ -96,20 +105,34 @@ async function resolveCheckoutAmount(booking, paymentType) {
 async function createCheckoutSession({
   customerId,
   bookingId,
-  paymentType = 'deposit',
+  paymentType = "deposit",
   amount: _ignoredAmount,
   idempotencyKey,
   provider: _ignoredProvider,
 }) {
-  const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  const booking = await Booking.findOne({
+    _id: bookingId,
+    CustomerID: customerId,
+  });
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
 
-  const terminal = new Set(['cancelled', 'rejected', 'expired', 'completed', 'no_show']);
+  const terminal = new Set([
+    "cancelled",
+    "rejected",
+    "expired",
+    "completed",
+    "no_show",
+  ]);
   if (terminal.has(booking.Status)) {
-    throw new ValidationError(`Không thể thanh toán booking ở trạng thái ${booking.Status}.`);
+    throw new ValidationError(
+      `Không thể thanh toán booking ở trạng thái ${booking.Status}.`,
+    );
   }
 
-  const { amount, paymentType: resolvedType } = await resolveCheckoutAmount(booking, paymentType);
+  const { amount, paymentType: resolvedType } = await resolveCheckoutAmount(
+    booking,
+    paymentType,
+  );
   const provider = providers.activeProvider(); // ignore client provider
 
   // Scoped idempotency: owner + booking + stage
@@ -119,26 +142,31 @@ async function createCheckoutSession({
 
   const existing = await GatewayPayment.findOne({
     IdempotencyKey: scopedKey,
-    Status: { $in: ['created', 'redirected', 'pending'] },
+    Status: { $in: ["created", "redirected", "pending"] },
   });
   if (existing) {
     return {
       session: existing,
-      checkoutUrl: providers.providerCheckoutUrl(existing.Provider, existing.SessionId),
+      checkoutUrl: providers.providerCheckoutUrl(
+        existing.Provider,
+        existing.SessionId,
+      ),
       provider: existing.Provider,
       duplicate: true,
     };
   }
 
-  const base = env.PUBLIC_BASE_URL || '';
+  const base = env.PUBLIC_BASE_URL || "";
   let live = null;
   try {
     live = await providers.tryCreateLiveSession({
       provider,
       amount,
-      currency: 'VND',
+      currency: "VND",
       bookingId,
-      successUrl: base ? `${base}/payment?bookingId=${bookingId}&paid=1` : undefined,
+      successUrl: base
+        ? `${base}/payment?bookingId=${bookingId}&paid=1`
+        : undefined,
       cancelUrl: base ? `${base}/payment?bookingId=${bookingId}` : undefined,
     });
   } catch (err) {
@@ -154,15 +182,16 @@ async function createCheckoutSession({
       HostID: booking.HostID,
       Amount: amount,
       SessionId: sessionId,
-      Status: live ? 'redirected' : 'created',
+      Status: live ? "redirected" : "created",
       IdempotencyKey: scopedKey,
       Provider: provider,
-      ProviderRef: live?.providerRef || '',
+      ProviderRef: live?.providerRef || "",
       Meta: { paymentType: resolvedType },
     });
     return {
       session,
-      checkoutUrl: live?.checkoutUrl || providers.providerCheckoutUrl(provider, sessionId),
+      checkoutUrl:
+        live?.checkoutUrl || providers.providerCheckoutUrl(provider, sessionId),
       provider,
       amount,
       paymentType: resolvedType,
@@ -175,7 +204,10 @@ async function createCheckoutSession({
       if (again) {
         return {
           session: again,
-          checkoutUrl: providers.providerCheckoutUrl(again.Provider, again.SessionId),
+          checkoutUrl: providers.providerCheckoutUrl(
+            again.Provider,
+            again.SessionId,
+          ),
           provider: again.Provider,
           amount: again.Amount,
           duplicate: true,
@@ -190,47 +222,66 @@ async function createCheckoutSession({
  * Signed webhook processing with durable inbox + idempotency.
  * rawBody must be exact bytes/string from the request (not JSON.stringify).
  */
-async function handleWebhook({ rawBody, signature, event, provider: providerHint }) {
-  const raw = typeof rawBody === 'string' ? rawBody : Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : '';
-  if (!raw) throw new ValidationError('Empty webhook body');
+async function handleWebhook({
+  rawBody,
+  signature,
+  event,
+  provider: providerHint,
+}) {
+  const raw =
+    typeof rawBody === "string"
+      ? rawBody
+      : Buffer.isBuffer(rawBody)
+        ? rawBody.toString("utf8")
+        : "";
+  if (!raw) throw new ValidationError("Empty webhook body");
 
-  const payloadHash = crypto.createHash('sha256').update(raw).digest('hex');
+  const payloadHash = crypto.createHash("sha256").update(raw).digest("hex");
   let parsed = event;
   if (!parsed) {
     try {
       parsed = JSON.parse(raw);
     } catch {
-      throw new ValidationError('Invalid webhook JSON');
+      throw new ValidationError("Invalid webhook JSON");
     }
   }
 
   const normalizedPeek = providers.normalizeWebhookEvent(
-    providerHint || 'workhub_mock',
-    parsed
+    providerHint || "workhub_mock",
+    parsed,
   );
-  let provider = providerHint || parsed?.provider || env.PAYMENT_PROVIDER || 'workhub_mock';
+  let provider =
+    providerHint || parsed?.provider || env.PAYMENT_PROVIDER || "workhub_mock";
   if (normalizedPeek?.sessionId) {
-    const peek = await GatewayPayment.findOne({ SessionId: normalizedPeek.sessionId })
-      .select('Provider')
+    const peek = await GatewayPayment.findOne({
+      SessionId: normalizedPeek.sessionId,
+    })
+      .select("Provider")
       .lean();
     if (peek?.Provider) provider = peek.Provider;
   }
 
   if (!verifySignature(raw, signature, provider, parsed)) {
     // No JWT/mock secret fallback that accepts forged live webhooks
-    if (providers.mockAllowed() && verifySignature(raw, signature, 'workhub_mock', parsed)) {
-      provider = 'workhub_mock';
+    if (
+      providers.mockAllowed() &&
+      verifySignature(raw, signature, "workhub_mock", parsed)
+    ) {
+      provider = "workhub_mock";
     } else {
-      const err = new Error('Invalid webhook signature');
+      const err = new Error("Invalid webhook signature");
       err.statusCode = 401;
-      err.code = 'UNAUTHORIZED';
+      err.code = "UNAUTHORIZED";
       err.isOperational = true;
       throw err;
     }
   }
 
-  const normalized = providers.normalizeWebhookEvent(provider, parsed) || parsed;
-  const providerEventId = String(normalized.id || parsed.id || payloadHash).slice(0, 200);
+  const normalized =
+    providers.normalizeWebhookEvent(provider, parsed) || parsed;
+  const providerEventId = String(
+    normalized.id || parsed.id || payloadHash,
+  ).slice(0, 200);
 
   // Durable inbox — unique (Provider, ProviderEventID)
   let inbox;
@@ -239,7 +290,7 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
       Provider: provider,
       ProviderEventID: providerEventId,
       PayloadHash: payloadHash,
-      ProcessingStatus: 'processing',
+      ProcessingStatus: "processing",
       ReceivedAt: new Date(),
     });
   } catch (err) {
@@ -248,7 +299,7 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
         Provider: provider,
         ProviderEventID: providerEventId,
       });
-      if (existing?.ProcessingStatus === 'processed') {
+      if (existing?.ProcessingStatus === "processed") {
         return { ok: true, duplicate: true };
       }
       // Recover stuck processing
@@ -260,21 +311,24 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
 
   try {
     const sessionId = normalized.sessionId;
-    if (!sessionId) throw new ValidationError('Missing sessionId');
+    if (!sessionId) throw new ValidationError("Missing sessionId");
 
     const session = await GatewayPayment.findOne({ SessionId: sessionId });
-    if (!session) throw new NotFoundError('Session not found');
+    if (!session) throw new NotFoundError("Session not found");
 
     // Amount consistency when provided
-    if (normalized.amount != null && Math.round(Number(normalized.amount)) !== session.Amount) {
-      throw new ValidationError('Webhook amount mismatch.');
+    if (
+      normalized.amount != null &&
+      Math.round(Number(normalized.amount)) !== session.Amount
+    ) {
+      throw new ValidationError("Webhook amount mismatch.");
     }
 
-    if (session.Status === 'succeeded') {
+    if (session.Status === "succeeded") {
       // Ensure payment + ledger exist (recover partial failure)
       await ensurePaymentAndLedger(session);
       if (inbox) {
-        inbox.ProcessingStatus = 'processed';
+        inbox.ProcessingStatus = "processed";
         inbox.ProcessedAt = new Date();
         await inbox.save();
       }
@@ -282,15 +336,15 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
     }
 
     const okTypes = new Set([
-      'checkout.session.completed',
-      'payment.succeeded',
-      'payment.success',
+      "checkout.session.completed",
+      "payment.succeeded",
+      "payment.success",
     ]);
     if (!okTypes.has(normalized.type)) {
-      session.Status = 'failed';
+      session.Status = "failed";
       await session.save();
       if (inbox) {
-        inbox.ProcessingStatus = 'processed';
+        inbox.ProcessingStatus = "processed";
         inbox.ProcessedAt = new Date();
         await inbox.save();
       }
@@ -299,15 +353,15 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
 
     // CAS session -> succeeded
     const cas = await GatewayPayment.findOneAndUpdate(
-      { _id: session._id, Status: { $ne: 'succeeded' } },
+      { _id: session._id, Status: { $ne: "succeeded" } },
       {
         $set: {
-          Status: 'succeeded',
+          Status: "succeeded",
           WebhookReceivedAt: new Date(),
           ProviderRef: normalized.id || parsed.id || `evt_${Date.now()}`,
         },
       },
-      { new: true }
+      { new: true },
     );
     if (!cas) {
       await ensurePaymentAndLedger(session);
@@ -317,23 +371,28 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
     const { payment } = await ensurePaymentAndLedger(cas);
 
     const booking = await Booking.findById(cas.BookingID);
-    if (booking && ['pending', 'hold', 'awaiting_payment', 'payment_under_review'].includes(booking.Status)) {
-      booking.Status = 'payment_under_review';
+    if (
+      booking &&
+      ["pending", "hold", "awaiting_payment", "payment_under_review"].includes(
+        booking.Status,
+      )
+    ) {
+      booking.Status = "payment_under_review";
       await booking.save();
     }
 
     await notifyUser({
       userId: cas.HostID,
-      title: 'Thanh toán gateway thành công',
-      body: `${cas.Amount.toLocaleString('vi-VN')}đ`,
-      type: 'payment',
-      entityType: 'PaymentHistory',
+      title: "Thanh toán gateway thành công",
+      body: `${cas.Amount.toLocaleString("vi-VN")}đ`,
+      type: "payment",
+      entityType: "PaymentHistory",
       entityId: payment._id,
-      link: '/host/payments',
+      link: "/host/payments",
     });
 
     if (inbox) {
-      inbox.ProcessingStatus = 'processed';
+      inbox.ProcessingStatus = "processed";
       inbox.ProcessedAt = new Date();
       await inbox.save();
     }
@@ -341,8 +400,8 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
     return { ok: true, session: cas, payment, duplicate: false };
   } catch (err) {
     if (inbox) {
-      inbox.ProcessingStatus = 'failed';
-      inbox.FailureReason = String(err.message || 'error').slice(0, 500);
+      inbox.ProcessingStatus = "failed";
+      inbox.FailureReason = String(err.message || "error").slice(0, 500);
       await inbox.save();
     }
     throw err;
@@ -354,7 +413,9 @@ async function ensurePaymentAndLedger(session) {
     TransactionCode: `GW-${session.SessionId}`,
   });
   if (!payment) {
-    const booking = await Booking.findById(session.BookingID).select('TotalAmount').lean();
+    const booking = await Booking.findById(session.BookingID)
+      .select("TotalAmount")
+      .lean();
     payment = await PaymentHistory.create({
       BookingID: session.BookingID,
       CustomerID: session.CustomerID,
@@ -363,10 +424,10 @@ async function ensurePaymentAndLedger(session) {
       Amount: session.Amount,
       PaymentType:
         session.Amount >= (booking?.TotalAmount || session.Amount)
-          ? 'full_payment'
-          : 'deposit',
-      PaymentMethod: 'e_wallet',
-      Status: 'successful',
+          ? "full_payment"
+          : "deposit",
+      PaymentMethod: "e_wallet",
+      Status: "successful",
       PaidAt: new Date(),
       VerifiedAt: new Date(),
       IdempotencyKey: `gw-${session.SessionId}`,
@@ -379,9 +440,9 @@ async function ensurePaymentAndLedger(session) {
     customerId: session.CustomerID,
     bookingId: session.BookingID,
     paymentId: payment._id,
-    type: 'payment',
+    type: "payment",
     amount: session.Amount,
-    direction: 'credit',
+    direction: "credit",
     description: `Gateway ${session.SessionId}`,
     idempotencyKey: `ledger-gw-${session.SessionId}`,
   });
@@ -391,35 +452,35 @@ async function ensurePaymentAndLedger(session) {
 
 async function getSession(sessionId) {
   const session = await GatewayPayment.findOne({ SessionId: sessionId }).lean();
-  if (!session) throw new NotFoundError('Session not found');
+  if (!session) throw new NotFoundError("Session not found");
   return session;
 }
 
 /** Dev/test only — not mounted in production */
 async function mockCompleteSession(sessionId, customerId) {
   if (!env.ALLOW_MOCK_COMPLETE || env.isProduction) {
-    const err = new Error('Mock complete disabled');
+    const err = new Error("Mock complete disabled");
     err.statusCode = 404;
     err.isOperational = true;
     throw err;
   }
   const session = await GatewayPayment.findOne({ SessionId: sessionId });
-  if (!session) throw new NotFoundError('Session not found');
+  if (!session) throw new NotFoundError("Session not found");
   if (String(session.CustomerID) !== String(customerId)) {
-    throw new ForbiddenError('Không phải session của bạn.');
+    throw new ForbiddenError("Không phải session của bạn.");
   }
   const event = {
-    type: 'checkout.session.completed',
+    type: "checkout.session.completed",
     id: `evt_mock_${Date.now()}`,
     sessionId,
   };
   const raw = JSON.stringify(event);
-  const signature = signPayload(raw, session.Provider || 'workhub_mock');
+  const signature = signPayload(raw, session.Provider || "workhub_mock");
   return handleWebhook({
     rawBody: raw,
     signature,
     event,
-    provider: session.Provider || 'workhub_mock',
+    provider: session.Provider || "workhub_mock",
   });
 }
 

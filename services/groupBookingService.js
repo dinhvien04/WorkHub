@@ -1,31 +1,31 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const GroupInvite = require('../models/GroupInvite');
-const Booking = require('../models/Booking');
-const bookingService = require('./bookingService');
-const calendarService = require('./calendarService');
-const { notifyUser } = require('./notificationService');
+const crypto = require("crypto");
+const GroupInvite = require("../models/GroupInvite");
+const Booking = require("../models/Booking");
+const bookingService = require("./bookingService");
+const calendarService = require("./calendarService");
+const { notifyUser } = require("./notificationService");
 const {
   ValidationError,
   NotFoundError,
   ForbiddenError,
-} = require('../utils/errors');
+} = require("../utils/errors");
 
 function normalizeAttendees(raw) {
   if (!Array.isArray(raw)) return [];
   const seen = new Set();
   const out = [];
   for (const a of raw.slice(0, 50)) {
-    const email = String(a.email || a.Email || '')
+    const email = String(a.email || a.Email || "")
       .trim()
       .toLowerCase();
-    if (!email || !email.includes('@')) continue;
+    if (!email || !email.includes("@")) continue;
     if (seen.has(email)) continue;
     seen.add(email);
     out.push({
       email,
-      name: String(a.name || a.Name || email.split('@')[0]).slice(0, 120),
+      name: String(a.name || a.Name || email.split("@")[0]).slice(0, 120),
     });
   }
   return out;
@@ -36,8 +36,8 @@ async function createGroupBooking({
   spaceId,
   startTime,
   endTime,
-  note = '',
-  corporateName = '',
+  note = "",
+  corporateName = "",
   attendees = [],
   addOns = [],
   couponCode = null,
@@ -49,12 +49,12 @@ async function createGroupBooking({
     startTime,
     endTime,
     note: [
-      note || '',
-      corporateName ? `Corporate: ${corporateName}` : '',
-      list.length ? `Group attendees: ${list.length}` : '',
+      note || "",
+      corporateName ? `Corporate: ${corporateName}` : "",
+      list.length ? `Group attendees: ${list.length}` : "",
     ]
       .filter(Boolean)
-      .join(' | '),
+      .join(" | "),
     addOns,
     couponCode,
     preferInstant: true,
@@ -63,7 +63,7 @@ async function createGroupBooking({
   // Mark group on note snapshot-friendly fields via Note already; store invites
   const invites = [];
   for (const a of list) {
-    const token = crypto.randomBytes(24).toString('base64url');
+    const token = crypto.randomBytes(24).toString("base64url");
     try {
       const inv = await GroupInvite.create({
         BookingID: booking._id,
@@ -71,7 +71,7 @@ async function createGroupBooking({
         Email: a.email,
         Name: a.name,
         Token: token,
-        RsvpStatus: 'pending',
+        RsvpStatus: "pending",
       });
       invites.push({
         id: inv._id,
@@ -89,7 +89,7 @@ async function createGroupBooking({
   return {
     booking,
     group: {
-      corporateName: String(corporateName || '').slice(0, 200),
+      corporateName: String(corporateName || "").slice(0, 200),
       attendeeCount: invites.length,
       attendees: invites.map((i) => ({
         email: i.email,
@@ -105,16 +105,18 @@ async function createGroupBooking({
 }
 
 async function listInvitesForBooking({ bookingId, userId }) {
-  const booking = await Booking.findById(bookingId).select('CustomerID HostID').lean();
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  const booking = await Booking.findById(bookingId)
+    .select("CustomerID HostID")
+    .lean();
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   if (
     String(booking.CustomerID) !== String(userId) &&
     String(booking.HostID) !== String(userId)
   ) {
-    throw new ForbiddenError('Không có quyền xem invite.');
+    throw new ForbiddenError("Không có quyền xem invite.");
   }
   const items = await GroupInvite.find({ BookingID: bookingId })
-    .select('-Token')
+    .select("-Token")
     .sort({ createdAt: 1 })
     .lean();
   return items.map((i) => ({
@@ -128,9 +130,9 @@ async function listInvitesForBooking({ bookingId, userId }) {
 
 async function getInviteByToken(token) {
   const inv = await GroupInvite.findOne({ Token: String(token) }).lean();
-  if (!inv) throw new NotFoundError('Lời mời không hợp lệ.');
+  if (!inv) throw new NotFoundError("Lời mời không hợp lệ.");
   const booking = await Booking.findById(inv.BookingID).lean();
-  if (!booking) throw new NotFoundError('Booking không còn tồn tại.');
+  if (!booking) throw new NotFoundError("Booking không còn tồn tại.");
   return {
     invite: {
       email: inv.Email,
@@ -151,12 +153,12 @@ async function getInviteByToken(token) {
   };
 }
 
-async function rsvpByToken({ token, status, note = '' }) {
-  if (!['accepted', 'declined'].includes(status)) {
-    throw new ValidationError('RSVP phải là accepted hoặc declined.');
+async function rsvpByToken({ token, status, note = "" }) {
+  if (!["accepted", "declined"].includes(status)) {
+    throw new ValidationError("RSVP phải là accepted hoặc declined.");
   }
   const inv = await GroupInvite.findOne({ Token: String(token) });
-  if (!inv) throw new NotFoundError('Lời mời không hợp lệ.');
+  if (!inv) throw new NotFoundError("Lời mời không hợp lệ.");
   inv.RsvpStatus = status;
   inv.RsvpAt = new Date();
   if (note) inv.Note = String(note).slice(0, 500);
@@ -168,8 +170,8 @@ async function rsvpByToken({ token, status, note = '' }) {
       userId: inv.OrganizerID,
       title: `RSVP ${status}`,
       body: `${inv.Name || inv.Email} → ${status}`,
-      type: 'booking',
-      entityType: 'Booking',
+      type: "booking",
+      entityType: "Booking",
       entityId: inv.BookingID,
     });
   } catch {

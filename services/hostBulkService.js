@@ -1,22 +1,26 @@
-'use strict';
+"use strict";
 
 /**
  * Host bulk operations on spaces + blackouts.
  */
-const Space = require('../models/Space');
-const Branch = require('../models/Branch');
-const Blackout = require('../models/Blackout');
-const Booking = require('../models/Booking');
-const { notifyUser } = require('./notificationService');
-const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
+const Space = require("../models/Space");
+const Branch = require("../models/Branch");
+const Blackout = require("../models/Blackout");
+const Booking = require("../models/Booking");
+const { notifyUser } = require("./notificationService");
+const {
+  ValidationError,
+  NotFoundError,
+  ForbiddenError,
+} = require("../utils/errors");
 
-const SPACE_STATUSES = ['available', 'maintenance', 'inactive'];
+const SPACE_STATUSES = ["available", "maintenance", "inactive"];
 
 function assertIds(ids) {
   if (!Array.isArray(ids) || !ids.length) {
-    throw new ValidationError('Thiếu danh sách id.');
+    throw new ValidationError("Thiếu danh sách id.");
   }
-  if (ids.length > 100) throw new ValidationError('Tối đa 100 mục mỗi lần.');
+  if (ids.length > 100) throw new ValidationError("Tối đa 100 mục mỗi lần.");
   return ids.map(String);
 }
 
@@ -31,43 +35,59 @@ async function bulkUpdateSpaces({ hostId, spaceIds, patch }) {
 
   if (patch.status != null) {
     if (!SPACE_STATUSES.includes(patch.status)) {
-      throw new ValidationError('Status không hợp lệ (available|maintenance|inactive).');
+      throw new ValidationError(
+        "Status không hợp lệ (available|maintenance|inactive).",
+      );
     }
     $set.Status = patch.status;
   }
   if (patch.pricePerHour != null) {
     const p = Number(patch.pricePerHour);
-    if (!Number.isFinite(p) || p < 0) throw new ValidationError('pricePerHour không hợp lệ.');
+    if (!Number.isFinite(p) || p < 0)
+      throw new ValidationError("pricePerHour không hợp lệ.");
     $set.PricePerHour = Math.round(p);
   }
   if (patch.depositAmount != null) {
     const d = Number(patch.depositAmount);
-    if (!Number.isFinite(d) || d < 0) throw new ValidationError('depositAmount không hợp lệ.');
+    if (!Number.isFinite(d) || d < 0)
+      throw new ValidationError("depositAmount không hợp lệ.");
     $set.DepositAmount = Math.round(d);
   }
   if (Array.isArray(patch.amenities)) {
-    $set.Amenities = patch.amenities.map((a) => String(a).slice(0, 80)).filter(Boolean).slice(0, 40);
+    $set.Amenities = patch.amenities
+      .map((a) => String(a).slice(0, 80))
+      .filter(Boolean)
+      .slice(0, 40);
   }
-  if (typeof patch.instantBook === 'boolean') {
+  if (typeof patch.instantBook === "boolean") {
     $set.InstantBook = patch.instantBook;
   }
   if (patch.freeCancelHours != null) {
-    $set.FreeCancelHours = Math.max(0, Math.min(168, Number(patch.freeCancelHours) || 0));
+    $set.FreeCancelHours = Math.max(
+      0,
+      Math.min(168, Number(patch.freeCancelHours) || 0),
+    );
   }
   if (patch.bufferBeforeMinutes != null) {
-    $set.BufferBeforeMinutes = Math.max(0, Math.min(180, Number(patch.bufferBeforeMinutes) || 0));
+    $set.BufferBeforeMinutes = Math.max(
+      0,
+      Math.min(180, Number(patch.bufferBeforeMinutes) || 0),
+    );
   }
   if (patch.cleanupAfterMinutes != null) {
-    $set.CleanupAfterMinutes = Math.max(0, Math.min(180, Number(patch.cleanupAfterMinutes) || 0));
+    $set.CleanupAfterMinutes = Math.max(
+      0,
+      Math.min(180, Number(patch.cleanupAfterMinutes) || 0),
+    );
   }
 
   if (!Object.keys($set).length) {
-    throw new ValidationError('Không có trường nào để cập nhật.');
+    throw new ValidationError("Không có trường nào để cập nhật.");
   }
 
   const r = await Space.updateMany(
     { _id: { $in: ids }, HostID: hostId },
-    { $set }
+    { $set },
   );
 
   return {
@@ -85,17 +105,21 @@ async function createBlackoutWithNotify({
   spaceId,
   startTime,
   endTime,
-  reason = 'maintenance',
+  reason = "maintenance",
   notifyCustomers = true,
 }) {
-  if (!spaceId) throw new ValidationError('Thiếu spaceId.');
+  if (!spaceId) throw new ValidationError("Thiếu spaceId.");
   const space = await Space.findOne({ _id: spaceId, HostID: hostId });
-  if (!space) throw new NotFoundError('Không tìm thấy space.');
+  if (!space) throw new NotFoundError("Không tìm thấy space.");
 
   const start = new Date(startTime);
   const end = new Date(endTime);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-    throw new ValidationError('Khoảng blackout không hợp lệ.');
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    end <= start
+  ) {
+    throw new ValidationError("Khoảng blackout không hợp lệ.");
   }
 
   const doc = await Blackout.create({
@@ -103,7 +127,7 @@ async function createBlackoutWithNotify({
     SpaceID: spaceId,
     StartTime: start,
     EndTime: end,
-    Reason: String(reason || 'maintenance').slice(0, 200),
+    Reason: String(reason || "maintenance").slice(0, 200),
     NotifyCustomers: !!notifyCustomers,
   });
 
@@ -113,17 +137,17 @@ async function createBlackoutWithNotify({
       SpaceID: spaceId,
       Status: {
         $in: [
-          'pending',
-          'awaiting_payment',
-          'payment_under_review',
-          'confirmed',
-          'hold',
+          "pending",
+          "awaiting_payment",
+          "payment_under_review",
+          "confirmed",
+          "hold",
         ],
       },
       StartTime: { $lt: end },
       EndTime: { $gt: start },
     })
-      .select('CustomerID StartTime')
+      .select("CustomerID StartTime")
       .lean();
 
     const seen = new Set();
@@ -134,10 +158,10 @@ async function createBlackoutWithNotify({
       try {
         await notifyUser({
           userId: b.CustomerID,
-          title: 'Bảo trì / blackout',
-          body: `Không gian ${space.Name || space.SpaceCode} tạm khóa: ${start.toLocaleString('vi-VN')} – ${end.toLocaleString('vi-VN')}. Lý do: ${doc.Reason}. Vui lòng đổi lịch nếu cần.`,
-          type: 'booking',
-          entityType: 'Booking',
+          title: "Bảo trì / blackout",
+          body: `Không gian ${space.Name || space.SpaceCode} tạm khóa: ${start.toLocaleString("vi-VN")} – ${end.toLocaleString("vi-VN")}. Lý do: ${doc.Reason}. Vui lòng đổi lịch nếu cần.`,
+          type: "booking",
+          entityType: "Booking",
           entityId: b._id,
         });
         notified += 1;
@@ -150,7 +174,7 @@ async function createBlackoutWithNotify({
   // Suggest alternative slots for first overlapping window (best effort)
   let alternatives = [];
   try {
-    const availabilityService = require('./availabilityService');
+    const availabilityService = require("./availabilityService");
     alternatives = await availabilityService.suggestAlternativeSlots({
       spaceId,
       startTime: start,
@@ -165,26 +189,29 @@ async function createBlackoutWithNotify({
 }
 
 async function deleteBlackout({ hostId, blackoutId }) {
-  const doc = await Blackout.findOneAndDelete({ _id: blackoutId, HostID: hostId });
-  if (!doc) throw new NotFoundError('Không tìm thấy blackout.');
+  const doc = await Blackout.findOneAndDelete({
+    _id: blackoutId,
+    HostID: hostId,
+  });
+  if (!doc) throw new NotFoundError("Không tìm thấy blackout.");
   return { deleted: true, id: String(doc._id) };
 }
 
 /**
  * Admin/host branch publish status.
  */
-async function setBranchStatus({ actorId, role, branchId, status, note = '' }) {
+async function setBranchStatus({ actorId, role, branchId, status, note = "" }) {
   const allowed =
-    role === 'admin'
-      ? ['active', 'inactive', 'maintenance']
-      : ['active', 'inactive', 'maintenance'];
+    role === "admin"
+      ? ["active", "inactive", "maintenance"]
+      : ["active", "inactive", "maintenance"];
   if (!allowed.includes(status)) {
-    throw new ValidationError('Status branch không hợp lệ.');
+    throw new ValidationError("Status branch không hợp lệ.");
   }
   const branch = await Branch.findById(branchId);
-  if (!branch) throw new NotFoundError('Không tìm thấy branch.');
-  if (role !== 'admin' && String(branch.HostID) !== String(actorId)) {
-    throw new ForbiddenError('Không có quyền.');
+  if (!branch) throw new NotFoundError("Không tìm thấy branch.");
+  if (role !== "admin" && String(branch.HostID) !== String(actorId)) {
+    throw new ForbiddenError("Không có quyền.");
   }
   const prev = branch.Status;
   branch.Status = status;
@@ -192,14 +219,14 @@ async function setBranchStatus({ actorId, role, branchId, status, note = '' }) {
 
   // Soft audit via activity if available
   try {
-    const logActivity = require('../utils/auditLogger');
+    const logActivity = require("../utils/auditLogger");
     await logActivity(
       actorId,
-      'BRANCH_STATUS',
-      'Branch',
+      "BRANCH_STATUS",
+      "Branch",
       branch._id,
-      `Status ${prev} → ${status}${note ? ': ' + note : ''}`,
-      'info'
+      `Status ${prev} → ${status}${note ? ": " + note : ""}`,
+      "info",
     );
   } catch {
     /* ignore */
@@ -208,39 +235,51 @@ async function setBranchStatus({ actorId, role, branchId, status, note = '' }) {
   return { branch, previousStatus: prev };
 }
 
-const PUBLISH_STATES = ['draft', 'pending_review', 'published', 'suspended', 'archived'];
+const PUBLISH_STATES = [
+  "draft",
+  "pending_review",
+  "published",
+  "suspended",
+  "archived",
+];
 
-async function setBranchPublishStatus({ actorId, role, branchId, publishStatus, note = '' }) {
+async function setBranchPublishStatus({
+  actorId,
+  role,
+  branchId,
+  publishStatus,
+  note = "",
+}) {
   if (!PUBLISH_STATES.includes(publishStatus)) {
-    throw new ValidationError(`PublishStatus: ${PUBLISH_STATES.join(', ')}`);
+    throw new ValidationError(`PublishStatus: ${PUBLISH_STATES.join(", ")}`);
   }
   const branch = await Branch.findById(branchId);
-  if (!branch) throw new NotFoundError('Không tìm thấy branch.');
-  if (role !== 'admin' && String(branch.HostID) !== String(actorId)) {
-    throw new ForbiddenError('Không có quyền.');
+  if (!branch) throw new NotFoundError("Không tìm thấy branch.");
+  if (role !== "admin" && String(branch.HostID) !== String(actorId)) {
+    throw new ForbiddenError("Không có quyền.");
   }
   // Host cannot self-set suspended (admin moderation)
-  if (role !== 'admin' && publishStatus === 'suspended') {
-    throw new ForbiddenError('Chỉ admin mới suspend listing.');
+  if (role !== "admin" && publishStatus === "suspended") {
+    throw new ForbiddenError("Chỉ admin mới suspend listing.");
   }
-  const prev = branch.PublishStatus || 'published';
+  const prev = branch.PublishStatus || "published";
   branch.PublishStatus = publishStatus;
   // Sync operational Status for public visibility
-  if (publishStatus === 'published') {
-    if (branch.Status === 'inactive') branch.Status = 'active';
-  } else if (['draft', 'archived', 'suspended'].includes(publishStatus)) {
-    if (branch.Status === 'active') branch.Status = 'inactive';
+  if (publishStatus === "published") {
+    if (branch.Status === "inactive") branch.Status = "active";
+  } else if (["draft", "archived", "suspended"].includes(publishStatus)) {
+    if (branch.Status === "active") branch.Status = "inactive";
   }
   await branch.save();
   try {
-    const logActivity = require('../utils/auditLogger');
+    const logActivity = require("../utils/auditLogger");
     await logActivity(
       actorId,
-      'BRANCH_PUBLISH',
-      'Branch',
+      "BRANCH_PUBLISH",
+      "Branch",
       branch._id,
-      `PublishStatus ${prev} → ${publishStatus}${note ? ': ' + note : ''}`,
-      'info'
+      `PublishStatus ${prev} → ${publishStatus}${note ? ": " + note : ""}`,
+      "info",
     );
   } catch {
     /* ignore */

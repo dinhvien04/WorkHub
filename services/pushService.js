@@ -1,24 +1,24 @@
-'use strict';
+"use strict";
 
-const PushSubscription = require('../models/PushSubscription');
-const { ValidationError } = require('../utils/errors');
-const logger = require('../utils/logger');
+const PushSubscription = require("../models/PushSubscription");
+const { ValidationError } = require("../utils/errors");
+const logger = require("../utils/logger");
 
 async function saveSubscription({ userId, endpoint, keys, userAgent }) {
-  if (!endpoint) throw new ValidationError('Thiếu endpoint push.');
+  if (!endpoint) throw new ValidationError("Thiếu endpoint push.");
   const doc = await PushSubscription.findOneAndUpdate(
     { UserID: userId, Endpoint: endpoint },
     {
       $set: {
         Keys: {
-          p256dh: keys?.p256dh || '',
-          auth: keys?.auth || '',
+          p256dh: keys?.p256dh || "",
+          auth: keys?.auth || "",
         },
-        UserAgent: String(userAgent || '').slice(0, 300),
-        Status: 'active',
+        UserAgent: String(userAgent || "").slice(0, 300),
+        Status: "active",
       },
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   return doc;
 }
@@ -26,13 +26,13 @@ async function saveSubscription({ userId, endpoint, keys, userAgent }) {
 async function revokeSubscription({ userId, endpoint }) {
   return PushSubscription.findOneAndUpdate(
     { UserID: userId, Endpoint: endpoint },
-    { $set: { Status: 'revoked' } },
-    { new: true }
+    { $set: { Status: "revoked" } },
+    { new: true },
   );
 }
 
 async function listSubscriptions(userId) {
-  return PushSubscription.find({ UserID: userId, Status: 'active' }).lean();
+  return PushSubscription.find({ UserID: userId, Status: "active" }).lean();
 }
 
 /**
@@ -45,28 +45,30 @@ async function notifyPush(userId, payload) {
   if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
     logger.info(
       { userId: String(userId), n: subs.length, title: payload?.title },
-      'push: VAPID not configured — subscription stored only'
+      "push: VAPID not configured — subscription stored only",
     );
-    return { sent: 0, stored: subs.length, mode: 'dev-log' };
+    return { sent: 0, stored: subs.length, mode: "dev-log" };
   }
   // Optional peer dependency: npm i web-push
   let webpush;
   try {
     // eslint-disable-next-line import/no-extraneous-dependencies, global-require
-    webpush = require('web-push');
+    webpush = require("web-push");
   } catch {
-    logger.warn('web-push package not installed — set VAPID + npm i web-push to send');
-    return { sent: 0, mode: 'vapid-configured-no-package' };
+    logger.warn(
+      "web-push package not installed — set VAPID + npm i web-push to send",
+    );
+    return { sent: 0, mode: "vapid-configured-no-package" };
   }
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:ops@workhub.local',
+    process.env.VAPID_SUBJECT || "mailto:ops@workhub.local",
     process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
+    process.env.VAPID_PRIVATE_KEY,
   );
   const body = JSON.stringify({
-    title: payload?.title || 'WorkHub',
-    body: payload?.body || '',
-    url: payload?.url || '/',
+    title: payload?.title || "WorkHub",
+    body: payload?.body || "",
+    url: payload?.url || "/",
   });
   let sent = 0;
   for (const s of subs) {
@@ -76,21 +78,24 @@ async function notifyPush(userId, payload) {
           endpoint: s.Endpoint,
           keys: { p256dh: s.Keys?.p256dh, auth: s.Keys?.auth },
         },
-        body
+        body,
       );
       sent += 1;
     } catch (err) {
       logger.warn(`push send failed: ${err.message}`);
       if (err.statusCode === 410 || err.statusCode === 404) {
-        await PushSubscription.updateOne({ _id: s._id }, { $set: { Status: 'revoked' } });
+        await PushSubscription.updateOne(
+          { _id: s._id },
+          { $set: { Status: "revoked" } },
+        );
       }
     }
   }
-  return { sent, mode: 'web-push' };
+  return { sent, mode: "web-push" };
 }
 
 function publicVapidKey() {
-  return process.env.VAPID_PUBLIC_KEY || '';
+  return process.env.VAPID_PUBLIC_KEY || "";
 }
 
 module.exports = {

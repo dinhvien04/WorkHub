@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Dry-run migration: copy lowercase fields to canonical PascalCase when missing.
@@ -9,29 +9,29 @@
  *
  * Backup DB before --apply.
  */
-require('dotenv').config();
-const mongoose = require('mongoose');
+require("dotenv").config();
+const mongoose = require("mongoose");
 
-const dryRun = !process.argv.includes('--apply');
+const dryRun = !process.argv.includes("--apply");
 
 const FIELD_MAPS = {
   bookings: [
-    ['status', 'Status'],
-    ['hostID', 'HostID'],
-    ['customerID', 'CustomerID'],
-    ['spaceID', 'SpaceID'],
-    ['startTime', 'StartTime'],
-    ['endTime', 'EndTime'],
+    ["status", "Status"],
+    ["hostID", "HostID"],
+    ["customerID", "CustomerID"],
+    ["spaceID", "SpaceID"],
+    ["startTime", "StartTime"],
+    ["endTime", "EndTime"],
   ],
   spaces: [
-    ['hostID', 'HostID'],
-    ['branchID', 'BranchID'],
-    ['spaceCode', 'SpaceCode'],
-    ['status', 'Status'],
+    ["hostID", "HostID"],
+    ["branchID", "BranchID"],
+    ["spaceCode", "SpaceCode"],
+    ["status", "Status"],
   ],
   branches: [
-    ['hostID', 'HostID'],
-    ['status', 'Status'],
+    ["hostID", "HostID"],
+    ["status", "Status"],
   ],
 };
 
@@ -44,7 +44,10 @@ async function migrateCollection(db, name, pairs) {
     const doc = await cursor.next();
     const $set = {};
     for (const [from, to] of pairs) {
-      if (doc[from] !== undefined && (doc[to] === undefined || doc[to] === null)) {
+      if (
+        doc[from] !== undefined &&
+        (doc[to] === undefined || doc[to] === null)
+      ) {
         $set[to] = doc[from];
       }
     }
@@ -61,14 +64,16 @@ async function migrateCollection(db, name, pairs) {
 
 async function main() {
   const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI required');
+  if (!uri) throw new Error("MONGODB_URI required");
   await mongoose.connect(uri);
   const db = mongoose.connection.db;
-  console.log(dryRun ? 'DRY-RUN mode' : 'APPLY mode');
+  console.log(dryRun ? "DRY-RUN mode" : "APPLY mode");
   for (const [name, pairs] of Object.entries(FIELD_MAPS)) {
     try {
       const r = await migrateCollection(db, name, pairs);
-      console.log(`${name}: documents needing fix=${r.need}, updated=${r.updated}`);
+      console.log(
+        `${name}: documents needing fix=${r.need}, updated=${r.updated}`,
+      );
     } catch (e) {
       console.warn(`${name}: skip (${e.message})`);
     }

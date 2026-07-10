@@ -34,12 +34,25 @@
       overlay.setAttribute('role', 'dialog');
       overlay.setAttribute('aria-modal', 'true');
       overlay.setAttribute('aria-label', 'Xem ảnh gallery');
-      overlay.innerHTML =
-        '<button type="button" class="gallery-lightbox__close" aria-label="Đóng">&times;</button>' +
-        '<button type="button" class="gallery-lightbox__nav gallery-lightbox__prev" aria-label="Ảnh trước">&lsaquo;</button>' +
-        '<img class="gallery-lightbox__img" alt="" />' +
-        '<button type="button" class="gallery-lightbox__nav gallery-lightbox__next" aria-label="Ảnh sau">&rsaquo;</button>' +
-        '<p class="gallery-lightbox__counter" aria-live="polite"></p>';
+      function btn(cls, label, html) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = cls;
+        b.setAttribute('aria-label', label);
+        b.textContent = html;
+        return b;
+      }
+      overlay.appendChild(btn('gallery-lightbox__close', 'Đóng', '×'));
+      overlay.appendChild(btn('gallery-lightbox__nav gallery-lightbox__prev', 'Ảnh trước', '‹'));
+      const img = document.createElement('img');
+      img.className = 'gallery-lightbox__img';
+      img.alt = '';
+      overlay.appendChild(img);
+      overlay.appendChild(btn('gallery-lightbox__nav gallery-lightbox__next', 'Ảnh sau', '›'));
+      const counter = document.createElement('p');
+      counter.className = 'gallery-lightbox__counter';
+      counter.setAttribute('aria-live', 'polite');
+      overlay.appendChild(counter);
       document.body.appendChild(overlay);
 
       overlay.querySelector('.gallery-lightbox__close').addEventListener('click', close);

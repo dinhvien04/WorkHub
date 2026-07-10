@@ -1,27 +1,31 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const ApiKey = require('../models/ApiKey');
-const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
+const crypto = require("crypto");
+const ApiKey = require("../models/ApiKey");
+const { UnauthorizedError, ForbiddenError } = require("../utils/errors");
 
 async function requireApiKey(req, res, next) {
   try {
-    const header = req.get('x-api-key') || req.get('authorization');
+    const header = req.get("x-api-key") || req.get("authorization");
     let raw = null;
-    if (header?.startsWith('Bearer wh_')) raw = header.slice(7).trim();
-    else if (header?.startsWith('wh_')) raw = header.trim();
-    else if (req.get('x-api-key')) raw = req.get('x-api-key').trim();
+    if (header?.startsWith("Bearer wh_")) raw = header.slice(7).trim();
+    else if (header?.startsWith("wh_")) raw = header.trim();
+    else if (req.get("x-api-key")) raw = req.get("x-api-key").trim();
 
-    if (!raw || !raw.startsWith('wh_')) {
-      return next(new UnauthorizedError('Missing API key.'));
+    if (!raw || !raw.startsWith("wh_")) {
+      return next(new UnauthorizedError("Missing API key."));
     }
 
-    const hash = crypto.createHash('sha256').update(raw).digest('hex');
+    const hash = crypto.createHash("sha256").update(raw).digest("hex");
     const prefix = raw.slice(0, 10);
-    const key = await ApiKey.findOne({ KeyPrefix: prefix, KeyHash: hash, Status: 'active' });
-    if (!key) return next(new UnauthorizedError('Invalid API key.'));
+    const key = await ApiKey.findOne({
+      KeyPrefix: prefix,
+      KeyHash: hash,
+      Status: "active",
+    });
+    if (!key) return next(new UnauthorizedError("Invalid API key."));
     if (key.ExpiresAt && key.ExpiresAt < new Date()) {
-      return next(new ForbiddenError('API key expired.'));
+      return next(new ForbiddenError("API key expired."));
     }
     key.LastUsedAt = new Date();
     await key.save();
@@ -36,7 +40,7 @@ async function requireApiKey(req, res, next) {
 function requireScope(scope) {
   return (req, res, next) => {
     const scopes = req.apiKey?.Scopes || [];
-    if (!scopes.includes(scope) && !scopes.includes('*')) {
+    if (!scopes.includes(scope) && !scopes.includes("*")) {
       return next(new ForbiddenError(`Missing scope: ${scope}`));
     }
     return next();

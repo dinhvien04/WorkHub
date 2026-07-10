@@ -1,11 +1,11 @@
-'use strict';
+"use strict";
 
 /**
  * Rating breakdown + branch review listing helpers.
  */
-const mongoose = require('mongoose');
-const Review = require('../models/Review');
-const Space = require('../models/Space');
+const mongoose = require("mongoose");
+const Review = require("../models/Review");
+const Space = require("../models/Space");
 
 const EMPTY_BREAKDOWN = {
   total: 0,
@@ -19,24 +19,30 @@ const EMPTY_BREAKDOWN = {
  */
 async function ratingBreakdownForSpaces(spaceIds) {
   if (!spaceIds || spaceIds.length === 0) {
-    return { ...EMPTY_BREAKDOWN, counts: { ...EMPTY_BREAKDOWN.counts }, percentages: { ...EMPTY_BREAKDOWN.percentages } };
+    return {
+      ...EMPTY_BREAKDOWN,
+      counts: { ...EMPTY_BREAKDOWN.counts },
+      percentages: { ...EMPTY_BREAKDOWN.percentages },
+    };
   }
   const ids = spaceIds.map((id) =>
-    id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(String(id))
+    id instanceof mongoose.Types.ObjectId
+      ? id
+      : new mongoose.Types.ObjectId(String(id)),
   );
 
   const rows = await Review.aggregate([
     {
       $match: {
         SpaceID: { $in: ids },
-        Status: { $in: ['published', 'reported'] },
+        Status: { $in: ["published", "reported"] },
       },
     },
     {
       $group: {
-        _id: '$Rating',
+        _id: "$Rating",
         count: { $sum: 1 },
-        sum: { $sum: '$Rating' },
+        sum: { $sum: "$Rating" },
       },
     },
   ]);
@@ -61,19 +67,22 @@ async function ratingBreakdownForSpaces(spaceIds) {
 }
 
 async function spaceIdsForBranch(branchId) {
-  const spaces = await Space.find({ BranchID: branchId }).select('_id').lean();
+  const spaces = await Space.find({ BranchID: branchId }).select("_id").lean();
   return spaces.map((s) => s._id);
 }
 
 async function spaceIdsForHost(hostId) {
-  const spaces = await Space.find({ HostID: hostId }).select('_id').lean();
+  const spaces = await Space.find({ HostID: hostId }).select("_id").lean();
   return spaces.map((s) => s._id);
 }
 
 /**
  * Full branch reviews payload with breakdown.
  */
-async function getBranchReviewsPayload(branchId, { limit = 50, skip = 0 } = {}) {
+async function getBranchReviewsPayload(
+  branchId,
+  { limit = 50, skip = 0 } = {},
+) {
   const spaceIds = await spaceIdsForBranch(branchId);
   if (spaceIds.length === 0) {
     return {
@@ -90,12 +99,12 @@ async function getBranchReviewsPayload(branchId, { limit = 50, skip = 0 } = {}) 
     ratingBreakdownForSpaces(spaceIds),
     Review.find({
       SpaceID: { $in: spaceIds },
-      Status: { $in: ['published', 'reported'] },
+      Status: { $in: ["published", "reported"] },
     })
       .sort({ createdAt: -1 })
       .skip(Math.max(0, Number(skip) || 0))
       .limit(Math.min(100, Math.max(1, Number(limit) || 50)))
-      .populate('CustomerID', 'FullName fullName Avatar avatarUrl')
+      .populate("CustomerID", "FullName fullName Avatar avatarUrl")
       .lean(),
   ]);
 
@@ -103,11 +112,11 @@ async function getBranchReviewsPayload(branchId, { limit = 50, skip = 0 } = {}) 
     _id: r._id,
     spaceId: r.SpaceID,
     customerId: r.CustomerID?._id,
-    customerName: r.CustomerID?.FullName || r.CustomerID?.fullName || '',
-    customerAvatar: r.CustomerID?.Avatar || r.CustomerID?.avatarUrl || '',
+    customerName: r.CustomerID?.FullName || r.CustomerID?.fullName || "",
+    customerAvatar: r.CustomerID?.Avatar || r.CustomerID?.avatarUrl || "",
     rating: r.Rating,
     comment: r.Comment,
-    hostReply: r.HostReply || '',
+    hostReply: r.HostReply || "",
     hostRepliedAt: r.HostRepliedAt || null,
     status: r.Status,
     createdAt: r.createdAt,

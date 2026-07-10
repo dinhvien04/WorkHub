@@ -1,11 +1,15 @@
-'use strict';
+"use strict";
 
-const Payout = require('../models/Payout');
-const HostProfile = require('../models/Host_Profile');
-const HostBalance = require('../models/HostBalance');
-const ledgerService = require('./ledgerService');
-const { ValidationError, NotFoundError, ConflictError } = require('../utils/errors');
-const { notifyUser } = require('./notificationService');
+const Payout = require("../models/Payout");
+const HostProfile = require("../models/Host_Profile");
+const HostBalance = require("../models/HostBalance");
+const ledgerService = require("./ledgerService");
+const {
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+} = require("../utils/errors");
+const { notifyUser } = require("./notificationService");
 
 async function ensureBalanceProjection(hostId) {
   let bal = await HostBalance.findOne({ HostID: hostId });
@@ -35,16 +39,16 @@ async function ensureBalanceProjection(hostId) {
 async function requestPayout({ hostId, amount, idempotencyKey }) {
   const amt = Math.round(Number(amount));
   if (!amt || amt < 50000) {
-    throw new ValidationError('Số tiền rút tối thiểu 50.000đ.');
+    throw new ValidationError("Số tiền rút tối thiểu 50.000đ.");
   }
   if (!idempotencyKey) {
-    throw new ValidationError('Idempotency-Key là bắt buộc cho payout.');
+    throw new ValidationError("Idempotency-Key là bắt buộc cho payout.");
   }
 
   const existing = await Payout.findOne({ IdempotencyKey: idempotencyKey });
   if (existing) {
     if (existing.Amount !== amt || String(existing.HostID) !== String(hostId)) {
-      throw new ConflictError('Idempotency key đã dùng cho payout khác.');
+      throw new ConflictError("Idempotency key đã dùng cho payout khác.");
     }
     return existing;
   }
@@ -57,35 +61,35 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
     {
       $inc: { AvailableBalance: -amt, ReservedBalance: amt, Version: 1 },
     },
-    { new: true }
+    { new: true },
   );
   if (!reserved) {
-    throw new ValidationError('Số dư khả dụng không đủ.');
+    throw new ValidationError("Số dư khả dụng không đủ.");
   }
 
   const profile = await HostProfile.findOne({ UserID: hostId }).lean();
   const masked = profile?.BankNumber
     ? `****${String(profile.BankNumber).slice(-4)}`
-    : '';
+    : "";
 
   try {
     const payout = await Payout.create({
       HostID: hostId,
       Amount: amt,
-      Status: 'requested',
-      BankName: profile?.BankName || '',
+      Status: "requested",
+      BankName: profile?.BankName || "",
       BankNumberMasked: masked,
       IdempotencyKey: idempotencyKey,
     });
 
     await ledgerService.postEntry({
       hostId,
-      type: 'payout',
+      type: "payout",
       amount: amt,
-      direction: 'debit',
+      direction: "debit",
       description: `Payout reserve ${payout._id}`,
       idempotencyKey: `payout-ledger-${payout._id}`,
-      meta: { payoutId: payout._id, status: 'requested' },
+      meta: { payoutId: payout._id, status: "requested" },
     });
 
     return payout;
@@ -93,12 +97,12 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
     // Release reserve on failure
     await HostBalance.findOneAndUpdate(
       { HostID: hostId },
-      { $inc: { AvailableBalance: amt, ReservedBalance: -amt, Version: 1 } }
+      { $inc: { AvailableBalance: amt, ReservedBalance: -amt, Version: 1 } },
     );
     if (err.code === 11000) {
       const again = await Payout.findOne({ IdempotencyKey: idempotencyKey });
       if (again) return again;
-      throw new ConflictError('Payout trùng lặp.');
+      throw new ConflictError("Payout trùng lặp.");
     }
     throw err;
   }
@@ -106,22 +110,22 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
 
 async function processPayout({ payoutId, approve, adminId }) {
   const payout = await Payout.findById(payoutId);
-  if (!payout) throw new NotFoundError('Không tìm thấy payout.');
-  if (payout.Status !== 'requested' && payout.Status !== 'processing') {
-    throw new ValidationError('Payout không thể xử lý.');
+  if (!payout) throw new NotFoundError("Không tìm thấy payout.");
+  if (payout.Status !== "requested" && payout.Status !== "processing") {
+    throw new ValidationError("Payout không thể xử lý.");
   }
 
   if (!approve) {
     const failed = await Payout.findOneAndUpdate(
-      { _id: payoutId, Status: { $in: ['requested', 'processing'] } },
+      { _id: payoutId, Status: { $in: ["requested", "processing"] } },
       {
         $set: {
-          Status: 'failed',
-          FailureReason: 'Rejected by admin',
+          Status: "failed",
+          FailureReason: "Rejected by admin",
           ProcessedAt: new Date(),
         },
       },
-      { new: true }
+      { new: true },
     );
     if (!failed) return payout;
 
@@ -134,13 +138,13 @@ async function processPayout({ payoutId, approve, adminId }) {
           ReservedBalance: -payout.Amount,
           Version: 1,
         },
-      }
+      },
     );
     await ledgerService.postEntry({
       hostId: payout.HostID,
-      type: 'adjustment',
+      type: "adjustment",
       amount: payout.Amount,
-      direction: 'credit',
+      direction: "credit",
       description: `Payout failed restore ${payout._id}`,
       idempotencyKey: `payout-restore-${payout._id}`,
     });
@@ -148,11 +152,11 @@ async function processPayout({ payoutId, approve, adminId }) {
   }
 
   const paid = await Payout.findOneAndUpdate(
-    { _id: payoutId, Status: { $in: ['requested', 'processing'] } },
-    { $set: { Status: 'paid', ProcessedAt: new Date() } },
-    { new: true }
+    { _id: payoutId, Status: { $in: ["requested", "processing"] } },
+    { $set: { Status: "paid", ProcessedAt: new Date() } },
+    { new: true },
   );
-  if (!paid) throw new ValidationError('Payout không thể xử lý.');
+  if (!paid) throw new ValidationError("Payout không thể xử lý.");
 
   await HostBalance.findOneAndUpdate(
     { HostID: payout.HostID },
@@ -162,22 +166,25 @@ async function processPayout({ payoutId, approve, adminId }) {
         PaidOutBalance: payout.Amount,
         Version: 1,
       },
-    }
+    },
   );
 
   await notifyUser({
     userId: payout.HostID,
-    title: 'Payout đã chuyển',
-    body: `${payout.Amount.toLocaleString('vi-VN')}đ`,
-    type: 'payment',
-    entityType: 'Payout',
+    title: "Payout đã chuyển",
+    body: `${payout.Amount.toLocaleString("vi-VN")}đ`,
+    type: "payment",
+    entityType: "Payout",
     entityId: payout._id,
   });
   return paid;
 }
 
 async function listHostPayouts(hostId) {
-  return Payout.find({ HostID: hostId }).sort({ createdAt: -1 }).limit(50).lean();
+  return Payout.find({ HostID: hostId })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
 }
 
 /**
@@ -190,7 +197,7 @@ async function creditAvailable(hostId, amount) {
   await HostBalance.findOneAndUpdate(
     { HostID: hostId },
     { $inc: { AvailableBalance: amt, Version: 1 } },
-    { upsert: true }
+    { upsert: true },
   );
 }
 

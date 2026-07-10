@@ -18,15 +18,38 @@ async function fetchCustomerHistory() {
             historyBookingsCache = data.bookings || [];
             applyCustomerFilters();
         } else if (res.status === 401) {
-            document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Vui lòng đăng nhập để xem lịch sử.</p></div>`;
+            renderHistoryMessage('Vui lòng đăng nhập để xem lịch sử.', true);
         } else {
-            const safeErr = WorkHubAPI.escapeHtml(data.error || 'Không thể tải dữ liệu');
-            document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Lỗi: ${safeErr}</p></div>`;
+            renderHistoryMessage('Lỗi: ' + (data.error || 'Không thể tải dữ liệu'), true);
         }
     } catch (error) {
         console.error("Lỗi lấy dữ liệu:", error);
-        document.getElementById('history-list').innerHTML = `<div class="text-center py-10 bg-rose-50 rounded-3xl border border-rose-100"><p class="text-rose-600 font-bold text-sm">Lỗi kết nối máy chủ, vui lòng thử lại sau.</p></div>`;
+        renderHistoryMessage('Lỗi kết nối máy chủ, vui lòng thử lại sau.', true);
     }
+}
+
+function renderHistoryMessage(text, isError) {
+    const container = document.getElementById('history-list');
+    if (!container) return;
+    const DS = window.DomSafe;
+    if (DS) {
+        DS.clearElement(container);
+        const wrap = DS.createTextElement(
+            'div',
+            `text-center py-10 rounded-3xl border ${isError ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`,
+            null
+        );
+        wrap.appendChild(
+            DS.createTextElement(
+                'p',
+                `font-bold text-sm ${isError ? 'text-rose-600' : 'text-slate-500'}`,
+                text
+            )
+        );
+        container.appendChild(wrap);
+        return;
+    }
+    container.textContent = text;
 }
 
 // ==========================================
@@ -155,130 +178,220 @@ function applyCustomerFilters() {
 }
 
 // ==========================================
-// 3. RENDER GIAO DIỆN (UI) THẺ ĐƠN HÀNG
+// 3. RENDER GIAO DIỆN (UI) THẺ ĐƠN HÀNG — DomSafe / textContent only
 // ==========================================
 function renderCustomerBookings(list) {
     const container = document.getElementById('history-list');
     if (!container) return;
-    container.innerHTML = '';
+    const DS = window.DomSafe;
+    if (DS) DS.clearElement(container);
+    else container.textContent = '';
 
-    if (list.length === 0) {
-        container.innerHTML = `<div class="text-center py-10 bg-slate-50 rounded-3xl border border-slate-100"><p class="text-slate-500 font-bold text-sm">Không tìm thấy đơn đặt chỗ nào phù hợp.</p></div>`;
+    if (!list.length) {
+        renderHistoryMessage('Không tìm thấy đơn đặt chỗ nào phù hợp.', false);
         return;
     }
 
     const now = new Date();
+    const el = (tag, cls, text) =>
+        DS
+            ? DS.createTextElement(tag, cls, text)
+            : (() => {
+                  const n = document.createElement(tag);
+                  if (cls) n.className = cls;
+                  if (text != null) n.textContent = String(text);
+                  return n;
+              })();
 
-    container.innerHTML = list.map(booking => {
+    list.forEach((booking) => {
         const space = booking.SpaceID || {};
-        
-        const imgUrl = (space.Images && space.Images.length > 0) ? space.Images[0] : 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=200';
+        const fallbackImg =
+            'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=200';
+        const rawImg =
+            space.Images && space.Images.length > 0 ? space.Images[0] : fallbackImg;
+        const imgUrl = DS && DS.safeImageUrl ? DS.safeImageUrl(rawImg) || fallbackImg : rawImg;
 
         const start = new Date(booking.StartTime);
         const end = new Date(booking.EndTime);
         const dateStr = start.toLocaleDateString('vi-VN');
-        const timeStr = `${start.getHours()}:${String(start.getMinutes()).padStart(2,'0')} - ${end.getHours()}:${String(end.getMinutes()).padStart(2,'0')}`;
+        const timeStr = `${start.getHours()}:${String(start.getMinutes()).padStart(2, '0')} - ${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`;
 
         let displayStatus = booking.Status || booking.status;
-        const isExpired = !isNaN(end.getTime()) && (now >= end);
+        const isExpired = !isNaN(end.getTime()) && now >= end;
         if (displayStatus === 'in-use' && isExpired) displayStatus = 'completed';
 
-        let timeWarningUI = '';
-        if (displayStatus === 'in-use') {
-            const timeDiff = end.getTime() - now.getTime();
-            const minutesLeft = Math.floor(timeDiff / (1000 * 60));
-            const isHidden = minutesLeft > 15 ? 'hidden' : 'flex animate-pulse';
-            timeWarningUI = `
-                <div class="live-countdown-container mt-2 ${isHidden} items-center gap-1 bg-amber-100 text-amber-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase w-max" data-endtime="${end}">
-                    ⏰ <span class="timer-text font-mono">...</span>
-                </div>`;
-        }
-
-        let stBadge = '', stColor = '';
+        let stBadge = '';
+        let stColor = '';
         let showBadge = true;
-        if (displayStatus === 'pending') { stBadge = 'Chờ duyệt'; stColor = 'bg-amber-100 text-amber-700'; }
-        else if (displayStatus === 'confirmed') { stBadge = 'Đã được duyệt'; stColor = 'bg-blue-100 text-blue-700'; }
-        else if (displayStatus === 'in-use') { stBadge = 'Đang dùng'; stColor = 'bg-purple-100 text-purple-700'; }
-        else if (displayStatus === 'completed') { 
-            if (!booking.canReview) {
-                showBadge = false;
-            } else {
-                stBadge = 'Hãy đánh giá ngay!'; stColor = 'bg-emerald-100 text-emerald-500';
+        if (displayStatus === 'pending') {
+            stBadge = 'Chờ duyệt';
+            stColor = 'bg-amber-100 text-amber-700';
+        } else if (displayStatus === 'confirmed') {
+            stBadge = 'Đã được duyệt';
+            stColor = 'bg-blue-100 text-blue-700';
+        } else if (displayStatus === 'in-use') {
+            stBadge = 'Đang dùng';
+            stColor = 'bg-purple-100 text-purple-700';
+        } else if (displayStatus === 'completed') {
+            if (!booking.canReview) showBadge = false;
+            else {
+                stBadge = 'Hãy đánh giá ngay!';
+                stColor = 'bg-emerald-100 text-emerald-500';
             }
+        } else {
+            stBadge = 'Đã hủy';
+            stColor = 'bg-slate-200 text-slate-600';
         }
-        else { stBadge = 'Đã hủy'; stColor = 'bg-slate-200 text-slate-600'; }
 
-        // % chỉ từ successful payments (backend). Không gán "thành công" cho pending.
         const total = booking.TotalAmount || 0;
         const percent = booking.percentPaid || 0;
         let percentColor = 'text-slate-400';
-        let payLabel = percent > 0 ? ('Verified ' + percent + '%') : 'Unpaid / awaiting host verification';
+        let payLabel =
+            percent > 0 ? 'Verified ' + percent + '%' : 'Unpaid / awaiting host verification';
         if (percent > 0 && percent < 100) percentColor = 'text-amber-600';
         if (percent >= 100) {
             percentColor = 'text-emerald-600';
             payLabel = 'Đã thanh toán đủ (đã xác minh)';
         }
 
+        const displayName = space.Name || 'Không có thông tin phòng';
+        const branch = space.BranchID || null;
+        const actualBranchId = branch ? branch._id || branch : null;
 
-        let actionUI = `<a href="/booking/detail?id=${booking._id}" class="block w-full text-center py-1 rounded-xl border-2 border-slate-200 text-slate-500 font-black text-[10px] uppercase hover:border-teal-400 hover:text-teal-700 transition whitespace-nowrap">Xem chi tiết</a>`;
-        
+        const card = el(
+            'div',
+            'bg-white rounded-3xl p-4 md:p-5 shadow-sm border border-slate-100 hover:shadow-lg transition flex flex-col md:flex-row gap-5 items-center',
+            null
+        );
+
+        const imgWrap = el('div', 'w-full md:w-32 h-32 shrink-0 relative', null);
+        const img = document.createElement('img');
+        img.src = imgUrl;
+        img.alt = displayName;
+        img.className = 'w-full h-full object-cover rounded-2xl shadow-inner';
+        imgWrap.appendChild(img);
+        card.appendChild(imgWrap);
+
+        const mid = el('div', 'flex-1 w-full', null);
+        const head = el('div', 'flex justify-between items-start mb-1', null);
+        if (actualBranchId && String(actualBranchId) !== '[object Object]') {
+            const title = document.createElement('a');
+            title.href = '/detail?branchId=' + encodeURIComponent(String(actualBranchId));
+            title.className =
+                'text-lg font-black text-slate-800 hover:text-teal-600 transition tracking-tight';
+            title.textContent = displayName;
+            head.appendChild(title);
+        } else {
+            const title = el(
+                'span',
+                'text-lg font-black text-slate-400 tracking-tight',
+                displayName
+            );
+            title.title = 'Cơ sở không khả dụng';
+            head.appendChild(title);
+        }
+        if (showBadge && stBadge) {
+            head.appendChild(
+                el(
+                    'span',
+                    stColor +
+                        ' px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ml-2',
+                    stBadge
+                )
+            );
+        }
+        mid.appendChild(head);
+        mid.appendChild(
+            el(
+                'div',
+                'text-xs font-bold text-slate-500 mb-3',
+                'Mã phòng: ' + (space.SpaceCode || 'Không có thông tin')
+            )
+        );
+
+        const meta = el('div', 'flex flex-wrap gap-2 md:gap-4 text-xs font-medium text-slate-600', null);
+        meta.appendChild(
+            el('div', 'bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100', '📅 ' + dateStr)
+        );
+        meta.appendChild(
+            el('div', 'bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100', '🕒 ' + timeStr)
+        );
+        meta.appendChild(
+            el(
+                'div',
+                'bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100',
+                '🔖 #' + String(booking._id).slice(-6).toUpperCase()
+            )
+        );
+        mid.appendChild(meta);
+
+        if (displayStatus === 'in-use') {
+            const timeDiff = end.getTime() - now.getTime();
+            const minutesLeft = Math.floor(timeDiff / (1000 * 60));
+            const warn = el(
+                'div',
+                'live-countdown-container mt-2 items-center gap-1 bg-amber-100 text-amber-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase w-max ' +
+                    (minutesLeft > 15 ? 'hidden' : 'flex animate-pulse'),
+                null
+            );
+            warn.setAttribute('data-endtime', String(end.toISOString()));
+            warn.appendChild(document.createTextNode('⏰ '));
+            warn.appendChild(el('span', 'timer-text font-mono', '...'));
+            mid.appendChild(warn);
+        }
+        card.appendChild(mid);
+
+        const right = el(
+            'div',
+            'w-full md:w-48 text-right flex flex-col justify-between h-full border-t md:border-t-0 md:border-l border-dashed border-slate-200 pt-4 md:pt-0 md:pl-5',
+            null
+        );
+        const money = el('div', 'mb-4 md:mb-0', null);
+        money.appendChild(
+            el('div', 'text-[10px] font-black text-slate-400 uppercase mb-1', 'Tổng chi phí')
+        );
+        money.appendChild(
+            el('div', 'text-xl font-black text-slate-800', total.toLocaleString('vi-VN') + 'đ')
+        );
+        money.appendChild(el('div', 'text-[10px] font-bold ' + percentColor + ' mt-1', payLabel));
+        right.appendChild(money);
+
+        const actions = el('div', 'flex flex-col mt-auto w-full pt-1', null);
+        const detail = document.createElement('a');
+        detail.href = '/booking/detail?id=' + encodeURIComponent(String(booking._id));
+        detail.className =
+            'block w-full text-center py-1 rounded-xl border-2 border-slate-200 text-slate-500 font-black text-[10px] uppercase hover:border-teal-400 hover:text-teal-700 transition whitespace-nowrap';
+        detail.textContent = 'Xem chi tiết';
+        actions.appendChild(detail);
+
         if (displayStatus === 'completed') {
             if (booking.canReview) {
-                actionUI += `<button onclick="openReviewModal('${booking._id}', 5, '')" class="w-full mt-1 py-1 rounded-xl bg-teal-500 text-white font-black text-[10px] uppercase shadow-md hover:bg-teal-500 transition whitespace-nowrap">Đánh giá</button>`;
-            } else if (booking.canEditReview) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className =
+                    'w-full mt-1 py-1 rounded-xl bg-teal-500 text-white font-black text-[10px] uppercase shadow-md hover:bg-teal-500 transition whitespace-nowrap';
+                btn.textContent = 'Đánh giá';
+                btn.addEventListener('click', () => openReviewModal(String(booking._id), 5, ''));
+                actions.appendChild(btn);
+            } else if (booking.canEditReview && booking.ReviewData) {
                 const rv = booking.ReviewData;
-                actionUI += `<button onclick="openReviewModal('${booking._id}', ${rv.Rating}, '${escapeHtml(rv.Comment)}')" class="w-full mt-1 py-1 rounded-xl border-2 border-slate-200 text-slate-500 font-black text-[10px] uppercase hover:bg-teal-50 transition whitespace-nowrap">Sửa đánh giá</button>`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className =
+                    'w-full mt-1 py-1 rounded-xl border-2 border-slate-200 text-slate-500 font-black text-[10px] uppercase hover:bg-teal-50 transition whitespace-nowrap';
+                btn.textContent = 'Sửa đánh giá';
+                btn.addEventListener('click', () =>
+                    openReviewModal(String(booking._id), Number(rv.Rating) || 5, rv.Comment || '')
+                );
+                actions.appendChild(btn);
             }
         }
+        right.appendChild(actions);
+        card.appendChild(right);
+        container.appendChild(card);
+    });
 
-        const displayName = space.Name || 'Không có thông tin phòng';
-        
-        // --- XỬ LÝ AN TOÀN BRANCH ID (CHỐNG LỖI ORPHAN DATA) ---
-        const branch = space.BranchID || null;
-        const actualBranchId = branch ? (branch._id || branch) : null;
-        
-        let titleHTML = '';
-        if (actualBranchId) {
-            titleHTML = `<a href="/detail?branchId=${actualBranchId}" class="text-lg font-black text-slate-800 hover:text-teal-600 transition tracking-tight">${displayName}</a>`;
-        } else {
-            titleHTML = `<a href="#" onclick="alert('Cơ sở này đã ngừng hoạt động hoặc bị xóa khỏi hệ thống.'); return false;" class="text-lg font-black text-slate-400 cursor-not-allowed tracking-tight" title="Cơ sở không khả dụng">${displayName}</a>`;
-        }
-
-        return `
-            <div class="bg-white rounded-3xl p-4 md:p-5 shadow-sm border border-slate-100 hover:shadow-lg transition flex flex-col md:flex-row gap-5 items-center">
-                <div class="w-full md:w-32 h-32 shrink-0 relative">
-                    <img src="${imgUrl}" class="w-full h-full object-cover rounded-2xl shadow-inner" alt="${displayName}">
-                </div>
-                
-                <div class="flex-1 w-full">
-                    <div class="flex justify-between items-start mb-1">
-                        ${titleHTML}
-                        <span class="${stColor} px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ml-2">${showBadge ? stBadge : ''}</span>
-                    </div>
-                    <div class="text-xs font-bold text-slate-500 mb-3">Mã phòng: ${space.SpaceCode || 'Không có thông tin'}</div>
-                    
-                    <div class="flex flex-wrap gap-2 md:gap-4 text-xs font-medium text-slate-600">
-                        <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">📅 ${dateStr}</div>
-                        <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">🕒 ${timeStr}</div>
-                        <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">🔖 #${booking._id.substring(booking._id.length - 6).toUpperCase()}</div>
-                    </div>
-                    ${timeWarningUI}
-                </div>
-
-                <div class="w-full md:w-48 text-right flex flex-col justify-between h-full border-t md:border-t-0 md:border-l border-dashed border-slate-200 pt-4 md:pt-0 md:pl-5">
-                    <div class="mb-4 md:mb-0">
-                        <div class="text-[10px] font-black text-slate-400 uppercase mb-1">Tổng chi phí</div>
-                        <div class="text-xl font-black text-slate-800">${total.toLocaleString('vi-VN')}đ</div>
-                        <div class="text-[10px] font-bold ${percentColor} mt-1">${payLabel}</div>
-                    </div>
-                    <div class="flex flex-col mt-auto w-full pt-1">
-                        ${actionUI}
-                    </div>
-                </div>
-            </div>`;
-    }).join('');
-
-    startLiveTimers(); 
+    startLiveTimers();
 }
 // ==========================================
 // 4. XỬ LÝ MODAL (POPUP) CHI TIẾT & ĐÁNH GIÁ
@@ -437,7 +550,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 const submitBtn = reviewForm.querySelector('button[type="submit"]');
                 if (submitBtn) {
                     submitBtn.disabled = true;
-                    submitBtn.innerHTML = 'Đang xử lý...';
+                    submitBtn.textContent = 'Đang xử lý...';
                     submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 }
                 // --------------------------------------------------------
@@ -466,7 +579,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     // --- BỔ SUNG: Mở khóa nút bấm trở lại khi API chạy xong dù lỗi hay thành công ---
                     if (submitBtn) {
                         submitBtn.disabled = false;
-                        submitBtn.innerHTML = 'Gửi đánh giá';
+                        submitBtn.textContent = 'Gửi đánh giá';
                         submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     }
                     // -------------------------------------------------------------------------------

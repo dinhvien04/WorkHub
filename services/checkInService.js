@@ -1,35 +1,35 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const Booking = require('../models/Booking');
-const env = require('../config/env');
+const crypto = require("crypto");
+const Booking = require("../models/Booking");
+const env = require("../config/env");
 const {
   ValidationError,
   NotFoundError,
   ForbiddenError,
-} = require('../utils/errors');
-const bookingService = require('./bookingService');
+} = require("../utils/errors");
+const bookingService = require("./bookingService");
 
 const EARLY_MINUTES = Number(process.env.CHECKIN_EARLY_MINUTES) || 30;
 const LATE_MINUTES = Number(process.env.CHECKIN_LATE_MINUTES) || 60;
 const NOSHOW_GRACE_MINUTES = Number(process.env.NOSHOW_GRACE_MINUTES) || 15;
 
 function signPayload(payload) {
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto
-    .createHmac('sha256', env.JWT_SECRET)
+    .createHmac("sha256", env.JWT_SECRET)
     .update(body)
-    .digest('base64url');
+    .digest("base64url");
   return `${body}.${sig}`;
 }
 
 function verifyToken(token) {
-  if (!token || !String(token).includes('.')) return null;
-  const [body, sig] = String(token).split('.');
+  if (!token || !String(token).includes(".")) return null;
+  const [body, sig] = String(token).split(".");
   const expected = crypto
-    .createHmac('sha256', env.JWT_SECRET)
+    .createHmac("sha256", env.JWT_SECRET)
     .update(body)
-    .digest('base64url');
+    .digest("base64url");
   try {
     if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
       return null;
@@ -38,7 +38,7 @@ function verifyToken(token) {
     return null;
   }
   try {
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
     if (payload.exp && Date.now() > payload.exp) return null;
     return payload;
   } catch {
@@ -47,12 +47,15 @@ function verifyToken(token) {
 }
 
 function hashCode(code) {
-  return crypto.createHash('sha256').update(String(code).toUpperCase()).digest('hex');
+  return crypto
+    .createHash("sha256")
+    .update(String(code).toUpperCase())
+    .digest("hex");
 }
 
 function randomHumanCode() {
   // 10 chars base32-ish ≈ > 50 bits entropy
-  return `WH-${crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 10)}`;
+  return `WH-${crypto.randomBytes(6).toString("hex").toUpperCase().slice(0, 10)}`;
 }
 
 function assertCheckInWindow(booking, now = new Date()) {
@@ -63,27 +66,32 @@ function assertCheckInWindow(booking, now = new Date()) {
   const late = end + LATE_MINUTES * 60000;
   if (t < early) {
     throw new ValidationError(
-      `Chưa đến giờ check-in (sớm tối đa ${EARLY_MINUTES} phút).`
+      `Chưa đến giờ check-in (sớm tối đa ${EARLY_MINUTES} phút).`,
     );
   }
   if (t > late) {
-    throw new ValidationError('Đã quá cửa sổ check-in.');
+    throw new ValidationError("Đã quá cửa sổ check-in.");
   }
 }
 
 /**
  * Short-lived QR token + random human code (hashed on booking).
  */
-async function mintCheckInToken({ bookingId, actorId, actorRole, ttlMinutes = 30 }) {
+async function mintCheckInToken({
+  bookingId,
+  actorId,
+  actorRole,
+  ttlMinutes = 30,
+}) {
   const booking = await Booking.findById(bookingId);
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   const isCustomer = String(booking.CustomerID) === String(actorId);
   const isHost = String(booking.HostID) === String(actorId);
-  if (!isCustomer && !isHost && actorRole !== 'admin') {
-    throw new ForbiddenError('Không có quyền tạo mã check-in.');
+  if (!isCustomer && !isHost && actorRole !== "admin") {
+    throw new ForbiddenError("Không có quyền tạo mã check-in.");
   }
-  if (!['confirmed', 'in-use'].includes(booking.Status)) {
-    throw new ValidationError('Booking chưa sẵn sàng check-in.');
+  if (!["confirmed", "in-use"].includes(booking.Status)) {
+    throw new ValidationError("Booking chưa sẵn sàng check-in.");
   }
 
   const code = randomHumanCode();
@@ -95,7 +103,7 @@ async function mintCheckInToken({ bookingId, actorId, actorRole, ttlMinutes = 30
   const payload = {
     bid: String(booking._id),
     hid: String(booking.HostID),
-    nonce: crypto.randomBytes(8).toString('hex'),
+    nonce: crypto.randomBytes(8).toString("hex"),
     exp: expiresAt.getTime(),
   };
   return {
@@ -111,9 +119,10 @@ async function checkInWithToken({ hostId, token, code, hostContext = null }) {
 
   if (token) {
     const payload = verifyToken(token);
-    if (!payload?.bid) throw new ValidationError('Mã QR không hợp lệ hoặc đã hết hạn.');
+    if (!payload?.bid)
+      throw new ValidationError("Mã QR không hợp lệ hoặc đã hết hạn.");
     if (payload.hid && String(payload.hid) !== String(hostId)) {
-      throw new ForbiddenError('Mã QR không thuộc host này.');
+      throw new ForbiddenError("Mã QR không thuộc host này.");
     }
     booking = await Booking.findOne({ _id: payload.bid, HostID: hostId });
   } else if (code) {
@@ -122,32 +131,34 @@ async function checkInWithToken({ hostId, token, code, hostContext = null }) {
       HostID: hostId,
       CheckInCodeHash: h,
       CheckInCodeExpiresAt: { $gt: new Date() },
-      Status: { $in: ['confirmed', 'in-use'] },
+      Status: { $in: ["confirmed", "in-use"] },
     });
-    if (!booking) throw new NotFoundError('Không tìm thấy booking với mã này.');
+    if (!booking) throw new NotFoundError("Không tìm thấy booking với mã này.");
   } else {
-    throw new ValidationError('Cần token QR hoặc booking code.');
+    throw new ValidationError("Cần token QR hoặc booking code.");
   }
 
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
 
   // Staff branch scope via Space
   if (hostContext && !hostContext.isOwner && hostContext.allowedBranchIds) {
-    const Space = require('../models/Space');
-    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    const Space = require("../models/Space");
+    const space = await Space.findById(booking.SpaceID)
+      .select("BranchID")
+      .lean();
     if (
       !space?.BranchID ||
       !hostContext.allowedBranchIds.includes(String(space.BranchID))
     ) {
-      throw new ForbiddenError('Không có quyền check-in chi nhánh này.');
+      throw new ForbiddenError("Không có quyền check-in chi nhánh này.");
     }
   }
 
-  if (booking.Status !== 'confirmed' && booking.Status !== 'in-use') {
-    throw new ValidationError('Booking không ở trạng thái check-in.');
+  if (booking.Status !== "confirmed" && booking.Status !== "in-use") {
+    throw new ValidationError("Booking không ở trạng thái check-in.");
   }
   if (booking.CheckInAt) {
-    throw new ValidationError('Booking đã check-in.');
+    throw new ValidationError("Booking đã check-in.");
   }
 
   assertCheckInWindow(booking);
@@ -163,41 +174,50 @@ async function checkInWithToken({ hostId, token, code, hostContext = null }) {
   return updated;
 }
 
-async function markNoShow({ hostId, bookingId, reason = '', hostContext = null }) {
+async function markNoShow({
+  hostId,
+  bookingId,
+  reason = "",
+  hostContext = null,
+}) {
   const booking = await Booking.findOne({ _id: bookingId, HostID: hostId });
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
 
   if (hostContext && !hostContext.isOwner && hostContext.allowedBranchIds) {
-    const Space = require('../models/Space');
-    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    const Space = require("../models/Space");
+    const space = await Space.findById(booking.SpaceID)
+      .select("BranchID")
+      .lean();
     if (
       !space?.BranchID ||
       !hostContext.allowedBranchIds.includes(String(space.BranchID))
     ) {
-      throw new ForbiddenError('Không có quyền no-show chi nhánh này.');
+      throw new ForbiddenError("Không có quyền no-show chi nhánh này.");
     }
   }
 
-  if (!['confirmed', 'pending', 'awaiting_payment'].includes(booking.Status)) {
-    throw new ValidationError('Chỉ đánh dấu no-show với đơn confirmed/pending.');
+  if (!["confirmed", "pending", "awaiting_payment"].includes(booking.Status)) {
+    throw new ValidationError(
+      "Chỉ đánh dấu no-show với đơn confirmed/pending.",
+    );
   }
 
   const graceEnd =
     new Date(booking.StartTime).getTime() + NOSHOW_GRACE_MINUTES * 60000;
   if (Date.now() < graceEnd) {
     throw new ValidationError(
-      `Chưa hết thời gian chờ no-show (grace ${NOSHOW_GRACE_MINUTES} phút sau giờ bắt đầu).`
+      `Chưa hết thời gian chờ no-show (grace ${NOSHOW_GRACE_MINUTES} phút sau giờ bắt đầu).`,
     );
   }
 
-  booking.Status = 'no_show';
-  booking.CancelReason = `no_show: ${String(reason || '').slice(0, 400)}`;
+  booking.Status = "no_show";
+  booking.CancelReason = `no_show: ${String(reason || "").slice(0, 400)}`;
   booking.CancelledAt = new Date();
   booking.CancelledBy = hostId;
   booking.NoShow = true;
   booking.CheckInCodeHash = null;
   await booking.save();
-  const BookingSlot = require('../models/BookingSlot');
+  const BookingSlot = require("../models/BookingSlot");
   await BookingSlot.deleteMany({ BookingID: booking._id });
   return booking;
 }

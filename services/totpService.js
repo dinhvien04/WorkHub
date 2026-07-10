@@ -1,20 +1,20 @@
-'use strict';
+"use strict";
 
 /**
  * RFC 6238 TOTP (SHA-1, 30s, 6 digits) — no external OTP dependency.
  */
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
+const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
 
 const STEP = 30;
 const DIGITS = 6;
 const WINDOW = 1;
 
 function base32Encode(buf) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let bits = 0;
   let value = 0;
-  let output = '';
+  let output = "";
   for (const byte of buf) {
     value = (value << 8) | byte;
     bits += 8;
@@ -28,11 +28,11 @@ function base32Encode(buf) {
 }
 
 function base32Decode(str) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const cleaned = String(str || '')
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const cleaned = String(str || "")
     .toUpperCase()
-    .replace(/=+$/, '')
-    .replace(/[^A-Z2-7]/g, '');
+    .replace(/=+$/, "")
+    .replace(/[^A-Z2-7]/g, "");
   let bits = 0;
   let value = 0;
   const out = [];
@@ -56,14 +56,14 @@ function generateSecret(bytes = 20) {
 function hotp(secretBuf, counter) {
   const buf = Buffer.alloc(8);
   buf.writeBigUInt64BE(BigInt(counter));
-  const hmac = crypto.createHmac('sha1', secretBuf).update(buf).digest();
+  const hmac = crypto.createHmac("sha1", secretBuf).update(buf).digest();
   const offset = hmac[hmac.length - 1] & 0xf;
   const code =
     ((hmac[offset] & 0x7f) << 24) |
     ((hmac[offset + 1] & 0xff) << 16) |
     ((hmac[offset + 2] & 0xff) << 8) |
     (hmac[offset + 3] & 0xff);
-  return String(code % 10 ** DIGITS).padStart(DIGITS, '0');
+  return String(code % 10 ** DIGITS).padStart(DIGITS, "0");
 }
 
 function totpAt(secretBase32, timeMs = Date.now()) {
@@ -72,7 +72,7 @@ function totpAt(secretBase32, timeMs = Date.now()) {
 }
 
 function verifyTotp(secretBase32, token, { window = WINDOW } = {}) {
-  const code = String(token || '').replace(/\s/g, '');
+  const code = String(token || "").replace(/\s/g, "");
   if (!/^\d{6}$/.test(code)) return false;
   const now = Date.now();
   for (let w = -window; w <= window; w++) {
@@ -82,12 +82,12 @@ function verifyTotp(secretBase32, token, { window = WINDOW } = {}) {
   return false;
 }
 
-function otpauthUrl({ secret, email, issuer = 'WorkHub' }) {
+function otpauthUrl({ secret, email, issuer = "WorkHub" }) {
   const label = encodeURIComponent(`${issuer}:${email}`);
   const params = new URLSearchParams({
     secret,
     issuer,
-    algorithm: 'SHA1',
+    algorithm: "SHA1",
     digits: String(DIGITS),
     period: String(STEP),
   });
@@ -97,7 +97,7 @@ function otpauthUrl({ secret, email, issuer = 'WorkHub' }) {
 function generateRecoveryCodes(count = 8) {
   const plain = [];
   for (let i = 0; i < count; i++) {
-    plain.push(crypto.randomBytes(4).toString('hex'));
+    plain.push(crypto.randomBytes(4).toString("hex"));
   }
   return plain;
 }
@@ -107,7 +107,9 @@ async function hashRecoveryCodes(codes) {
 }
 
 async function consumeRecoveryCode(hashedList, plainCode) {
-  const code = String(plainCode || '').trim().toLowerCase();
+  const code = String(plainCode || "")
+    .trim()
+    .toLowerCase();
   if (!code) return { ok: false, remaining: hashedList };
   const remaining = [];
   let matched = false;

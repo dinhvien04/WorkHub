@@ -1,16 +1,16 @@
-'use strict';
+"use strict";
 
-const Notification = require('../models/Notification');
-const logger = require('../utils/logger');
+const Notification = require("../models/Notification");
+const logger = require("../utils/logger");
 
 async function notifyUser({
   userId,
   title,
-  body = '',
-  type = 'system',
-  entityType = '',
+  body = "",
+  type = "system",
+  entityType = "",
   entityId = null,
-  link = '',
+  link = "",
 }) {
   try {
     const doc = await Notification.create({
@@ -23,10 +23,10 @@ async function notifyUser({
       Link: link,
     });
     try {
-      const { getIO } = require('./socketService');
+      const { getIO } = require("./socketService");
       const io = getIO();
       if (io) {
-        io.to(`user:${userId}`).emit('notification', {
+        io.to(`user:${userId}`).emit("notification", {
           id: doc._id,
           title,
           body,
@@ -39,23 +39,30 @@ async function notifyUser({
     }
     return doc;
   } catch (err) {
-    logger.error('notifyUser failed', err.message);
+    logger.error("notifyUser failed", err.message);
     return null;
   }
 }
 
 async function listNotifications(
   userId,
-  { page = 1, limit = 20, unreadOnly = false, type = null } = {}
+  { page = 1, limit = 20, unreadOnly = false, type = null } = {},
 ) {
   const filter = { UserID: userId };
   if (unreadOnly) filter.IsRead = false;
-  if (type && ['system', 'booking', 'payment', 'host', 'admin', 'message'].includes(type)) {
+  if (
+    type &&
+    ["system", "booking", "payment", "host", "admin", "message"].includes(type)
+  ) {
     filter.Type = type;
   }
   const skip = (page - 1) * limit;
   const [items, total, unreadCount] = await Promise.all([
-    Notification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     Notification.countDocuments(filter),
     Notification.countDocuments({ UserID: userId, IsRead: false }),
   ]);
@@ -66,12 +73,15 @@ async function markRead(userId, notificationId) {
   return Notification.findOneAndUpdate(
     { _id: notificationId, UserID: userId },
     { $set: { IsRead: true } },
-    { returnDocument: 'after' }
+    { returnDocument: "after" },
   );
 }
 
 async function markAllRead(userId) {
-  await Notification.updateMany({ UserID: userId, IsRead: false }, { $set: { IsRead: true } });
+  await Notification.updateMany(
+    { UserID: userId, IsRead: false },
+    { $set: { IsRead: true } },
+  );
 }
 
 async function unreadCount(userId) {

@@ -1,12 +1,16 @@
-'use strict';
+"use strict";
 
-const RecurringSeries = require('../models/RecurringSeries');
-const bookingService = require('./bookingService');
-const bookingQuoteService = require('./bookingQuoteService');
-const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
+const RecurringSeries = require("../models/RecurringSeries");
+const bookingService = require("./bookingService");
+const bookingQuoteService = require("./bookingQuoteService");
+const {
+  ValidationError,
+  NotFoundError,
+  ForbiddenError,
+} = require("../utils/errors");
 
 function parseHm(hm) {
-  const [h, m] = String(hm).split(':').map(Number);
+  const [h, m] = String(hm).split(":").map(Number);
   return { h: h || 0, m: m || 0 };
 }
 
@@ -21,7 +25,7 @@ function buildOccurrences(series, max = 12) {
   let guard = 0;
   while (out.length < Math.min(countLimit, max) && guard < 500) {
     guard += 1;
-    if (series.Frequency === 'weekly' && series.DaysOfWeek?.length) {
+    if (series.Frequency === "weekly" && series.DaysOfWeek?.length) {
       if (!series.DaysOfWeek.includes(cursor.getDay())) {
         cursor = new Date(cursor.getTime() + 86400000);
         continue;
@@ -33,14 +37,16 @@ function buildOccurrences(series, max = 12) {
       const end = new Date(start.getTime() + series.DurationMinutes * 60000);
       out.push({ start, end });
     }
-    if (series.Frequency === 'daily') {
+    if (series.Frequency === "daily") {
       cursor = new Date(cursor.getTime() + series.Interval * 86400000);
-    } else if (series.Frequency === 'weekly' && series.DaysOfWeek?.length) {
+    } else if (series.Frequency === "weekly" && series.DaysOfWeek?.length) {
       // advance one day; day filter above picks next matching DOW
       cursor = new Date(cursor.getTime() + 86400000);
     } else {
       // weekly without DOW: interval weeks
-      cursor = new Date(cursor.getTime() + (series.Interval || 1) * 7 * 86400000);
+      cursor = new Date(
+        cursor.getTime() + (series.Interval || 1) * 7 * 86400000,
+      );
     }
   }
   return out;
@@ -61,14 +67,14 @@ async function previewSeries({
   occurrenceCount = 8,
   max = 12,
 }) {
-  if (!['daily', 'weekly'].includes(frequency)) {
-    throw new ValidationError('Frequency không hợp lệ (daily|weekly).');
+  if (!["daily", "weekly"].includes(frequency)) {
+    throw new ValidationError("Frequency không hợp lệ (daily|weekly).");
   }
-  if (!spaceId) throw new ValidationError('Thiếu spaceId.');
+  if (!spaceId) throw new ValidationError("Thiếu spaceId.");
   if (!startTimeOfDay || !durationMinutes) {
-    throw new ValidationError('Thiếu startTimeOfDay hoặc durationMinutes.');
+    throw new ValidationError("Thiếu startTimeOfDay hoặc durationMinutes.");
   }
-  if (!seriesStart) throw new ValidationError('Thiếu seriesStart.');
+  if (!seriesStart) throw new ValidationError("Thiếu seriesStart.");
 
   const draft = {
     Frequency: frequency,
@@ -81,7 +87,10 @@ async function previewSeries({
     OccurrenceCount: Math.min(52, Math.max(1, Number(occurrenceCount) || 8)),
   };
 
-  const occurrences = buildOccurrences(draft, Math.min(draft.OccurrenceCount, max));
+  const occurrences = buildOccurrences(
+    draft,
+    Math.min(draft.OccurrenceCount, max),
+  );
   const items = [];
   let estimatedTotal = 0;
   for (const oc of occurrences) {
@@ -129,11 +138,11 @@ async function createSeries({
   seriesEnd = null,
   occurrenceCount = 8,
 }) {
-  if (!['daily', 'weekly'].includes(frequency)) {
-    throw new ValidationError('Frequency không hợp lệ.');
+  if (!["daily", "weekly"].includes(frequency)) {
+    throw new ValidationError("Frequency không hợp lệ.");
   }
   if (!startTimeOfDay || !durationMinutes) {
-    throw new ValidationError('Thiếu thời gian lặp.');
+    throw new ValidationError("Thiếu thời gian lặp.");
   }
 
   const series = await RecurringSeries.create({
@@ -148,11 +157,14 @@ async function createSeries({
     SeriesStart: new Date(seriesStart),
     SeriesEnd: seriesEnd ? new Date(seriesEnd) : null,
     OccurrenceCount: Math.min(52, Math.max(1, Number(occurrenceCount) || 8)),
-    Status: 'active',
+    Status: "active",
     BookingIDs: [],
   });
 
-  const occurrences = buildOccurrences(series, Math.min(series.OccurrenceCount || 8, 12));
+  const occurrences = buildOccurrences(
+    series,
+    Math.min(series.OccurrenceCount || 8, 12),
+  );
   const created = [];
   const failed = [];
 
@@ -166,9 +178,9 @@ async function createSeries({
         note: `Recurring series ${series._id}`,
       });
       try {
-        await require('../models/Booking').updateOne(
+        await require("../models/Booking").updateOne(
           { _id: booking._id },
-          { $set: { SeriesID: series._id } }
+          { $set: { SeriesID: series._id } },
         );
       } catch {
         /* field optional if migration lag */
@@ -197,31 +209,37 @@ async function listSeries(userId) {
  * - this_and_future: requires occurrenceBookingId
  * - this: cancel single occurrence only
  */
-async function cancelSeries(seriesId, userId, { mode = 'whole', occurrenceBookingId = null } = {}) {
+async function cancelSeries(
+  seriesId,
+  userId,
+  { mode = "whole", occurrenceBookingId = null } = {},
+) {
   const series = await RecurringSeries.findById(seriesId);
-  if (!series) throw new NotFoundError('Không tìm thấy series.');
+  if (!series) throw new NotFoundError("Không tìm thấy series.");
   if (String(series.CustomerID) !== String(userId)) {
-    throw new ForbiddenError('Không có quyền.');
+    throw new ForbiddenError("Không có quyền.");
   }
 
-  const Booking = require('../models/Booking');
-  const BookingSlot = require('../models/BookingSlot');
-  const protectedStatuses = new Set(['completed', 'in-use', 'no_show']);
+  const Booking = require("../models/Booking");
+  const BookingSlot = require("../models/BookingSlot");
+  const protectedStatuses = new Set(["completed", "in-use", "no_show"]);
   const now = new Date();
   let cancelled = 0;
   const ids = (series.BookingIDs || []).map(String);
 
   let targetIds = ids;
-  if (mode === 'this' && occurrenceBookingId) {
+  if (mode === "this" && occurrenceBookingId) {
     targetIds = ids.filter((id) => id === String(occurrenceBookingId));
-  } else if (mode === 'this_and_future' && occurrenceBookingId) {
-    const occ = await Booking.findById(occurrenceBookingId).select('StartTime').lean();
-    if (!occ) throw new NotFoundError('Occurrence not found.');
+  } else if (mode === "this_and_future" && occurrenceBookingId) {
+    const occ = await Booking.findById(occurrenceBookingId)
+      .select("StartTime")
+      .lean();
+    if (!occ) throw new NotFoundError("Occurrence not found.");
     const future = await Booking.find({
       _id: { $in: series.BookingIDs },
       StartTime: { $gte: occ.StartTime },
     })
-      .select('_id')
+      .select("_id")
       .lean();
     targetIds = future.map((b) => String(b._id));
   }
@@ -233,9 +251,9 @@ async function cancelSeries(seriesId, userId, { mode = 'whole', occurrenceBookin
     });
     if (!b) continue;
     if (protectedStatuses.has(b.Status)) continue;
-    if (['cancelled', 'expired', 'rejected'].includes(b.Status)) continue;
+    if (["cancelled", "expired", "rejected"].includes(b.Status)) continue;
     // Do not cancel past completed windows that already started if in-use handled above
-    b.Status = 'cancelled';
+    b.Status = "cancelled";
     b.CancelledAt = now;
     b.CancelledBy = userId;
     b.CancelReason = `series_cancel:${mode}`;
@@ -244,8 +262,8 @@ async function cancelSeries(seriesId, userId, { mode = 'whole', occurrenceBookin
     cancelled += 1;
   }
 
-  if (mode === 'whole' || mode === 'this_and_future') {
-    series.Status = 'cancelled';
+  if (mode === "whole" || mode === "this_and_future") {
+    series.Status = "cancelled";
     await series.save();
   }
 

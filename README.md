@@ -80,11 +80,23 @@ npm start        # production
 npm test         # jest + mongodb-memory-server
 npm run lint     # eslint
 npm run lint:security-ui  # no inline handlers in critical JS
-npm run check    # lint + test
+npm run format:check
+npm run check    # lint:security-ui + lint + test
 npm run audit:prod
+npm run test:e2e # Playwright smoke (install chromium once; PLAYWRIGHT_SKIP=1 to skip locally)
 npm run reconcile:finance -- --dry-run
 npm run jobs:expire-holds
 npm run seed:extras  # coupons + feature flags demo
+```
+
+### Playwright E2E
+
+```bash
+npm i -D playwright
+npx playwright install chromium
+# start server in another terminal: npm start
+BASE_URL=http://127.0.0.1:3000 npm run test:e2e
+# CI: set CI=true so missing browser fails instead of skip
 ```
 
 ## Product features (shipped baseline)

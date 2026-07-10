@@ -1,18 +1,22 @@
-'use strict';
+"use strict";
 
-const Conversation = require('../models/Conversation');
-const Booking = require('../models/Booking');
-const { ForbiddenError, NotFoundError, ValidationError } = require('../utils/errors');
-const { notifyUser } = require('./notificationService');
+const Conversation = require("../models/Conversation");
+const Booking = require("../models/Booking");
+const {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} = require("../utils/errors");
+const { notifyUser } = require("./notificationService");
 
 async function getOrCreateConversation(bookingId, userId, role) {
   const booking = await Booking.findById(bookingId);
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
 
   const isCustomer = String(booking.CustomerID) === String(userId);
   const isHost = String(booking.HostID) === String(userId);
-  if (!isCustomer && !isHost && role !== 'admin') {
-    throw new ForbiddenError('Không có quyền xem hội thoại này.');
+  if (!isCustomer && !isHost && role !== "admin") {
+    throw new ForbiddenError("Không có quyền xem hội thoại này.");
   }
 
   let conv = await Conversation.findOne({ BookingID: bookingId });
@@ -29,9 +33,9 @@ async function getOrCreateConversation(bookingId, userId, role) {
 
 /** Strip accidental PII patterns from message payloads shown in UI */
 function redactContactPii(text) {
-  return String(text || '')
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email ẩn]')
-    .replace(/(?:\+?84|0)\d{8,10}\b/g, '[sđt ẩn]');
+  return String(text || "")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email ẩn]")
+    .replace(/(?:\+?84|0)\d{8,10}\b/g, "[sđt ẩn]");
 }
 
 async function listMessages(bookingId, userId, role) {
@@ -50,8 +54,9 @@ async function listMessages(bookingId, userId, role) {
 }
 
 async function sendMessage(bookingId, userId, role, body) {
-  const text = String(body || '').trim();
-  if (!text || text.length > 4000) throw new ValidationError('Nội dung không hợp lệ.');
+  const text = String(body || "").trim();
+  if (!text || text.length > 4000)
+    throw new ValidationError("Nội dung không hợp lệ.");
 
   const conv = await getOrCreateConversation(bookingId, userId, role);
   conv.Messages.push({
@@ -67,10 +72,10 @@ async function sendMessage(bookingId, userId, role, body) {
     String(conv.CustomerID) === String(userId) ? conv.HostID : conv.CustomerID;
   await notifyUser({
     userId: recipient,
-    title: 'Tin nhắn booking mới',
+    title: "Tin nhắn booking mới",
     body: redactContactPii(text).slice(0, 120),
-    type: 'message',
-    entityType: 'Booking',
+    type: "message",
+    entityType: "Booking",
     entityId: bookingId,
     link: `/history`,
   });
@@ -84,18 +89,24 @@ async function sendMessage(bookingId, userId, role, body) {
   };
 }
 
-async function reportMessage({ bookingId, userId, role, messageId, reason = '' }) {
+async function reportMessage({
+  bookingId,
+  userId,
+  role,
+  messageId,
+  reason = "",
+}) {
   const conv = await getOrCreateConversation(bookingId, userId, role);
   const msg = (conv.Messages || []).id
     ? conv.Messages.id(messageId)
     : (conv.Messages || []).find((m) => String(m._id) === String(messageId));
-  if (!msg) throw new NotFoundError('Không tìm thấy tin nhắn.');
+  if (!msg) throw new NotFoundError("Không tìm thấy tin nhắn.");
 
   conv.Reports = conv.Reports || [];
   conv.Reports.push({
     MessageID: msg._id,
     ReportedBy: userId,
-    Reason: String(reason || 'abuse').slice(0, 500),
+    Reason: String(reason || "abuse").slice(0, 500),
     CreatedAt: new Date(),
   });
   // Cap report list
@@ -103,14 +114,14 @@ async function reportMessage({ bookingId, userId, role, messageId, reason = '' }
   await conv.save();
 
   try {
-    const logActivity = require('../utils/auditLogger');
+    const logActivity = require("../utils/auditLogger");
     await logActivity(
       userId,
-      'REPORT_MESSAGE',
-      'Conversation',
+      "REPORT_MESSAGE",
+      "Conversation",
       conv._id,
-      `Report message ${msg._id}: ${String(reason || 'abuse').slice(0, 200)}`,
-      'warning'
+      `Report message ${msg._id}: ${String(reason || "abuse").slice(0, 200)}`,
+      "warning",
     );
   } catch {
     /* ignore */

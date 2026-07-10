@@ -1,7 +1,11 @@
-'use strict';
+"use strict";
 
-const { assertHostPermission, getStaffRole, roleHas } = require('../policies/permissions');
-const { ForbiddenError, UnauthorizedError } = require('../utils/errors');
+const {
+  assertHostPermission,
+  getStaffRole,
+  roleHas,
+} = require("../policies/permissions");
+const { ForbiddenError, UnauthorizedError } = require("../utils/errors");
 
 /**
  * Ensure authenticated host owner (or staff) has a permission.
@@ -14,18 +18,18 @@ function requireHostPermission(permission) {
       if (!req.user?.userId) return next(new UnauthorizedError());
       const hostOwnerId = req.user.userId;
       // Owner path: host role users managing own resources
-      if (req.user.role === 'host') {
+      if (req.user.role === "host") {
         const role = await getStaffRole(hostOwnerId, req.user.userId);
         // getStaffRole returns 'owner' when same id
-        if (!roleHas(role, permission) && role !== 'owner') {
-          return next(new ForbiddenError('Không có quyền (staff).'));
+        if (!roleHas(role, permission) && role !== "owner") {
+          return next(new ForbiddenError("Không có quyền (staff)."));
         }
         // owner always passes roleHas via *
         await assertHostPermission(hostOwnerId, req.user.userId, permission);
-        req.hostContext = { hostOwnerId, staffRole: role || 'owner' };
+        req.hostContext = { hostOwnerId, staffRole: role || "owner" };
         return next();
       }
-      return next(new ForbiddenError('Chỉ host/staff được truy cập.'));
+      return next(new ForbiddenError("Chỉ host/staff được truy cập."));
     } catch (err) {
       return next(err);
     }
@@ -37,11 +41,11 @@ function requireHostPermission(permission) {
  * Host owners always allowed.
  */
 function requireFinanceAccess() {
-  return requireHostPermission('finance:view');
+  return requireHostPermission("finance:view");
 }
 
 function requirePaymentVerify() {
-  return requireHostPermission('payment:verify');
+  return requireHostPermission("payment:verify");
 }
 
 module.exports = {

@@ -1,10 +1,10 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const multer = require('multer');
-const env = require('../config/env');
+const crypto = require("crypto");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const multer = require("multer");
+const env = require("../config/env");
 
 if (env.CLOUDINARY_CLOUD_NAME) {
   cloudinary.config({
@@ -14,30 +14,36 @@ if (env.CLOUDINARY_CLOUD_NAME) {
   });
 }
 
-const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const DOC_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const DOC_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
 
 function folderFor(fieldname) {
-  if (fieldname === 'customerAvatar' || fieldname === 'LogoFile') return 'coworking/avatars';
-  if (fieldname === 'verificationDocument') return 'coworking/licenses';
-  if (fieldname === 'image') return 'coworking/branchs-and-spaces';
-  return 'coworking/misc';
+  if (fieldname === "customerAvatar" || fieldname === "LogoFile")
+    return "coworking/avatars";
+  if (fieldname === "verificationDocument") return "coworking/licenses";
+  if (fieldname === "image") return "coworking/branchs-and-spaces";
+  return "coworking/misc";
 }
 
 function fileFilter(req, file, cb) {
   const field = file.fieldname;
   const mime = file.mimetype;
 
-  if (field === 'verificationDocument') {
+  if (field === "verificationDocument") {
     if (!DOC_MIMES.has(mime)) {
-      return cb(new Error('Giấy tờ chỉ chấp nhận JPEG, PNG, WebP hoặc PDF.'));
+      return cb(new Error("Giấy tờ chỉ chấp nhận JPEG, PNG, WebP hoặc PDF."));
     }
     return cb(null, true);
   }
 
   // avatar / logo / branch-space images: no PDF, no SVG
   if (!IMAGE_MIMES.has(mime)) {
-    return cb(new Error('Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP.'));
+    return cb(new Error("Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP."));
   }
   return cb(null, true);
 }
@@ -48,15 +54,15 @@ const storage = new CloudinaryStorage({
     const folderName = folderFor(file.fieldname);
     const publicId = `${crypto.randomUUID()}`;
     const formats =
-      file.fieldname === 'verificationDocument'
-        ? ['jpg', 'png', 'jpeg', 'webp', 'pdf']
-        : ['jpg', 'png', 'jpeg', 'webp'];
+      file.fieldname === "verificationDocument"
+        ? ["jpg", "png", "jpeg", "webp", "pdf"]
+        : ["jpg", "png", "jpeg", "webp"];
 
     return {
       folder: folderName,
       allowed_formats: formats,
       public_id: publicId,
-      resource_type: 'auto',
+      resource_type: "auto",
     };
   },
 });
@@ -75,8 +81,12 @@ const uploadCloud = multer({
   fileFilter,
 });
 
-const { validateUploadMagicBytes, sniffImageOrPdf, assertAllowedMagic } = require('../utils/magicBytes');
-const { scanUploadedFiles } = require('../services/uploadScanService');
+const {
+  validateUploadMagicBytes,
+  sniffImageOrPdf,
+  assertAllowedMagic,
+} = require("../utils/magicBytes");
+const { scanUploadedFiles } = require("../services/uploadScanService");
 
 // Compose: multer + magic bytes + content scan when buffer present
 function withMagicBytes(multerMw) {
@@ -90,5 +100,7 @@ module.exports.validateUploadMagicBytes = validateUploadMagicBytes;
 module.exports.sniffImageOrPdf = sniffImageOrPdf;
 module.exports.assertAllowedMagic = assertAllowedMagic;
 module.exports.withMagicBytes = withMagicBytes;
-module.exports.singleWithMagic = (field) => withMagicBytes(uploadCloud.single(field));
-module.exports.arrayWithMagic = (field, max) => withMagicBytes(uploadCloud.array(field, max));
+module.exports.singleWithMagic = (field) =>
+  withMagicBytes(uploadCloud.single(field));
+module.exports.arrayWithMagic = (field, max) =>
+  withMagicBytes(uploadCloud.array(field, max));

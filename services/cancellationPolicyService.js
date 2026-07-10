@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Default free-cancellation window and refund estimate (policy snapshot).
@@ -8,7 +8,7 @@ function buildPolicySnapshot({
   freeCancelHours = 24,
   refundBeforeStartPercent = 100,
   refundAfterStartPercent = 0,
-  currency = 'VND',
+  currency = "VND",
 } = {}) {
   return {
     freeCancelHours,
@@ -42,18 +42,21 @@ function evaluateCancellation(booking, { now = new Date() } = {}) {
 
   const successfulPaid = Number(booking._successfulPaid || 0);
   // Caller may pass successfulPaid; else estimate from deposit only
-  const base = successfulPaid > 0 ? successfulPaid : Number(booking.DepositAmount || 0);
+  const base =
+    successfulPaid > 0 ? successfulPaid : Number(booking.DepositAmount || 0);
   const refundAmount = Math.round((base * refundPercent) / 100);
 
   return {
     policy,
     withinFreeWindow: withinFree && !started,
-    canCancel: !['cancelled', 'completed', 'expired', 'rejected'].includes(booking.Status),
+    canCancel: !["cancelled", "completed", "expired", "rejected"].includes(
+      booking.Status,
+    ),
     refundPercent,
     refundAmount,
     processingNote: withinFree
-      ? 'Hoàn trong 3–5 ngày làm việc nếu đã thanh toán.'
-      : 'Hoàn một phần theo chính sách; thời gian xử lý 5–7 ngày.',
+      ? "Hoàn trong 3–5 ngày làm việc nếu đã thanh toán."
+      : "Hoàn một phần theo chính sách; thời gian xử lý 5–7 ngày.",
     hoursUntilStart: Math.max(0, Math.round(msBefore / 3600000)),
   };
 }

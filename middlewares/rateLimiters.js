@@ -1,9 +1,12 @@
-'use strict';
+"use strict";
 
-const rateLimit = require('express-rate-limit');
-const { createMemoryStore, getRateLimitStore } = require('../utils/rateLimitStore');
+const rateLimit = require("express-rate-limit");
+const {
+  createMemoryStore,
+  getRateLimitStore,
+} = require("../utils/rateLimitStore");
 
-const isTest = process.env.NODE_ENV === 'test';
+const isTest = process.env.NODE_ENV === "test";
 
 /**
  * Each express-rate-limit instance needs its own store (unique prefix).
@@ -12,7 +15,7 @@ const isTest = process.env.NODE_ENV === 'test';
 function makeLimiter({ windowMs, max, message, prefix }) {
   const store = createMemoryStore();
   // Tag for debugging / Redis key namespacing if upgraded later
-  store._prefix = prefix || 'rl';
+  store._prefix = prefix || "rl";
 
   if (process.env.REDIS_URL && !isTest) {
     getRateLimitStore(windowMs)
@@ -40,50 +43,50 @@ function makeLimiter({ windowMs, max, message, prefix }) {
     standardHeaders: true,
     legacyHeaders: false,
     store,
-    message: { error: message, code: 'RATE_LIMITED' },
+    message: { error: message, code: "RATE_LIMITED" },
   });
 }
 
 const loginLimiter = makeLimiter({
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: 'Quá nhiều lần đăng nhập. Vui lòng thử lại sau.',
-  prefix: 'login',
+  message: "Quá nhiều lần đăng nhập. Vui lòng thử lại sau.",
+  prefix: "login",
 });
 
 const registerLimiter = makeLimiter({
   windowMs: 60 * 60 * 1000,
   max: 10,
-  message: 'Quá nhiều lần đăng ký. Vui lòng thử lại sau.',
-  prefix: 'register',
+  message: "Quá nhiều lần đăng ký. Vui lòng thử lại sau.",
+  prefix: "register",
 });
 
 const passwordLimiter = makeLimiter({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: 'Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau.',
-  prefix: 'password',
+  message: "Quá nhiều yêu cầu đặt lại mật khẩu. Vui lòng thử lại sau.",
+  prefix: "password",
 });
 
 const bookingLimiter = makeLimiter({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: 'Quá nhiều yêu cầu đặt chỗ. Vui lòng thử lại sau.',
-  prefix: 'booking',
+  message: "Quá nhiều yêu cầu đặt chỗ. Vui lòng thử lại sau.",
+  prefix: "booking",
 });
 
 const paymentLimiter = makeLimiter({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: 'Quá nhiều yêu cầu thanh toán. Vui lòng thử lại sau.',
-  prefix: 'payment',
+  message: "Quá nhiều yêu cầu thanh toán. Vui lòng thử lại sau.",
+  prefix: "payment",
 });
 
 const searchLimiter = makeLimiter({
   windowMs: 60 * 1000,
   max: 120,
-  message: 'Quá nhiều tìm kiếm. Thử lại sau.',
-  prefix: 'search',
+  message: "Quá nhiều tìm kiếm. Thử lại sau.",
+  prefix: "search",
 });
 
 module.exports = {

@@ -1,11 +1,14 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const FeatureFlag = require('../models/FeatureFlag');
-const env = require('../config/env');
+const crypto = require("crypto");
+const FeatureFlag = require("../models/FeatureFlag");
+const env = require("../config/env");
 
 function bucket(userId, key) {
-  const h = crypto.createHash('sha256').update(`${key}:${userId || 'anon'}`).digest();
+  const h = crypto
+    .createHash("sha256")
+    .update(`${key}:${userId || "anon"}`)
+    .digest();
   return h[0] % 100;
 }
 
@@ -18,15 +21,15 @@ async function isEnabled(key, { userId = null, role = null } = {}) {
   if (!flag.Enabled) return false;
 
   if (flag.Environments?.length) {
-    const cur = env.NODE_ENV || 'development';
-    if (!flag.Environments.includes(cur) && !flag.Environments.includes('*')) {
+    const cur = env.NODE_ENV || "development";
+    if (!flag.Environments.includes(cur) && !flag.Environments.includes("*")) {
       return false;
     }
   }
   if (flag.Roles?.length && role && !flag.Roles.includes(role)) {
     return false;
   }
-  const pct = typeof flag.Percentage === 'number' ? flag.Percentage : 100;
+  const pct = typeof flag.Percentage === "number" ? flag.Percentage : 100;
   if (pct >= 100) return true;
   if (pct <= 0) return false;
   return bucket(userId, key) < pct;
@@ -44,7 +47,7 @@ async function listPublicFlags(context = {}) {
 async function upsertFlag({
   key,
   enabled,
-  description = '',
+  description = "",
   percentage = 100,
   roles = [],
   environments = [],
@@ -60,7 +63,7 @@ async function upsertFlag({
         Environments: environments,
       },
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 }
 
@@ -68,4 +71,10 @@ async function listAllFlags() {
   return FeatureFlag.find().sort({ Key: 1 }).lean();
 }
 
-module.exports = { isEnabled, listPublicFlags, upsertFlag, listAllFlags, bucket };
+module.exports = {
+  isEnabled,
+  listPublicFlags,
+  upsertFlag,
+  listAllFlags,
+  bucket,
+};
