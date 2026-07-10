@@ -14,8 +14,7 @@ function slugify(input) {
 async function uniqueSlug(Model, base, field = 'Slug', extraFilter = {}) {
   let slug = slugify(base) || 'item';
   let i = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (;;) {
     const candidate = i === 0 ? slug : `${slug}-${i}`;
     const exists = await Model.findOne({ [field]: candidate, ...extraFilter }).select('_id').lean();
     if (!exists) return candidate;

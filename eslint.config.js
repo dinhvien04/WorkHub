@@ -63,6 +63,8 @@ module.exports = [
         openModal: 'readonly',
         navigateTo: 'readonly',
         crypto: 'readonly',
+        Chart: 'readonly',
+        globalThis: 'readonly',
       },
     },
   },
