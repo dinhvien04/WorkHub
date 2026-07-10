@@ -121,18 +121,17 @@ describe('Public host profile', () => {
   });
 });
 
-describe('Optional simplewebauthn helper', () => {
-  test('trySimpleWebAuthnVerify skips when package or payload missing', async () => {
-    const result = await trySimpleWebAuthnVerify({
-      credential: { CredentialId: 'x', PublicKey: '', Counter: 0 },
-      challenge: 'ch',
-      credentialId: 'x',
-      clientDataJSON: null,
-      authenticatorData: null,
-      signature: null,
-      host: 'localhost',
-    });
-    expect(result).toBe('skipped');
+describe('WebAuthn fail-closed helper', () => {
+  test('isEnabled false by default; stub cannot login', async () => {
+    const webauthnService = require('../services/webauthnService');
+    expect(webauthnService.isEnabled()).toBe(false);
+    await expect(
+      webauthnService.verifyLoginAssertion({
+        challenge: 'ch',
+        credentialId: 'x',
+        signature: 'stub',
+      })
+    ).rejects.toMatchObject({ statusCode: 503 });
   });
 });
 

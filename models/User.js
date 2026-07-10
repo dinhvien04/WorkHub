@@ -54,7 +54,8 @@ const userSchema = new mongoose.Schema({
         default: 0
     },
 
-    EmailVerified: { type: Boolean, default: true },
+    // Local customers start false until email confirm; Google/migrated may be true
+    EmailVerified: { type: Boolean, default: false },
     EmailVerifiedAt: { type: Date, default: null },
 
     // TOTP 2FA (secret never returned in public DTOs)

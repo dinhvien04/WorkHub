@@ -13,16 +13,20 @@ const g = require('../controllers/growthController');
 const router = express.Router();
 
 // Gateway
+const env = require('../config/env');
 router.get('/gateway/providers', g.listGatewayProviders);
 router.post('/gateway/checkout', verifyToken, authorizeRole('customer'), g.createCheckout);
-router.post('/gateway/webhook', g.gatewayWebhook); // signature verified inside
+// Webhook raw-body route is mounted in app.js before express.json()
 router.get('/gateway/sessions/:sessionId', g.getGatewaySession);
-router.post(
-  '/gateway/sessions/:sessionId/mock-complete',
-  verifyToken,
-  authorizeRole('customer'),
-  g.mockCompleteGateway
-);
+// Mock complete: never registered in production
+if (!env.isProduction && env.ALLOW_MOCK_COMPLETE) {
+  router.post(
+    '/gateway/sessions/:sessionId/mock-complete',
+    verifyToken,
+    authorizeRole('customer'),
+    g.mockCompleteGateway
+  );
+}
 
 // Payouts
 router.post('/host/payouts', verifyToken, authorizeRole('host'), requireVerifiedHost, g.requestPayout);
@@ -60,7 +64,12 @@ router.post('/rsvp/:token', g.rsvpGroupInvite);
 router.post('/fraud/preview', verifyToken, g.fraudPreview);
 
 // Partner API keys (user-owned)
-router.post('/partner/keys', verifyToken, g.createApiKey);
+router.post(
+  '/partner/keys',
+  verifyToken,
+  authorizeRole('host', 'admin'),
+  g.createApiKey
+);
 router.get('/partner/keys', verifyToken, g.listApiKeys);
 router.delete('/partner/keys/:id', verifyToken, g.revokeApiKey);
 

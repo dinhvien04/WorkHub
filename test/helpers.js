@@ -95,12 +95,16 @@ async function createUser({
         : 'active';
 
   const hash = await bcrypt.hash(password, 10);
+  // Test helpers create verified/active users by default so existing suites work
   const user = await User.create({
     Email: email,
     PasswordHash: hash,
     FullName: fullName,
     Role: role,
     Status: resolvedStatus,
+    EmailVerified: true,
+    EmailVerifiedAt: new Date(),
+    AuthProvider: 'local',
     tokenVersion,
   });
 

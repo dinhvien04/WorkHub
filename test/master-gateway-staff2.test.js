@@ -50,31 +50,30 @@ describe('Multi-provider gateway', () => {
       endTime: end,
     });
 
+    // Client provider is ignored — server uses PAYMENT_PROVIDER / mock default
     const { session } = await gatewayService.createCheckoutSession({
       customerId: customer._id,
       bookingId: booking._id,
-      amount: booking.DepositAmount,
+      paymentType: 'deposit',
       provider: 'stripe_mock',
       idempotencyKey: 'stripe-idem-1',
     });
-    expect(session.Provider).toBe('stripe_mock');
-    expect(session.SessionId.startsWith('cs_test_')).toBe(true);
+    expect(['workhub_mock', 'stripe_mock', 'momo_mock'].includes(session.Provider)).toBe(true);
 
     const event = {
       type: 'checkout.session.completed',
       id: 'evt_stripe_1',
       data: { object: { id: session.SessionId } },
-      provider: 'stripe_mock',
+      provider: session.Provider,
     };
-    // normalize uses sessionId from data.object.id for stripe
     event.sessionId = session.SessionId;
     const raw = JSON.stringify(event);
-    const signature = gatewayService.signPayload(raw, 'stripe_mock');
+    const signature = gatewayService.signPayload(raw, session.Provider);
     const result = await gatewayService.handleWebhook({
       rawBody: raw,
       signature,
       event,
-      provider: 'stripe_mock',
+      provider: session.Provider,
     });
     expect(result.ok).toBe(true);
     expect(result.session.Status).toBe('succeeded');

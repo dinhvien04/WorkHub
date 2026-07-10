@@ -18,6 +18,7 @@ const {
   verifyStripeSignature,
   verifyMomoIpn,
   signForProvider,
+  verifyForProvider,
 } = require('../services/gatewayProviders');
 const featureFlagService = require('../services/featureFlagService');
 const bookingService = require('../services/bookingService');
@@ -83,7 +84,9 @@ describe('Stripe / MoMo signature helpers', () => {
   test('plain hmac still works for mocks', () => {
     const raw = '{}';
     const sig = signForProvider('workhub_mock', raw);
-    expect(sig).toHaveLength(64);
+    // Stripe-style t=,v1= envelope
+    expect(sig).toMatch(/^t=\d+,v1=[a-f0-9]{64}$/);
+    expect(verifyForProvider('workhub_mock', raw, sig)).toBe(true);
   });
 });
 

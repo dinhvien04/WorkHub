@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-10T12:27:06.456Z",
+    "timestamp": "2026-07-10T14:50:54.597Z",
     "component": {
       "type": "application",
       "name": "workhubmvc",
@@ -563,6 +563,14 @@
     },
     {
       "type": "library",
+      "name": "@hexagon/base64",
+      "version": "1.1.28",
+      "purl": "pkg:npm/%40hexagon%2Fbase64@1.1.28",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "@humanfs/core",
       "version": "0.19.2",
       "purl": "pkg:npm/%40humanfs%2Fcore@0.19.2",
@@ -915,6 +923,14 @@
     },
     {
       "type": "library",
+      "name": "@levischuck/tiny-cbor",
+      "version": "0.2.11",
+      "purl": "pkg:npm/%40levischuck%2Ftiny-cbor@0.2.11",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "@mongodb-js/saslprep",
       "version": "1.4.11",
       "purl": "pkg:npm/%40mongodb-js%2Fsaslprep@1.4.11",
@@ -947,6 +963,110 @@
     },
     {
       "type": "library",
+      "name": "@peculiar/asn1-android",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-android@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-cms",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-cms@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-csr",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-csr@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-ecc",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-ecc@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-pfx",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-pfx@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-pkcs8",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-pkcs8@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-pkcs9",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-pkcs9@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-rsa",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-rsa@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-schema",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-schema@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-x509",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-x509@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/asn1-x509-attr",
+      "version": "2.8.0",
+      "purl": "pkg:npm/%40peculiar%2Fasn1-x509-attr@2.8.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/utils",
+      "version": "2.0.3",
+      "purl": "pkg:npm/%40peculiar%2Futils@2.0.3",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@peculiar/x509",
+      "version": "1.14.3",
+      "purl": "pkg:npm/%40peculiar%2Fx509@1.14.3",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "@pinojs/redact",
       "version": "0.4.0",
       "purl": "pkg:npm/%40pinojs%2Fredact@0.4.0",
@@ -967,6 +1087,14 @@
       "version": "0.3.6",
       "purl": "pkg:npm/%40pkgr%2Fcore@0.3.6",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@simplewebauthn/server",
+      "version": "13.3.2",
+      "purl": "pkg:npm/%40simplewebauthn%2Fserver@13.3.2",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1358,7 +1486,7 @@
       "name": "agent-base",
       "version": "7.1.4",
       "purl": "pkg:npm/agent-base@7.1.4",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1472,6 +1600,14 @@
       "purl": "pkg:npm/asap@2.0.6",
       "dev": true,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "asn1js",
+      "version": "3.0.10",
+      "purl": "pkg:npm/asn1js@3.0.10",
+      "dev": false,
+      "license": "BSD-3-Clause"
     },
     {
       "type": "library",
@@ -1648,6 +1784,14 @@
       "purl": "pkg:npm/big-integer@1.6.52",
       "dev": false,
       "license": "Unlicense"
+    },
+    {
+      "type": "library",
+      "name": "bignumber.js",
+      "version": "9.3.1",
+      "purl": "pkg:npm/bignumber.js@9.3.1",
+      "dev": false,
+      "license": "MIT"
     },
     {
       "type": "library",
@@ -2125,6 +2269,14 @@
       "version": "3.2.1",
       "purl": "pkg:npm/css-tree@3.2.1",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "data-uri-to-buffer",
+      "version": "4.0.1",
+      "purl": "pkg:npm/data-uri-to-buffer@4.0.1",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2640,6 +2792,14 @@
     },
     {
       "type": "library",
+      "name": "extend",
+      "version": "3.0.2",
+      "purl": "pkg:npm/extend@3.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "fast-copy",
       "version": "4.0.4",
       "purl": "pkg:npm/fast-copy@4.0.4",
@@ -2701,6 +2861,14 @@
       "purl": "pkg:npm/fb-watchman@2.0.2",
       "dev": true,
       "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "fetch-blob",
+      "version": "3.2.0",
+      "purl": "pkg:npm/fetch-blob@3.2.0",
+      "dev": false,
+      "license": "MIT"
     },
     {
       "type": "library",
@@ -2824,6 +2992,14 @@
     },
     {
       "type": "library",
+      "name": "formdata-polyfill",
+      "version": "4.0.10",
+      "purl": "pkg:npm/formdata-polyfill@4.0.10",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "formidable",
       "version": "3.5.4",
       "purl": "pkg:npm/formidable@3.5.4",
@@ -2885,6 +3061,22 @@
       "purl": "pkg:npm/function-bind@1.1.2",
       "dev": false,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "gaxios",
+      "version": "7.2.0",
+      "purl": "pkg:npm/gaxios@7.2.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "gcp-metadata",
+      "version": "7.0.1",
+      "purl": "pkg:npm/gcp-metadata@7.0.1",
+      "dev": false,
+      "license": "Apache-2.0"
     },
     {
       "type": "library",
@@ -2957,6 +3149,30 @@
       "purl": "pkg:npm/globals@14.0.0",
       "dev": true,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "google-auth-library",
+      "version": "10.9.0",
+      "purl": "pkg:npm/google-auth-library@10.9.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "google-auth-library>gcp-metadata",
+      "version": "8.1.2",
+      "purl": "pkg:npm/google-auth-library%3Egcp-metadata@8.1.2",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "google-logging-utils",
+      "version": "1.1.3",
+      "purl": "pkg:npm/google-logging-utils@1.1.3",
+      "dev": false,
+      "license": "Apache-2.0"
     },
     {
       "type": "library",
@@ -3051,7 +3267,7 @@
       "name": "https-proxy-agent",
       "version": "7.0.6",
       "purl": "pkg:npm/https-proxy-agent@7.0.6",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3664,6 +3880,14 @@
     },
     {
       "type": "library",
+      "name": "json-bigint",
+      "version": "1.0.0",
+      "purl": "pkg:npm/json-bigint@1.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "json-buffer",
       "version": "3.0.1",
       "purl": "pkg:npm/json-buffer@3.0.1",
@@ -4200,6 +4424,14 @@
     },
     {
       "type": "library",
+      "name": "mongodb-memory-server-core>agent-base",
+      "version": "6.0.2",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Eagent-base@6.0.2",
+      "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "mongodb-memory-server-core>bson",
       "version": "6.10.4",
       "purl": "pkg:npm/mongodb-memory-server-core%3Ebson@6.10.4",
@@ -4213,6 +4445,30 @@
       "purl": "pkg:npm/mongodb-memory-server-core%3Ecamelcase@6.3.0",
       "dev": true,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "mongodb-memory-server-core>gaxios",
+      "version": "5.1.3",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Egaxios@5.1.3",
+      "dev": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "mongodb-memory-server-core>gaxios>https-proxy-agent",
+      "version": "5.0.1",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Egaxios%3Ehttps-proxy-agent@5.0.1",
+      "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "mongodb-memory-server-core>gcp-metadata",
+      "version": "5.3.0",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Egcp-metadata@5.3.0",
+      "dev": true,
+      "license": "Apache-2.0"
     },
     {
       "type": "library",
@@ -4232,11 +4488,43 @@
     },
     {
       "type": "library",
+      "name": "mongodb-memory-server-core>node-fetch",
+      "version": "2.7.0",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Enode-fetch@2.7.0",
+      "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "mongodb-memory-server-core>node-fetch>whatwg-url",
+      "version": "5.0.0",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Enode-fetch%3Ewhatwg-url@5.0.0",
+      "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "mongodb-memory-server-core>tar-stream",
       "version": "3.2.0",
       "purl": "pkg:npm/mongodb-memory-server-core%3Etar-stream@3.2.0",
       "dev": true,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "mongodb-memory-server-core>tr46",
+      "version": "0.0.3",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Etr46@0.0.3",
+      "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "mongodb-memory-server-core>webidl-conversions",
+      "version": "3.0.1",
+      "purl": "pkg:npm/mongodb-memory-server-core%3Ewebidl-conversions@3.0.1",
+      "dev": true,
+      "license": "BSD-2-Clause"
     },
     {
       "type": "library",
@@ -4348,6 +4636,22 @@
       "version": "2.0.0",
       "purl": "pkg:npm/new-find-package-json@2.0.0",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "node-domexception",
+      "version": "1.0.0",
+      "purl": "pkg:npm/node-domexception@1.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "node-fetch",
+      "version": "3.3.2",
+      "purl": "pkg:npm/node-fetch@3.3.2",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -4800,6 +5104,22 @@
     },
     {
       "type": "library",
+      "name": "pvtsutils",
+      "version": "1.3.6",
+      "purl": "pkg:npm/pvtsutils@1.3.6",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "pvutils",
+      "version": "1.1.5",
+      "purl": "pkg:npm/pvutils@1.1.5",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "q",
       "version": "1.5.1",
       "purl": "pkg:npm/q@1.5.1",
@@ -4909,6 +5229,14 @@
       "purl": "pkg:npm/real-require@0.2.0",
       "dev": false,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "reflect-metadata",
+      "version": "0.2.2",
+      "purl": "pkg:npm/reflect-metadata@0.2.2",
+      "dev": false,
+      "license": "Apache-2.0"
     },
     {
       "type": "library",
@@ -5514,7 +5842,23 @@
       "name": "tslib",
       "version": "2.8.1",
       "purl": "pkg:npm/tslib@2.8.1",
-      "dev": true,
+      "dev": false,
+      "license": "0BSD"
+    },
+    {
+      "type": "library",
+      "name": "tsyringe",
+      "version": "4.10.0",
+      "purl": "pkg:npm/tsyringe@4.10.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "tsyringe>tslib",
+      "version": "1.14.1",
+      "purl": "pkg:npm/tsyringe%3Etslib@1.14.1",
+      "dev": false,
       "license": "0BSD"
     },
     {
@@ -5684,6 +6028,14 @@
       "purl": "pkg:npm/walker@1.0.8",
       "dev": true,
       "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "web-streams-polyfill",
+      "version": "3.3.3",
+      "purl": "pkg:npm/web-streams-polyfill@3.3.3",
+      "dev": false,
+      "license": "MIT"
     },
     {
       "type": "library",

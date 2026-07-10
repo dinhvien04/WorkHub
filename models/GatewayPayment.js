@@ -25,6 +25,7 @@ const gatewayPaymentSchema = new mongoose.Schema(
     IdempotencyKey: { type: String, sparse: true, unique: true },
     WebhookReceivedAt: { type: Date, default: null },
     ProviderRef: { type: String, default: '' },
+    Meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { collection: 'gateway_payments', timestamps: true }
 );

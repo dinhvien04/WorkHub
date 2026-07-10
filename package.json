@@ -21,7 +21,10 @@
     "build:css:full": "node scripts/minify-css.js",
     "smoke": "node scripts/smoke-e2e.js",
     "load:smoke": "node scripts/load-smoke.js",
-    "test:e2e": "node scripts/playwright-e2e.js"
+    "test:e2e": "node scripts/playwright-e2e.js",
+    "reconcile:finance": "node scripts/reconcile-finance.js",
+    "jobs:expire-holds": "node scripts/expire-holds.js",
+    "worker": "node scripts/expire-holds.js"
   },
   "keywords": [
     "coworking",
@@ -36,6 +39,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^13.3.2",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
@@ -45,6 +49,7 @@
     "express": "^5.2.1",
     "express-ejs-layouts": "^2.5.1",
     "express-rate-limit": "^8.2.1",
+    "google-auth-library": "^10.9.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.2",

@@ -509,19 +509,12 @@ const checkout = asyncHandler(async (req, res) => {
   res.json({ booking });
 });
 
-// Wire ledger on payment verify (export helper used by host routes override if needed)
+// Canonical verify path (alias kept for API compatibility)
 const verifyPaymentWithLedger = asyncHandler(async (req, res) => {
-  const payment = await paymentService.verifyPayment(req.user.userId, req.params.paymentId);
-  await ledgerService.postEntry({
-    hostId: req.user.userId,
-    customerId: payment.CustomerID,
-    bookingId: payment.BookingID,
-    paymentId: payment._id,
-    type: 'payment',
-    amount: payment.Amount,
-    direction: 'credit',
-    description: `Payment ${payment.TransactionCode}`,
-    idempotencyKey: `ledger-pay-${payment._id}`,
+  const { payment } = await paymentService.verifyManualPaymentAndPostLedger({
+    hostOwnerId: req.user.userId,
+    actorUserId: req.user.userId,
+    paymentId: req.params.paymentId,
   });
   res.json({ message: 'Đã xác minh thanh toán.', payment });
 });

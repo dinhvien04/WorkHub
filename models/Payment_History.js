@@ -48,7 +48,7 @@ const paymentSchema = new mongoose.Schema({
     // 4. TRẠNG THÁI GIAO DỊCH
     Status: { 
         type: String, 
-        enum: ['pending', 'successful', 'failed', 'refunded', 'refund_pending'], 
+        enum: ['pending', 'successful', 'failed', 'refunded', 'partially_refunded', 'refund_pending'], 
         default: 'pending',
         index: true 
     },
@@ -59,6 +59,8 @@ const paymentSchema = new mongoose.Schema({
     VerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     FailureReason: { type: String, default: '' },
     RefundedAt: { type: Date },
+    /** Cumulative refunded amount on this payment (minor units) */
+    RefundedAmount: { type: Number, default: 0, min: 0 },
     IdempotencyKey: {
         type: String,
         index: true,

@@ -23,7 +23,7 @@ async function postEntry({
     if (existing) return existing;
   }
   try {
-    return await LedgerEntry.create({
+    const entry = await LedgerEntry.create({
       HostID: hostId,
       CustomerID: customerId,
       BookingID: bookingId,
@@ -36,6 +36,23 @@ async function postEntry({
       Meta: meta,
       Description: description,
     });
+    // Keep HostBalance projection in sync for payment credits (payouts manage reserve themselves)
+    if (type === 'payment' && direction === 'credit') {
+      try {
+        const HostBalance = require('../models/HostBalance');
+        await HostBalance.findOneAndUpdate(
+          { HostID: hostId },
+          {
+            $inc: { AvailableBalance: entry.Amount, Version: 1 },
+            $setOnInsert: { ReservedBalance: 0, PaidOutBalance: 0, Currency: 'VND' },
+          },
+          { upsert: true }
+        );
+      } catch {
+        /* non-fatal for ledger post */
+      }
+    }
+    return entry;
   } catch (err) {
     if (err.code === 11000 && idempotencyKey) {
       return LedgerEntry.findOne({ IdempotencyKey: idempotencyKey });
@@ -45,13 +62,29 @@ async function postEntry({
 }
 
 async function getHostBalance(hostId) {
+  // Prefer projected balance when present (O(1))
+  try {
+    const HostBalance = require('../models/HostBalance');
+    const proj = await HostBalance.findOne({ HostID: hostId }).lean();
+    if (proj) {
+      return {
+        available: Math.max(0, proj.AvailableBalance || 0),
+        pending: Math.max(0, proj.ReservedBalance || 0),
+        paidOut: Math.max(0, proj.PaidOutBalance || 0),
+        currency: proj.Currency || 'VND',
+        projected: true,
+      };
+    }
+  } catch {
+    /* fall through */
+  }
+
   const entries = await LedgerEntry.find({ HostID: hostId, Status: 'posted' }).lean();
   let available = 0;
   let pending = 0;
   let paidOut = 0;
   for (const e of entries) {
     const signed = e.Direction === 'credit' ? e.Amount : -e.Amount;
-    // Every posted entry moves available (credits +, debits -), including payout holds.
     available += signed;
     if (e.Type === 'payout' && e.Direction === 'debit') {
       paidOut += e.Amount;
@@ -62,6 +95,7 @@ async function getHostBalance(hostId) {
     pending,
     paidOut,
     currency: 'VND',
+    projected: false,
   };
 }
 

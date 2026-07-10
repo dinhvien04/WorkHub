@@ -90,6 +90,27 @@ function createApp() {
     })
   );
 
+  // Webhooks need exact raw body BEFORE JSON parser (Stripe/MoMo signature)
+  app.post(
+    '/api/gateway/webhook',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    (req, res, next) => {
+      req.rawBody = req.body;
+      next();
+    },
+    require('./controllers/growthController').gatewayWebhook
+  );
+  app.post(
+    '/api/gateway/webhook/stripe',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    (req, res, next) => {
+      req.rawBody = req.body;
+      req.query = { ...req.query, provider: 'stripe' };
+      next();
+    },
+    require('./controllers/growthController').gatewayWebhook
+  );
+
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ limit: '1mb', extended: true }));
   app.use(cookieParser());
@@ -150,23 +171,40 @@ function createApp() {
       res.status(503).json({ status: 'not_ready' });
     }
   });
-  app.get('/health/details', async (req, res) => {
+  function requireMetricsAuth(req, res, next) {
+    const token = env.METRICS_AUTH_TOKEN;
+    if (!token) {
+      if (env.isProduction) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+      // Dev/test without token: allow
+      return next();
+    }
+    const header = req.get('authorization') || '';
+    const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const q = req.query.token || '';
+    const provided = bearer || req.get('x-metrics-token') || q;
+    if (provided !== token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    return next();
+  }
+
+  app.get('/health/details', requireMetricsAuth, async (req, res) => {
     const mongoose = require('mongoose');
     const metrics = require('./utils/metrics');
     const pkg = require('./package.json');
+    // Minimal operational detail — no full dependency/topology dump
     res.json({
       status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
       version: pkg.version,
-      node: process.version,
       uptimeSec: Math.round(process.uptime()),
       db: { readyState: mongoose.connection.readyState },
-      redisConfigured: Boolean(process.env.REDIS_URL),
-      metrics: metrics.snapshot(),
       timestamp: new Date().toISOString(),
     });
   });
-  // Prometheus scrape (no auth — scrape via network policy / internal only in prod)
-  app.get('/metrics', (req, res) => {
+  // Prometheus scrape — requires METRICS_AUTH_TOKEN in production
+  app.get('/metrics', requireMetricsAuth, (req, res) => {
     const metrics = require('./utils/metrics');
     res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
     res.send(metrics.renderPrometheus());

@@ -55,7 +55,8 @@ describe('Prometheus metrics + health details', () => {
 
     const details = await request(app).get('/health/details');
     expect(details.status).toBe(200);
-    expect(details.body.metrics).toBeTruthy();
+    // metrics snapshot not public on /health/details (use /metrics)
     expect(details.body.version).toBeTruthy();
+    expect(details.body.node).toBeUndefined();
   });
 });

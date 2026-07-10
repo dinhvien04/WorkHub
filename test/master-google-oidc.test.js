@@ -58,15 +58,15 @@ describe('Google OIDC mock', () => {
     expect(count).toBe(1);
   });
 
-  test('link google to existing local account', async () => {
+  test('email collision cannot silently take over local account', async () => {
     await createUser({ email: 'local@example.com', role: 'customer', password: 'Pass1234' });
     const login = await request(app)
       .post('/api/auth/google/mock')
       .send({ email: 'local@example.com', name: 'Local Linked' });
-    expect(login.status).toBe(200);
+    // Must require explicit linking — no silent GoogleSub attach
+    expect([409, 400, 403]).toContain(login.status);
     const u = await User.findOne({ Email: 'local@example.com' });
-    expect(u.GoogleSub).toBeTruthy();
-    expect(u.AuthProvider).toBe('local');
+    expect(u.GoogleSub).toBeFalsy();
   });
 });
 

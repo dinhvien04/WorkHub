@@ -23,21 +23,36 @@ const createCheckout = asyncHandler(async (req, res) => {
   const result = await gatewayService.createCheckoutSession({
     customerId: req.user.userId,
     bookingId: req.body.bookingId,
-    amount: req.body.amount,
+    // amount/provider from client are ignored server-side
+    paymentType: req.body.paymentType || 'deposit',
     idempotencyKey: req.get('Idempotency-Key') || req.body.idempotencyKey,
-    provider: req.body.provider,
   });
   res.status(201).json(result);
 });
 
 const gatewayWebhook = asyncHandler(async (req, res) => {
-  const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+  // Prefer exact raw body (Buffer) from express.raw mount
+  let raw;
+  if (Buffer.isBuffer(req.body)) {
+    raw = req.body.toString('utf8');
+  } else if (typeof req.body === 'string') {
+    raw = req.body;
+  } else if (req.rawBody) {
+    raw = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : String(req.rawBody);
+  } else {
+    raw = JSON.stringify(req.body || {});
+  }
   const signature =
     req.get('x-workhub-signature') ||
     req.get('x-webhook-signature') ||
     req.get('stripe-signature') ||
     req.get('x-momo-signature');
-  const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  let event;
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    event = req.body;
+  }
   const result = await gatewayService.handleWebhook({
     rawBody: raw,
     signature,
@@ -179,20 +194,68 @@ const fraudPreview = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
-// —— Partner API keys ——
+// —— Partner API keys (verified host only) ——
 const createApiKey = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'host' && req.user.role !== 'admin') {
+    throw new ForbiddenError('Chỉ host đã xác minh hoặc admin mới tạo API key.');
+  }
+  const hostOwnerId = req.user.role === 'admin' && req.body.hostOwnerId
+    ? req.body.hostOwnerId
+    : req.user.userId;
+
+  if (req.user.role === 'host') {
+    const HostProfile = require('../models/Host_Profile');
+    const profile = await HostProfile.findOne({ UserID: req.user.userId }).lean();
+    if (!profile?.IsVerified) {
+      throw new ForbiddenError('Host chưa được xác minh.');
+    }
+  }
+
+  const requested = Array.isArray(req.body.scopes) ? req.body.scopes : ['bookings:read', 'spaces:read'];
+  const allow = req.user.role === 'admin' ? ApiKey.ADMIN_SCOPES : ApiKey.HOST_SCOPES;
+  let scopes = requested.filter((s) => allow.includes(s));
+  if (scopes.includes('*') && req.user.role !== 'admin') {
+    throw new ForbiddenError('Wildcard scope chỉ dành cho admin.');
+  }
+  if (!scopes.length) scopes = ['bookings:read'];
+
+  let branchIds = Array.isArray(req.body.allowedBranchIds) ? req.body.allowedBranchIds : [];
+  if (branchIds.length) {
+    const Branch = require('../models/Branch');
+    const owned = await Branch.find({
+      _id: { $in: branchIds },
+      HostID: hostOwnerId,
+    }).select('_id');
+    branchIds = owned.map((b) => b._id);
+  }
+
   const { raw, prefix, hash } = ApiKey.generate();
+  const expiresAt = req.body.expiresAt
+    ? new Date(req.body.expiresAt)
+    : new Date(Date.now() + 365 * 24 * 3600000);
+
   const doc = await ApiKey.create({
-    Name: req.body.name || 'Partner key',
+    Name: String(req.body.name || 'Partner key').slice(0, 100),
     OwnerUserID: req.user.userId,
+    HostOwnerID: hostOwnerId,
+    AllowedBranchIDs: branchIds,
     KeyPrefix: prefix,
     KeyHash: hash,
-    Scopes: req.body.scopes || ['bookings:read', 'spaces:read'],
+    Scopes: scopes,
     Status: 'active',
+    ExpiresAt: expiresAt,
+    CreatedBy: req.user.userId,
   });
-  // raw only returned once
   res.status(201).json({
-    apiKey: { id: doc._id, prefix, scopes: doc.Scopes, name: doc.Name },
+    apiKey: {
+      id: doc._id,
+      prefix,
+      scopes: doc.Scopes,
+      name: doc.Name,
+      hostOwnerId: doc.HostOwnerID,
+      allowedBranchIds: doc.AllowedBranchIDs,
+      expiresAt: doc.ExpiresAt,
+    },
     secret: raw,
     warning: 'Store secret securely; it will not be shown again.',
   });
@@ -216,21 +279,57 @@ const revokeApiKey = asyncHandler(async (req, res) => {
   res.json({ key: doc });
 });
 
-// Partner public API (API key auth)
+// Partner public API (API key auth) — tenant-scoped
 const partnerListSpaces = asyncHandler(async (req, res) => {
-  const spaces = await Space.find({ Status: 'available' })
-    .select('Name SpaceCode Category PricePerHour Capacity BranchID HostID Status')
+  const filter = {
+    Status: 'available',
+    HostID: req.apiKey.HostOwnerID || req.apiKey.OwnerUserID,
+  };
+  if (req.apiKey.AllowedBranchIDs?.length) {
+    filter.BranchID = { $in: req.apiKey.AllowedBranchIDs };
+  }
+  const spaces = await Space.find(filter)
+    .select('Name SpaceCode Category PricePerHour Capacity BranchID Status')
     .limit(50)
     .lean();
   res.json({ spaces });
 });
 
 const partnerGetBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id)
-    .select('Status StartTime EndTime TotalAmount SpaceID HostID CustomerID Snapshot')
+  const hostId = req.apiKey.HostOwnerID || req.apiKey.OwnerUserID;
+  const filter = {
+    _id: req.params.id,
+    HostID: hostId,
+  };
+  const booking = await Booking.findOne(filter)
+    .select('Status StartTime EndTime TotalAmount SpaceID HostID BranchID Snapshot.SpaceCode Snapshot.SpaceName')
     .lean();
   if (!booking) throw new NotFoundError('Booking not found');
-  res.json({ booking });
+
+  // Branch scope when key is limited
+  if (req.apiKey.AllowedBranchIDs?.length) {
+    const Space = require('../models/Space');
+    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    const branchId = booking.BranchID || space?.BranchID;
+    const allowed = req.apiKey.AllowedBranchIDs.map(String);
+    if (!branchId || !allowed.includes(String(branchId))) {
+      throw new NotFoundError('Booking not found');
+    }
+  }
+
+  // Safe DTO — no CustomerID, no unrestricted Snapshot
+  res.json({
+    booking: {
+      id: booking._id,
+      status: booking.Status,
+      startTime: booking.StartTime,
+      endTime: booking.EndTime,
+      totalAmount: booking.TotalAmount,
+      spaceId: booking.SpaceID,
+      spaceCode: booking.Snapshot?.SpaceCode,
+      spaceName: booking.Snapshot?.SpaceName,
+    },
+  });
 });
 
 // —— Sessions ——

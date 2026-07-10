@@ -87,7 +87,10 @@ describe('Job download + dead letter replay', () => {
 describe('Kill switch + gateway providers', () => {
   test('kill_switch_bookings blocks create; providers list live flags', async () => {
     const providers = listProviders();
-    expect(providers.some((p) => p.id === 'stripe')).toBe(true);
+    // Mock providers listed in test/dev; live stripe only when keys present
+    expect(providers.some((p) => p.id === 'workhub_mock' || p.id === 'stripe_mock' || p.id === 'stripe')).toBe(
+      true
+    );
     expect(typeof stripeLiveReady()).toBe('boolean');
     expect(typeof momoLiveReady()).toBe('boolean');
 

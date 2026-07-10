@@ -291,6 +291,33 @@ async function verifyPayment(hostId, paymentId) {
 }
 
 /**
+ * Canonical manual payment verify + single ledger credit (P0.7).
+ * All UI routes must call this — never separate verify vs verify-ledger paths.
+ */
+async function verifyManualPaymentAndPostLedger({
+  hostOwnerId,
+  actorUserId,
+  paymentId,
+  idempotencyKey,
+}) {
+  const payment = await verifyPayment(hostOwnerId, paymentId);
+  const ledgerService = require('./ledgerService');
+  const entry = await ledgerService.postEntry({
+    hostId: hostOwnerId,
+    customerId: payment.CustomerID,
+    bookingId: payment.BookingID,
+    paymentId: payment._id,
+    type: 'payment',
+    amount: payment.Amount,
+    direction: 'credit',
+    description: `Payment ${payment.TransactionCode}`,
+    idempotencyKey: idempotencyKey || `ledger-pay-${payment._id}`,
+    meta: { actorUserId: String(actorUserId || hostOwnerId) },
+  });
+  return { payment, ledgerEntry: entry };
+}
+
+/**
  * Ensure sum(successful) <= total by demoting later payments to failed.
  */
 async function reconcileSuccessfulCap(bookingId, totalAmount) {
@@ -409,6 +436,7 @@ module.exports = {
   getPaymentProgress,
   createPendingPayment,
   verifyPayment,
+  verifyManualPaymentAndPostLedger,
   rejectPayment,
   listHostPayments,
   getHostRevenueMetrics,

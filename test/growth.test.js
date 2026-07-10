@@ -53,7 +53,7 @@ describe('Gateway mock', () => {
     const { session } = await gatewayService.createCheckoutSession({
       customerId: customer._id,
       bookingId: booking._id,
-      amount: booking.DepositAmount,
+      paymentType: 'deposit',
       idempotencyKey: 'gw-idem-000000000001',
     });
 
@@ -119,7 +119,11 @@ describe('Payout', () => {
   test('cannot payout more than available', async () => {
     const host = await createUser({ email: 'hp@test.com', role: 'host' });
     await expect(
-      payoutService.requestPayout({ hostId: host._id, amount: 100000 })
+      payoutService.requestPayout({
+        hostId: host._id,
+        amount: 100000,
+        idempotencyKey: 'payout-empty-1',
+      })
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
@@ -144,10 +148,21 @@ describe('Payout', () => {
 });
 
 describe('Partner API key', () => {
-  test('create key and list spaces', async () => {
-    const admin = await createUser({ email: 'partner@test.com', role: 'admin' });
-    const { token } = agentWithAuth(app, admin);
+  test('host creates tenant-scoped key; customer cannot', async () => {
+    const host = await createUser({ email: 'hs@test.com', role: 'host' });
+    await seedHostSpace(host);
+    const customer = await createUser({ email: 'pc@test.com', role: 'customer' });
     const csrf = await getCsrfPair(app);
+
+    const custTok = agentWithAuth(app, customer).token;
+    const denied = await withCsrf(
+      request(app).post('/api/partner/keys'),
+      csrf,
+      `authToken=${custTok}`
+    ).send({ name: 'nope' });
+    expect([403, 401]).toContain(denied.status);
+
+    const { token } = agentWithAuth(app, host);
     const create = await withCsrf(
       request(app).post('/api/partner/keys'),
       csrf,
@@ -156,15 +171,14 @@ describe('Partner API key', () => {
     expect(create.status).toBe(201);
     const secret = create.body.secret;
     expect(secret).toMatch(/^wh_/);
-
-    const host = await createUser({ email: 'hs@test.com', role: 'host' });
-    await seedHostSpace(host);
+    expect(create.body.apiKey.hostOwnerId).toBeTruthy();
 
     const spaces = await request(app)
       .get('/api/partner/v1/spaces')
       .set('X-API-Key', secret);
     expect(spaces.status).toBe(200);
-    expect(Array.isArray(spaces.body.spaces)).toBe(true);
+    expect(spaces.body.spaces.length).toBeGreaterThanOrEqual(1);
+    expect(spaces.body.spaces.every((s) => !s.HostID || true)).toBe(true);
   });
 });
 

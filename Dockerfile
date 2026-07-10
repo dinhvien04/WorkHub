@@ -10,7 +10,8 @@ FROM base AS build
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build:css || true
+RUN npm run build:css
+RUN test -s public/css/app.min.css
 
 FROM base AS runner
 ENV NODE_ENV=production

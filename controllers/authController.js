@@ -80,8 +80,9 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(String(password), 10);
 
-  // Host starts inactive until admin verifies; customers active immediately
-  const initialStatus = normalizedRole === 'host' ? 'inactive' : 'active';
+  // Host inactive until admin verifies; customers inactive until email verified
+  const initialStatus = 'inactive';
+  const emailVerified = false;
 
   const user = await User.create({
     Email: normalizedEmail,
@@ -89,6 +90,9 @@ const registerUser = asyncHandler(async (req, res) => {
     FullName: String(fullName).trim(),
     Role: normalizedRole,
     Status: initialStatus,
+    EmailVerified: emailVerified,
+    EmailVerifiedAt: null,
+    AuthProvider: 'local',
     tokenVersion: 0,
   });
 
@@ -117,6 +121,30 @@ const registerUser = asyncHandler(async (req, res) => {
     });
   }
 
+  // Issue email verification token for local customers (not hosts — admin flow)
+  let devToken;
+  if (normalizedRole === 'customer') {
+    const EmailVerificationToken = require('../models/EmailVerificationToken');
+    const raw = crypto.randomBytes(32).toString('hex');
+    const TokenHash = crypto.createHash('sha256').update(raw).digest('hex');
+    await EmailVerificationToken.deleteMany({ UserID: user._id, UsedAt: null });
+    await EmailVerificationToken.create({
+      UserID: user._id,
+      TokenHash,
+      ExpiresAt: new Date(Date.now() + 24 * 3600000),
+    });
+    try {
+      await emailService.sendGeneric({
+        to: user.Email,
+        subject: 'Xác minh email WorkHub',
+        text: `Mã xác minh email WorkHub: ${raw}\nHết hạn sau 24 giờ.`,
+      });
+    } catch {
+      /* email optional in dev */
+    }
+    if (!env.isProduction) devToken = raw;
+  }
+
   await logActivity(
     user._id,
     'REGISTER_USER',
@@ -126,16 +154,23 @@ const registerUser = asyncHandler(async (req, res) => {
     'success'
   );
 
-  return res.status(201).json({
-    message: 'Đăng ký thành công.',
+  const payload = {
+    message:
+      normalizedRole === 'customer'
+        ? 'Đăng ký thành công. Vui lòng xác minh email trước khi đăng nhập.'
+        : 'Đăng ký host thành công. Chờ admin phê duyệt.',
     user: {
       id: user._id,
       email: user.Email,
       fullName: user.FullName,
       role: user.Role,
       status: user.Status,
+      emailVerified: false,
     },
-  });
+    requiresEmailVerification: normalizedRole === 'customer',
+  };
+  if (devToken) payload.devToken = devToken;
+  return res.status(201).json(payload);
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -156,7 +191,14 @@ const loginUser = asyncHandler(async (req, res) => {
         'Tài khoản host chưa được admin phê duyệt. Vui lòng chờ xác minh.'
       );
     }
+    if (user.AuthProvider === 'local' && !user.EmailVerified) {
+      throw new ForbiddenError('Vui lòng xác minh email trước khi đăng nhập.');
+    }
     throw new ForbiddenError('Tài khoản chưa được kích hoạt.');
+  }
+  // Active but email not verified (edge case) — still block local login
+  if (user.AuthProvider !== 'google' && user.EmailVerified === false) {
+    throw new ForbiddenError('Vui lòng xác minh email trước khi đăng nhập.');
   }
 
   const isMatch = await bcrypt.compare(String(password), user.PasswordHash);
@@ -329,13 +371,12 @@ const get2faStatus = asyncHandler(async (req, res) => {
   });
 });
 
-const requestEmailVerification = asyncHandler(async (req, res) => {
+async function issueEmailVerifyToken(user) {
   const EmailVerificationToken = require('../models/EmailVerificationToken');
-  const user = await User.findById(req.user.userId);
-  if (!user) throw new NotFoundError('User not found');
-  if (user.EmailVerified) {
-    return res.json({ message: 'Email đã được xác minh.', verified: true });
-  }
+  await EmailVerificationToken.updateMany(
+    { UserID: user._id, UsedAt: null },
+    { $set: { UsedAt: new Date() } }
+  );
   const raw = crypto.randomBytes(32).toString('hex');
   const TokenHash = crypto.createHash('sha256').update(raw).digest('hex');
   await EmailVerificationToken.create({
@@ -350,31 +391,54 @@ const requestEmailVerification = asyncHandler(async (req, res) => {
       text: `Mã xác minh email WorkHub: ${raw}\nHết hạn sau 24 giờ.`,
     });
   } catch {
-    /* dev: token still returned only in non-production */
+    /* optional */
   }
-  const payload = { message: 'Đã gửi mã xác minh (nếu email provider cấu hình).' };
-  if (!env.isProduction) payload.devToken = raw;
-  res.json(payload);
+  return raw;
+}
+
+const requestEmailVerification = asyncHandler(async (req, res) => {
+  // Auth path (active users re-verify) or public resend by email
+  let user = null;
+  if (req.user?.userId) {
+    user = await User.findById(req.user.userId);
+  } else if (req.body?.email) {
+    user = await User.findOne({ Email: normalizeEmail(req.body.email) });
+  }
+  // Generic response — do not reveal whether email exists
+  const generic = { message: 'Nếu email hợp lệ, mã xác minh đã được gửi.' };
+  if (!user || user.EmailVerified) {
+    return res.json(generic);
+  }
+  const raw = await issueEmailVerifyToken(user);
+  if (!env.isProduction) generic.devToken = raw;
+  res.json(generic);
 });
 
 const confirmEmailVerification = asyncHandler(async (req, res) => {
   const EmailVerificationToken = require('../models/EmailVerificationToken');
   const token = String(req.body.token || '').trim();
-  if (!token) throw new ValidationError('Thiếu token.');
+  if (!token) throw new ValidationError('Token không hợp lệ hoặc đã hết hạn.');
   const TokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  const record = await EmailVerificationToken.findOne({
-    TokenHash,
-    UsedAt: null,
-    ExpiresAt: { $gt: new Date() },
-  });
+  // Atomic consume
+  const record = await EmailVerificationToken.findOneAndUpdate(
+    {
+      TokenHash,
+      UsedAt: null,
+      ExpiresAt: { $gt: new Date() },
+    },
+    { $set: { UsedAt: new Date() } },
+    { new: true }
+  );
   if (!record) throw new ValidationError('Token không hợp lệ hoặc đã hết hạn.');
   const user = await User.findById(record.UserID);
   if (!user) throw new NotFoundError('User not found');
   user.EmailVerified = true;
   user.EmailVerifiedAt = new Date();
+  if (user.Role === 'customer' && user.Status === 'inactive') {
+    user.Status = 'active';
+  }
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
-  record.UsedAt = new Date();
-  await record.save();
   res.json({ message: 'Email đã xác minh.', verified: true });
 });
 
@@ -638,13 +702,13 @@ const googleStart = asyncHandler(async (req, res) => {
     }
     throw new ValidationError('Google OIDC chưa được cấu hình trên server.');
   }
-  const { url } = googleOidc.authorizationUrl(req);
+  const { url } = googleOidc.authorizationUrl(req, res);
   return res.redirect(302, url);
 });
 
 const googleCallback = asyncHandler(async (req, res) => {
   const googleOidc = require('../services/googleOidcService');
-  const user = await googleOidc.handleCallback(req, {
+  const user = await googleOidc.handleCallback(req, res, {
     code: req.query.code,
     state: req.query.state,
   });

@@ -1,17 +1,49 @@
 'use strict';
+
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+
+const HOST_SCOPES = [
+  'bookings:read',
+  'spaces:read',
+  'availability:read',
+];
+const ADMIN_SCOPES = ['*', ...HOST_SCOPES, 'bookings:write', 'admin:read'];
 
 const apiKeySchema = new mongoose.Schema(
   {
     Name: { type: String, required: true },
-    OwnerUserID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    OwnerUserID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    HostOwnerID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    AllowedBranchIDs: [
+      { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
+    ],
     KeyPrefix: { type: String, required: true, index: true },
     KeyHash: { type: String, required: true },
     Scopes: [{ type: String }],
-    Status: { type: String, enum: ['active', 'revoked'], default: 'active', index: true },
+    Status: {
+      type: String,
+      enum: ['active', 'revoked'],
+      default: 'active',
+      index: true,
+    },
     LastUsedAt: { type: Date, default: null },
     ExpiresAt: { type: Date, default: null },
+    CreatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { collection: 'api_keys', timestamps: true }
 );
@@ -22,5 +54,8 @@ apiKeySchema.statics.generate = function generate() {
   const hash = crypto.createHash('sha256').update(raw).digest('hex');
   return { raw, prefix, hash };
 };
+
+apiKeySchema.statics.HOST_SCOPES = HOST_SCOPES;
+apiKeySchema.statics.ADMIN_SCOPES = ADMIN_SCOPES;
 
 module.exports = mongoose.model('ApiKey', apiKeySchema);

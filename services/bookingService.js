@@ -672,17 +672,20 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = '') {
   return booking;
 }
 
-/** Expire holds past HoldExpiresAt and free slots. */
+/**
+ * Expire unpaid holds past HoldExpiresAt and free slots.
+ * Includes legacy `pending` (createBooking default) plus hold/awaiting_payment.
+ */
 async function expireStaleHolds() {
   const now = new Date();
   const stale = await Booking.find({
-    Status: { $in: ['hold', 'awaiting_payment'] },
-    HoldExpiresAt: { $lt: now },
+    Status: { $in: ['pending', 'hold', 'awaiting_payment'] },
+    HoldExpiresAt: { $ne: null, $lt: now },
   }).select('_id');
   if (!stale.length) return { modifiedCount: 0 };
   const ids = stale.map((s) => s._id);
   await Booking.updateMany(
-    { _id: { $in: ids } },
+    { _id: { $in: ids }, Status: { $in: ['pending', 'hold', 'awaiting_payment'] } },
     { $set: { Status: 'expired' } }
   );
   await BookingSlot.deleteMany({ BookingID: { $in: ids } });
