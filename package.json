@@ -52,7 +52,7 @@
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",
     "bcryptjs": "^3.0.3",
-    "cloudinary": "^1.41.3",
+    "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "ejs": "^5.0.2",
@@ -82,5 +82,11 @@
     "playwright": "^1.61.1",
     "prettier": "^3.6.2",
     "supertest": "^7.1.4"
+  },
+  "overrides": {
+    "cloudinary": "$cloudinary",
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }
