@@ -25,20 +25,30 @@ const createCheckout = asyncHandler(async (req, res) => {
     bookingId: req.body.bookingId,
     amount: req.body.amount,
     idempotencyKey: req.get('Idempotency-Key') || req.body.idempotencyKey,
+    provider: req.body.provider,
   });
   res.status(201).json(result);
 });
 
 const gatewayWebhook = asyncHandler(async (req, res) => {
   const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-  const signature = req.get('x-workhub-signature') || req.get('x-webhook-signature');
+  const signature =
+    req.get('x-workhub-signature') ||
+    req.get('x-webhook-signature') ||
+    req.get('stripe-signature') ||
+    req.get('x-momo-signature');
   const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
   const result = await gatewayService.handleWebhook({
     rawBody: raw,
     signature,
     event,
+    provider: req.query.provider || req.get('x-payment-provider'),
   });
   res.json(result);
+});
+
+const listGatewayProviders = asyncHandler(async (req, res) => {
+  res.json({ providers: await gatewayService.listProviders() });
 });
 
 const mockCompleteGateway = asyncHandler(async (req, res) => {
@@ -744,6 +754,24 @@ const staffHostCalendar = asyncHandler(async (req, res) => {
   res.json({ ...data, hostOwnerId });
 });
 
+const staffConfirmBooking = asyncHandler(async (req, res) => {
+  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const bookingService = require('../services/bookingService');
+  const booking = await bookingService.confirmBooking(hostOwnerId, req.params.bookingId);
+  res.json({ booking, message: 'Đã xác nhận booking.', hostOwnerId });
+});
+
+const staffNoShow = asyncHandler(async (req, res) => {
+  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const checkInService = require('../services/checkInService');
+  const booking = await checkInService.markNoShow({
+    hostId: hostOwnerId,
+    bookingId: req.params.bookingId,
+    reason: req.body.reason,
+  });
+  res.json({ booking, message: 'Đã đánh dấu no-show.', hostOwnerId });
+});
+
 // —— Web Push ——
 const pushVapidPublic = asyncHandler(async (req, res) => {
   const pushService = require('../services/pushService');
@@ -791,6 +819,7 @@ const adminForceLogout = asyncHandler(async (req, res) => {
 module.exports = {
   createCheckout,
   gatewayWebhook,
+  listGatewayProviders,
   mockCompleteGateway,
   getGatewaySession,
   requestPayout,
@@ -844,6 +873,8 @@ module.exports = {
   staffReceptionToday,
   staffScanCheckIn,
   staffHostCalendar,
+  staffConfirmBooking,
+  staffNoShow,
   pushVapidPublic,
   pushSubscribe,
   pushUnsubscribe,

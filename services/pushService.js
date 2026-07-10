@@ -49,8 +49,44 @@ async function notifyPush(userId, payload) {
     );
     return { sent: 0, stored: subs.length, mode: 'dev-log' };
   }
-  // Optional: integrate web-push when dependency added
-  return { sent: 0, mode: 'vapid-configured-no-sender' };
+  // Optional peer dependency: npm i web-push
+  let webpush;
+  try {
+    // eslint-disable-next-line import/no-extraneous-dependencies, global-require
+    webpush = require('web-push');
+  } catch {
+    logger.warn('web-push package not installed — set VAPID + npm i web-push to send');
+    return { sent: 0, mode: 'vapid-configured-no-package' };
+  }
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || 'mailto:ops@workhub.local',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+  const body = JSON.stringify({
+    title: payload?.title || 'WorkHub',
+    body: payload?.body || '',
+    url: payload?.url || '/',
+  });
+  let sent = 0;
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification(
+        {
+          endpoint: s.Endpoint,
+          keys: { p256dh: s.Keys?.p256dh, auth: s.Keys?.auth },
+        },
+        body
+      );
+      sent += 1;
+    } catch (err) {
+      logger.warn(`push send failed: ${err.message}`);
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        await PushSubscription.updateOne({ _id: s._id }, { $set: { Status: 'revoked' } });
+      }
+    }
+  }
+  return { sent, mode: 'web-push' };
 }
 
 function publicVapidKey() {

@@ -9,7 +9,12 @@ const gatewayPaymentSchema = new mongoose.Schema(
     HostID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     Amount: { type: Number, required: true, min: 1 },
     Currency: { type: String, default: 'VND' },
-    Provider: { type: String, default: 'workhub_mock' },
+    Provider: {
+      type: String,
+      enum: ['workhub_mock', 'stripe_mock', 'momo_mock'],
+      default: 'workhub_mock',
+      index: true,
+    },
     SessionId: { type: String, required: true, unique: true, index: true },
     Status: {
       type: String,

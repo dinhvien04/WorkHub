@@ -77,8 +77,8 @@ async function searchBranches(req, res){
       keyword: location || "",
       pageTitle: location ? `Tìm: ${location} — WorkHub` : 'Tìm không gian — WorkHub',
       scripts: res.locals.scriptsFrom
-        ? res.locals.scriptsFrom(['/js/customer-main.js'])
-        : '<script src="/js/customer-main.js"></script>',
+        ? res.locals.scriptsFrom(['/js/customer-main.js', '/js/search-filters.js'])
+        : '<script src="/js/customer-main.js"></script><script src="/js/search-filters.js"></script>',
     });
   } catch (error) {
     return sendServerError(res, error);

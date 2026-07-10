@@ -228,7 +228,7 @@ async function renderListing(req, res, next, { city, district, slug }) {
         canonicalPath: req.path,
         jsonLd: breadcrumb,
         scripts: res.locals.scriptsFrom
-          ? res.locals.scriptsFrom(['/js/customer-main.js'])
+          ? res.locals.scriptsFrom(['/js/customer-main.js', '/js/search-filters.js'])
           : '',
       });
     }

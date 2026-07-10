@@ -13,6 +13,7 @@ const g = require('../controllers/growthController');
 const router = express.Router();
 
 // Gateway
+router.get('/gateway/providers', g.listGatewayProviders);
 router.post('/gateway/checkout', verifyToken, authorizeRole('customer'), g.createCheckout);
 router.post('/gateway/webhook', g.gatewayWebhook); // signature verified inside
 router.get('/gateway/sessions/:sessionId', g.getGatewaySession);
@@ -229,6 +230,20 @@ router.get(
   resolveHostContext,
   requireStaffPermission('calendar:view'),
   g.staffHostCalendar
+);
+router.put(
+  '/staff/host/bookings/:bookingId/confirm',
+  verifyToken,
+  resolveHostContext,
+  requireStaffPermission('booking:manage'),
+  g.staffConfirmBooking
+);
+router.post(
+  '/staff/host/bookings/:bookingId/no-show',
+  verifyToken,
+  resolveHostContext,
+  requireStaffPermission('booking:manage'),
+  g.staffNoShow
 );
 
 // Web Push

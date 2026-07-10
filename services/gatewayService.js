@@ -13,33 +13,29 @@ const {
   ForbiddenError,
   ConflictError,
 } = require('../utils/errors');
+const providers = require('./gatewayProviders');
 
 function webhookSecret() {
   return process.env.GATEWAY_WEBHOOK_SECRET || env.JWT_SECRET;
 }
 
-function signPayload(body) {
-  return crypto.createHmac('sha256', webhookSecret()).update(body).digest('hex');
+function signPayload(body, provider = 'workhub_mock') {
+  return providers.signForProvider(provider, body);
 }
 
-function verifySignature(rawBody, signature) {
-  if (!signature) return false;
-  const expected = signPayload(rawBody);
-  try {
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
+function verifySignature(rawBody, signature, provider = 'workhub_mock') {
+  return providers.verifyForProvider(provider, rawBody, signature);
 }
 
 /**
- * Create hosted-checkout session (mock). Never stores card data.
+ * Create hosted-checkout session. Never stores card data.
  */
 async function createCheckoutSession({
   customerId,
   bookingId,
   amount,
   idempotencyKey,
+  provider: requestedProvider,
 }) {
   const booking = await Booking.findOne({ _id: bookingId, CustomerID: customerId });
   if (!booking) throw new NotFoundError('Không tìm thấy booking.');
@@ -48,18 +44,21 @@ async function createCheckoutSession({
     throw new ValidationError('Số tiền checkout không hợp lệ.');
   }
 
+  const provider = providers.activeProvider(requestedProvider);
+
   if (idempotencyKey) {
     const existing = await GatewayPayment.findOne({ IdempotencyKey: idempotencyKey });
     if (existing) {
       return {
         session: existing,
-        checkoutUrl: `/payment/gateway/${existing.SessionId}`,
+        checkoutUrl: providers.providerCheckoutUrl(existing.Provider, existing.SessionId),
+        provider: existing.Provider,
         duplicate: true,
       };
     }
   }
 
-  const sessionId = `cs_${crypto.randomBytes(16).toString('hex')}`;
+  const sessionId = providers.makeSessionId(provider);
   try {
     const session = await GatewayPayment.create({
       BookingID: bookingId,
@@ -69,11 +68,12 @@ async function createCheckoutSession({
       SessionId: sessionId,
       Status: 'created',
       IdempotencyKey: idempotencyKey || undefined,
-      Provider: 'workhub_mock',
+      Provider: provider,
     });
     return {
       session,
-      checkoutUrl: `/payment/gateway/${sessionId}`,
+      checkoutUrl: providers.providerCheckoutUrl(provider, sessionId),
+      provider,
       duplicate: false,
     };
   } catch (err) {
@@ -82,7 +82,8 @@ async function createCheckoutSession({
       if (existing) {
         return {
           session: existing,
-          checkoutUrl: `/payment/gateway/${existing.SessionId}`,
+          checkoutUrl: providers.providerCheckoutUrl(existing.Provider, existing.SessionId),
+          provider: existing.Provider,
           duplicate: true,
         };
       }
@@ -92,18 +93,36 @@ async function createCheckoutSession({
 }
 
 /**
- * Mock complete + signed webhook processing (idempotent).
+ * Signed webhook processing (idempotent). Provider-aware.
  */
-async function handleWebhook({ rawBody, signature, event }) {
-  if (!verifySignature(rawBody, signature)) {
-    const err = new Error('Invalid webhook signature');
-    err.statusCode = 401;
-    err.code = 'UNAUTHORIZED';
-    err.isOperational = true;
-    throw err;
+async function handleWebhook({ rawBody, signature, event, provider: providerHint }) {
+  // Resolve session first if possible to pick provider-specific secret
+  const normalizedPeek = providers.normalizeWebhookEvent(
+    providerHint || 'workhub_mock',
+    event
+  );
+  let provider = providerHint || event?.provider || 'workhub_mock';
+  if (normalizedPeek?.sessionId) {
+    const peek = await GatewayPayment.findOne({ SessionId: normalizedPeek.sessionId })
+      .select('Provider')
+      .lean();
+    if (peek?.Provider) provider = peek.Provider;
   }
 
-  const sessionId = event.sessionId || event.data?.sessionId;
+  if (!verifySignature(rawBody, signature, provider)) {
+    // fallback workhub secret for legacy tests
+    if (!verifySignature(rawBody, signature, 'workhub_mock')) {
+      const err = new Error('Invalid webhook signature');
+      err.statusCode = 401;
+      err.code = 'UNAUTHORIZED';
+      err.isOperational = true;
+      throw err;
+    }
+    provider = 'workhub_mock';
+  }
+
+  const normalized = providers.normalizeWebhookEvent(provider, event) || event;
+  const sessionId = normalized.sessionId;
   if (!sessionId) throw new ValidationError('Missing sessionId');
 
   const session = await GatewayPayment.findOne({ SessionId: sessionId });
@@ -113,7 +132,12 @@ async function handleWebhook({ rawBody, signature, event }) {
     return { ok: true, duplicate: true, session };
   }
 
-  if (event.type !== 'checkout.session.completed' && event.type !== 'payment.succeeded') {
+  const okTypes = new Set([
+    'checkout.session.completed',
+    'payment.succeeded',
+    'payment.success',
+  ]);
+  if (!okTypes.has(normalized.type)) {
     session.Status = 'failed';
     await session.save();
     return { ok: true, session };
@@ -121,7 +145,7 @@ async function handleWebhook({ rawBody, signature, event }) {
 
   session.Status = 'succeeded';
   session.WebhookReceivedAt = new Date();
-  session.ProviderRef = event.id || event.eventId || `evt_${Date.now()}`;
+  session.ProviderRef = normalized.id || event.id || event.eventId || `evt_${Date.now()}`;
   await session.save();
 
   // Create successful PaymentHistory (idempotent by session)
@@ -200,6 +224,10 @@ async function mockCompleteSession(sessionId, customerId) {
   return handleWebhook({ rawBody: raw, signature, event });
 }
 
+async function listProviders() {
+  return providers.listProviders();
+}
+
 module.exports = {
   createCheckoutSession,
   handleWebhook,
@@ -207,4 +235,5 @@ module.exports = {
   mockCompleteSession,
   signPayload,
   verifySignature,
+  listProviders,
 };

@@ -10,10 +10,44 @@
     <% } %>
 </h1>
 <% if (typeof listingBlurb !== 'undefined' && listingBlurb) { %>
-  <p class="text-sm text-slate-600 mb-6 max-w-3xl leading-relaxed"><%= listingBlurb %></p>
+  <p class="text-sm text-slate-600 mb-4 max-w-3xl leading-relaxed"><%= listingBlurb %></p>
 <% } else { %>
-  <div class="mb-6"></div>
+  <div class="mb-4"></div>
 <% } %>
+
+<form id="search-filters" data-search-form class="bg-white border rounded-2xl p-4 mb-6 grid md:grid-cols-4 gap-3 items-end">
+  <div>
+    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="sf-location">Từ khóa</label>
+    <input id="sf-location" name="location" value="<%= keyword || '' %>" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Quận, địa chỉ..." />
+  </div>
+  <div>
+    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="sf-sort">Sắp xếp</label>
+    <select id="sf-sort" name="sort" class="w-full border rounded-xl px-3 py-2 text-sm">
+      <option value="relevance">Phù hợp</option>
+      <option value="near">Gần bạn</option>
+      <option value="price_asc">Giá thấp</option>
+      <option value="price_desc">Giá cao</option>
+      <option value="rating">Rating</option>
+      <option value="newest">Mới</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="sf-radius">Bán kính (km)</label>
+    <input id="sf-radius" name="radiusKm" type="number" min="1" max="100" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="10" />
+  </div>
+  <div class="flex gap-2">
+    <button type="submit" class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase flex-1">Tìm</button>
+    <button type="button" id="search-near-me" class="border px-3 py-2 rounded-xl text-xs font-black uppercase">Gần tôi</button>
+  </div>
+  <input type="hidden" name="lat" id="sf-lat" />
+  <input type="hidden" name="lng" id="sf-lng" />
+</form>
+
+<div id="search-zero" class="hidden bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6 text-sm">
+  <p class="font-bold text-amber-900 mb-2">Không có kết quả — gợi ý</p>
+  <ul data-zero-tips class="list-disc pl-5 text-amber-900/80 space-y-1"></ul>
+</div>
+<div id="search-results" class="grid md:grid-cols-3 gap-6 mb-8"></div>
 
 <div class="grid md:grid-cols-3 gap-6">
 

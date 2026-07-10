@@ -113,6 +113,9 @@ npm run seed:extras  # coupons + feature flags demo
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
 - Google OIDC (`/api/auth/google` + callback; mock in test via `ALLOW_GOOGLE_MOCK`)
 - Staff calendar proxy; payment hold countdown UI
+- Multi-provider gateway mocks: `workhub_mock` / `stripe_mock` / `momo_mock`
+- Staff confirm + no-show; search filters URL state + near-me
+- Upload content scan (magic + polyglot heuristic); optional `web-push` send
 
 ```bash
 npm run backup

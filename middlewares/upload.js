@@ -76,10 +76,11 @@ const uploadCloud = multer({
 });
 
 const { validateUploadMagicBytes, sniffImageOrPdf, assertAllowedMagic } = require('../utils/magicBytes');
+const { scanUploadedFiles } = require('../services/uploadScanService');
 
-// Compose: multer fields + magic-byte validation when buffer present (memoryStorage / tests)
+// Compose: multer + magic bytes + content scan when buffer present
 function withMagicBytes(multerMw) {
-  return [multerMw, validateUploadMagicBytes()];
+  return [multerMw, validateUploadMagicBytes(), scanUploadedFiles()];
 }
 
 module.exports = uploadCloud;
