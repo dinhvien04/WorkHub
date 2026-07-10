@@ -76,12 +76,60 @@
       <a href="/notifications" class="mob-nav-item" data-nav="notifications">🔔<span>Thông báo</span></a>
       <a href="/profile" class="mob-nav-item" data-nav="profile">👤<span>Tài khoản</span></a>
     </nav>
+    <div id="pwa-install-bar" class="hidden fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-md w-[calc(100%-2rem)] bg-slate-900 text-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-3" role="dialog" aria-label="Cài đặt app">
+      <div class="flex-1 text-sm">
+        <p class="font-bold">Cài WorkHub</p>
+        <p class="text-xs text-slate-300">Truy cập nhanh như app, hỗ trợ offline shell.</p>
+      </div>
+      <button type="button" id="pwa-install-btn" class="text-xs font-black uppercase bg-teal-500 px-3 py-2 rounded-xl">Cài</button>
+      <button type="button" id="pwa-install-dismiss" class="text-xs text-slate-400" aria-label="Đóng">✕</button>
+    </div>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>">
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/sw.js').catch(function () {});
+          navigator.serviceWorker.register('/sw.js').then(function (reg) {
+            if (reg.waiting) {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+            reg.addEventListener('updatefound', function () {
+              var nw = reg.installing;
+              if (!nw) return;
+              nw.addEventListener('statechange', function () {
+                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                  nw.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
+            });
+          }).catch(function () {});
         });
       }
+      (function pwaInstall() {
+        var deferred = null;
+        var bar = document.getElementById('pwa-install-bar');
+        var btn = document.getElementById('pwa-install-btn');
+        var dismiss = document.getElementById('pwa-install-dismiss');
+        if (!bar) return;
+        try {
+          if (localStorage.getItem('pwaInstallDismissed') === '1') return;
+        } catch (e) {}
+        window.addEventListener('beforeinstallprompt', function (e) {
+          e.preventDefault();
+          deferred = e;
+          bar.classList.remove('hidden');
+        });
+        btn && btn.addEventListener('click', function () {
+          if (!deferred) return;
+          deferred.prompt();
+          deferred.userChoice.finally(function () {
+            deferred = null;
+            bar.classList.add('hidden');
+          });
+        });
+        dismiss && dismiss.addEventListener('click', function () {
+          bar.classList.add('hidden');
+          try { localStorage.setItem('pwaInstallDismissed', '1'); } catch (e) {}
+        });
+      })();
       // Lightweight RUM beacon (LCP/CLS/INP) — no PII
       (function () {
         var sent = false;

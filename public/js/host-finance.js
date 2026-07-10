@@ -123,10 +123,88 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const exportStatus = document.getElementById('fin-export-status');
+  const jobsBox = document.getElementById('fin-jobs');
+
+  function setExportStatus(text) {
+    if (!exportStatus) return;
+    exportStatus.classList.remove('hidden');
+    DomSafe.clearElement(exportStatus);
+    exportStatus.appendChild(DomSafe.createTextElement('span', '', text));
+  }
+
+  async function pollJob(jobId, attempts) {
+    const max = attempts || 40;
+    for (let i = 0; i < max; i++) {
+      const res = await WorkHubAPI.api(`/api/jobs/${jobId}`, { redirectOn401: false });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setExportStatus(data.error || 'Không lấy được job status');
+        return;
+      }
+      const st = data.job?.Status || data.Status || data.status;
+      setExportStatus(`Job ${jobId} · ${st}`);
+      if (st === 'completed' || st === 'done' || st === 'success') {
+        const dl = `/api/jobs/${jobId}/download`;
+        DomSafe.clearElement(exportStatus);
+        exportStatus.appendChild(
+          DomSafe.createTextElement('span', 'font-bold text-teal-800', 'Export xong. ')
+        );
+        const a = document.createElement('a');
+        a.href = dl;
+        a.className = 'underline font-bold text-teal-700';
+        a.textContent = 'Tải file';
+        exportStatus.appendChild(a);
+        loadMyJobs();
+        return;
+      }
+      if (st === 'failed' || st === 'dead') {
+        setExportStatus('Job thất bại: ' + (data.job?.LastError || data.error || st));
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    setExportStatus('Timeout chờ job — kiểm tra lại trong danh sách jobs.');
+  }
+
+  async function loadMyJobs() {
+    if (!jobsBox) return;
+    DomSafe.clearElement(jobsBox);
+    try {
+      const res = await WorkHubAPI.api('/api/jobs/me?limit=5', { redirectOn401: false });
+      if (!res.ok) return;
+      const data = await res.json();
+      const jobs = data.jobs || data.items || [];
+      if (!jobs.length) return;
+      jobsBox.appendChild(DomSafe.createTextElement('p', 'font-bold text-slate-500 mb-1', 'Jobs gần đây'));
+      jobs.forEach((j) => {
+        const row = document.createElement('div');
+        row.className = 'flex justify-between gap-2 border rounded-lg px-2 py-1';
+        row.appendChild(
+          DomSafe.createTextElement(
+            'span',
+            '',
+            `${j.Type || j.type || 'job'} · ${j.Status || j.status}`
+          )
+        );
+        if ((j.Status || j.status) === 'completed' || (j.Status || j.status) === 'done') {
+          const a = document.createElement('a');
+          a.href = `/api/jobs/${j._id || j.id}/download`;
+          a.className = 'text-teal-700 font-bold';
+          a.textContent = 'Download';
+          row.appendChild(a);
+        }
+        jobsBox.appendChild(row);
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
   const exportBtn = document.getElementById('ledger-export-btn');
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
-      // Small sync download
+      // Small sync download (cookie session)
       window.location.href = '/api/host/ledger/export.csv';
     });
   }
@@ -138,14 +216,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const res = await WorkHubAPI.api('/api/host/exports/ledger', { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || data.message || 'Export job failed');
-        alert('Đã xếp hàng job ' + data.jobId + '. Kiểm tra /api/jobs/' + data.jobId);
+        const jobId = data.jobId || data.job?._id;
+        setExportStatus('Đã xếp hàng job ' + jobId + '…');
+        await pollJob(jobId);
       } catch (e) {
-        alert(e.message || 'Lỗi');
+        setExportStatus(e.message || 'Lỗi');
       } finally {
         asyncExportBtn.disabled = false;
       }
     });
   }
+  const bookingsExportBtn = document.getElementById('bookings-export-async-btn');
+  if (bookingsExportBtn) {
+    bookingsExportBtn.addEventListener('click', async () => {
+      bookingsExportBtn.disabled = true;
+      try {
+        const res = await WorkHubAPI.api('/api/host/exports/bookings', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || 'Export failed');
+        const jobId = data.jobId || data.job?._id;
+        setExportStatus('Bookings export job ' + jobId + '…');
+        await pollJob(jobId);
+      } catch (e) {
+        setExportStatus(e.message || 'Lỗi');
+      } finally {
+        bookingsExportBtn.disabled = false;
+      }
+    });
+  }
+  loadMyJobs();
 
   try {
     await loadBalance();

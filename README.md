@@ -123,6 +123,8 @@ npm run seed:extras  # coupons + feature flags demo
 - City SEO: district chips, ItemList JSON-LD, related guides, SEO detail links
 - Host bulk ops (`POST /api/host/spaces/bulk`, blackout notify/delete) + `/host/ops`
 - Admin listing moderation (`/api/admin/listings/*`) + `/admin/listings`
+- PWA v2: offline.html, install prompt, SW network-first public pages, shortcuts
+- Host inbox quick confirm/check-in/cancel; finance export job poll + download
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities

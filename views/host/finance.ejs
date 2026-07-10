@@ -23,7 +23,7 @@
 
   <div class="flex items-center justify-between mb-2">
     <h2 class="font-bold">Sổ cái (ledger)</h2>
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-wrap">
       <button type="button" id="ledger-export-btn"
         class="text-xs font-black uppercase tracking-widest text-teal-700 border border-teal-200 px-3 py-1.5 rounded-xl hover:bg-teal-50">
         Xuất CSV
@@ -32,8 +32,14 @@
         class="text-xs font-black uppercase tracking-widest text-slate-600 border px-3 py-1.5 rounded-xl hover:bg-slate-50">
         Export nền
       </button>
+      <button type="button" id="bookings-export-async-btn"
+        class="text-xs font-black uppercase tracking-widest text-slate-600 border px-3 py-1.5 rounded-xl hover:bg-slate-50">
+        Export bookings
+      </button>
     </div>
   </div>
+  <div id="fin-export-status" class="hidden mb-3 text-sm p-3 rounded-xl border bg-slate-50" role="status"></div>
+  <div id="fin-jobs" class="mb-4 text-xs space-y-1"></div>
   <div class="bg-white rounded-3xl border overflow-hidden">
     <table class="w-full text-sm">
       <thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
