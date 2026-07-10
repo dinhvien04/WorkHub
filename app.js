@@ -73,6 +73,9 @@ function createApp() {
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
           'frame-ancestors': ["'none'"],
+          // OSM embed on listing detail
+          'frame-src': ["'self'", 'https://www.openstreetmap.org'],
+          'child-src': ["'self'", 'https://www.openstreetmap.org'],
         },
       },
       crossOriginEmbedderPolicy: false,
@@ -95,6 +98,8 @@ function createApp() {
       (req.path === '/api/auth/forgot-password' && req.method === 'POST') ||
       (req.path === '/api/auth/reset-password' && req.method === 'POST') ||
       (req.path === '/api/auth/email/confirm' && req.method === 'POST') ||
+      (req.path === '/api/auth/webauthn/login/options' && req.method === 'POST') ||
+      (req.path === '/api/auth/webauthn/login/verify' && req.method === 'POST') ||
       (req.path === '/api/auth/csrf' && req.method === 'GET') ||
       req.path === '/api/gateway/webhook' ||
       req.path === '/api/rum' ||

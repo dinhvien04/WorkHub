@@ -3,6 +3,17 @@
   <p class="text-sm text-slate-500 mb-6">2FA, phiên đăng nhập, thông báo và quyền riêng tư.</p>
 
   <section class="bg-white rounded-3xl border p-5 mb-6">
+    <h2 class="font-bold mb-3">Passkey (WebAuthn)</h2>
+    <p class="text-sm text-slate-500 mb-2">Đăng nhập bằng vân tay / khuôn mặt / security key khi trình duyệt hỗ trợ.</p>
+    <button type="button" id="passkey-register-btn"
+      class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest mb-3">
+      Đăng ký passkey
+    </button>
+    <div id="passkey-list" class="space-y-2"></div>
+    <p id="passkey-msg" class="text-sm mt-2" role="status"></p>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-6">
     <h2 class="font-bold mb-3">Xác thực hai lớp (TOTP)</h2>
     <p id="totp-status" class="text-sm text-slate-600 mb-3">Đang tải…</p>
     <div class="flex flex-wrap gap-2">

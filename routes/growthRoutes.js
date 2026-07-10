@@ -209,5 +209,24 @@ router.get(
   requireStaffPermission('reception:view'),
   g.staffHostInbox
 );
+router.get(
+  '/staff/host/reception/today',
+  verifyToken,
+  resolveHostContext,
+  requireStaffPermission('reception:view'),
+  g.staffReceptionToday
+);
+router.post(
+  '/staff/host/check-in/scan',
+  verifyToken,
+  resolveHostContext,
+  requireStaffPermission('booking:checkin'),
+  g.staffScanCheckIn
+);
+
+// Web Push
+router.get('/push/vapid-public-key', g.pushVapidPublic);
+router.post('/push/subscribe', verifyToken, g.pushSubscribe);
+router.post('/push/unsubscribe', verifyToken, g.pushUnsubscribe);
 
 module.exports = router;

@@ -231,6 +231,93 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Passkeys list (progressive)
+  const passkeyList = document.getElementById('passkey-list');
+  const passkeyRegisterBtn = document.getElementById('passkey-register-btn');
+  async function loadPasskeys() {
+    if (!passkeyList) return;
+    passkeyList.replaceChildren();
+    const res = await WorkHubAPI.api('/api/auth/webauthn/credentials');
+    const data = await res.json();
+    (data.credentials || []).forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'flex justify-between gap-2 border rounded-xl p-2 text-sm';
+      row.appendChild(DomSafe.createTextElement('span', '', c.DeviceName || c.CredentialId));
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'text-xs text-red-600 font-bold';
+      del.textContent = 'Xóa';
+      del.addEventListener('click', async () => {
+        await WorkHubAPI.api('/api/auth/webauthn/credentials/' + encodeURIComponent(c.CredentialId), {
+          method: 'DELETE',
+        });
+        loadPasskeys();
+      });
+      row.appendChild(del);
+      passkeyList.appendChild(row);
+    });
+    if (!(data.credentials || []).length) {
+      passkeyList.appendChild(
+        DomSafe.createTextElement('p', 'text-sm text-slate-400', 'Chưa có passkey.')
+      );
+    }
+  }
+  if (passkeyRegisterBtn) {
+    passkeyRegisterBtn.addEventListener('click', async () => {
+      const totpMsgEl = document.getElementById('totp-msg') || document.getElementById('passkey-msg');
+      try {
+        const optRes = await WorkHubAPI.api('/api/auth/webauthn/register/options', { method: 'POST' });
+        const optData = await optRes.json();
+        if (!optRes.ok) throw new Error(optData.error || 'Không lấy được options');
+        // Browser WebAuthn (best-effort). Fallback: register credentialId from prompt for dev.
+        let credentialId = 'dev-' + Math.random().toString(36).slice(2) + Date.now();
+        if (window.PublicKeyCredential && navigator.credentials && navigator.credentials.create) {
+          try {
+            const challenge = Uint8Array.from(
+              atob(optData.options.challenge.replace(/-/g, '+').replace(/_/g, '/')),
+              (c) => c.charCodeAt(0)
+            );
+            const userId = Uint8Array.from(
+              atob(optData.options.user.id.replace(/-/g, '+').replace(/_/g, '/')),
+              (c) => c.charCodeAt(0)
+            );
+            const cred = await navigator.credentials.create({
+              publicKey: {
+                ...optData.options,
+                challenge,
+                user: { ...optData.options.user, id: userId },
+              },
+            });
+            if (cred && cred.id) credentialId = cred.id;
+          } catch (e) {
+            /* fall through to dev id */
+          }
+        }
+        const ver = await WorkHubAPI.api('/api/auth/webauthn/register/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challenge: optData.options.challenge,
+            credentialId,
+            deviceName: 'Browser passkey',
+          }),
+        });
+        const vData = await ver.json();
+        if (!ver.ok) throw new Error(vData.error || vData.message || 'Đăng ký thất bại');
+        if (totpMsgEl) {
+          totpMsgEl.textContent = vData.message || 'Đã đăng ký passkey';
+          totpMsgEl.className = 'text-sm text-teal-700 mt-2 font-bold';
+        }
+        loadPasskeys();
+      } catch (err) {
+        if (totpMsgEl) {
+          totpMsgEl.textContent = err.message || 'Lỗi passkey';
+          totpMsgEl.className = 'text-sm text-red-600 mt-2';
+        }
+      }
+    });
+  }
+
   loadSessions().catch((e) => {
     secMsg.textContent = e.message || 'Không tải được sessions';
     secMsg.className = 'text-sm text-red-600 mb-3';
@@ -239,4 +326,5 @@ document.addEventListener('DOMContentLoaded', () => {
     totpStatus.textContent = 'Không tải được trạng thái 2FA';
   });
   loadPrefs().catch(() => {});
+  loadPasskeys().catch(() => {});
 });

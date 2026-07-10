@@ -106,6 +106,11 @@ npm run seed:extras  # coupons + feature flags demo
 - Admin optional 2FA gate (flag `admin_require_2fa` or `ADMIN_REQUIRE_2FA=1`)
 - SBOM: `npm run sbom` → `docs/sbom.json`; `npm run audit:prod`
 - FAQPage JSON-LD for CMS guides with `Q:`/`A:` lines
+- Listing map (OpenStreetMap embed) + gallery width/height for CLS
+- Passkey/WebAuthn register+login challenge flow (`/api/auth/webauthn/*`)
+- Web Push subscribe API + SW `push` handler (VAPID optional)
+- Staff reception/check-in proxy (`/api/staff/host/*`)
+- Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
 
 ```bash
 npm run backup

@@ -700,6 +700,63 @@ const staffHostInbox = asyncHandler(async (req, res) => {
   res.json(data);
 });
 
+const staffReceptionToday = asyncHandler(async (req, res) => {
+  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const Booking = require('../models/Booking');
+  const bookings = await Booking.find({
+    HostID: hostOwnerId,
+    Status: { $in: ['confirmed', 'in-use', 'pending', 'payment_under_review'] },
+    StartTime: { $lte: end },
+    EndTime: { $gte: start },
+  })
+    .populate('CustomerID', 'FullName Email')
+    .populate('SpaceID', 'Name SpaceCode')
+    .sort({ StartTime: 1 })
+    .lean();
+  res.json({ bookings, hostOwnerId });
+});
+
+const staffScanCheckIn = asyncHandler(async (req, res) => {
+  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const checkInService = require('../services/checkInService');
+  const booking = await checkInService.checkInWithToken({
+    hostId: hostOwnerId,
+    token: req.body.token,
+    code: req.body.code,
+  });
+  res.json({ booking, message: 'Check-in thành công.', hostOwnerId });
+});
+
+// —— Web Push ——
+const pushVapidPublic = asyncHandler(async (req, res) => {
+  const pushService = require('../services/pushService');
+  res.json({ publicKey: pushService.publicVapidKey() });
+});
+
+const pushSubscribe = asyncHandler(async (req, res) => {
+  const pushService = require('../services/pushService');
+  const sub = await pushService.saveSubscription({
+    userId: req.user.userId,
+    endpoint: req.body.endpoint,
+    keys: req.body.keys || {},
+    userAgent: req.get('user-agent'),
+  });
+  res.status(201).json({ subscription: { id: sub._id, endpoint: sub.Endpoint } });
+});
+
+const pushUnsubscribe = asyncHandler(async (req, res) => {
+  const pushService = require('../services/pushService');
+  await pushService.revokeSubscription({
+    userId: req.user.userId,
+    endpoint: req.body.endpoint,
+  });
+  res.json({ message: 'Đã hủy đăng ký push.' });
+});
+
 // —— Admin force logout ——
 const adminForceLogout = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.userId);
@@ -771,4 +828,9 @@ module.exports = {
   myStaffMemberships,
   myHostPermissions,
   staffHostInbox,
+  staffReceptionToday,
+  staffScanCheckIn,
+  pushVapidPublic,
+  pushSubscribe,
+  pushUnsubscribe,
 };

@@ -547,6 +547,81 @@ const resetPassword = asyncHandler(async (req, res) => {
   return res.status(200).json({ message: 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.' });
 });
 
+// —— WebAuthn / Passkey ——
+const webauthnRegisterOptions = asyncHandler(async (req, res) => {
+  const webauthnService = require('../services/webauthnService');
+  const host = req.get('host');
+  const options = await webauthnService.registrationOptions({
+    userId: req.user.userId,
+    email: req.user.email,
+    host,
+  });
+  res.json({ options });
+});
+
+const webauthnRegisterVerify = asyncHandler(async (req, res) => {
+  const webauthnService = require('../services/webauthnService');
+  const cred = await webauthnService.registerCredential({
+    userId: req.user.userId,
+    challenge: req.body.challenge,
+    credentialId: req.body.credentialId || req.body.id,
+    publicKey: req.body.publicKey || req.body.response?.publicKey || '',
+    transports: req.body.transports,
+    deviceName: req.body.deviceName,
+  });
+  res.status(201).json({
+    message: 'Đã đăng ký passkey.',
+    credential: { id: cred.CredentialId, deviceName: cred.DeviceName },
+  });
+});
+
+const webauthnLoginOptions = asyncHandler(async (req, res) => {
+  const webauthnService = require('../services/webauthnService');
+  const options = await webauthnService.loginOptions({
+    email: req.body.email,
+    host: req.get('host'),
+  });
+  const { _userId, ...publicOpts } = options;
+  res.json({ options: publicOpts });
+});
+
+const webauthnLoginVerify = asyncHandler(async (req, res) => {
+  const webauthnService = require('../services/webauthnService');
+  const user = await webauthnService.verifyLoginAssertion({
+    challenge: req.body.challenge,
+    credentialId: req.body.credentialId || req.body.id,
+    signature: req.body.signature || req.body.response?.signature || '',
+  });
+  if (user.TotpEnabled) {
+    const pendingToken = jwt.sign(
+      {
+        userId: user._id.toString(),
+        purpose: '2fa',
+        tokenVersion: user.tokenVersion || 0,
+      },
+      env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+    return res.json({
+      message: 'Cần xác thực 2FA.',
+      requires2fa: true,
+      pendingToken,
+    });
+  }
+  return completeLogin(req, res, user);
+});
+
+const webauthnList = asyncHandler(async (req, res) => {
+  const webauthnService = require('../services/webauthnService');
+  res.json({ credentials: await webauthnService.listCredentials(req.user.userId) });
+});
+
+const webauthnRevoke = asyncHandler(async (req, res) => {
+  const webauthnService = require('../services/webauthnService');
+  await webauthnService.revokeCredential(req.user.userId, req.params.credentialId);
+  res.json({ message: 'Đã xóa passkey.' });
+});
+
 module.exports = {
   registerUser,
   loginUser,
@@ -564,4 +639,10 @@ module.exports = {
   get2faStatus,
   requestEmailVerification,
   confirmEmailVerification,
+  webauthnRegisterOptions,
+  webauthnRegisterVerify,
+  webauthnLoginOptions,
+  webauthnLoginVerify,
+  webauthnList,
+  webauthnRevoke,
 };

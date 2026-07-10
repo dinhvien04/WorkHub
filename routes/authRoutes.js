@@ -16,6 +16,12 @@ const {
   get2faStatus,
   requestEmailVerification,
   confirmEmailVerification,
+  webauthnRegisterOptions,
+  webauthnRegisterVerify,
+  webauthnLoginOptions,
+  webauthnLoginVerify,
+  webauthnList,
+  webauthnRevoke,
 } = require('../controllers/authController');
 
 const authMiddleware = require('../middlewares/authMiddleware');
@@ -49,6 +55,13 @@ router.post('/2fa/enable', authMiddleware.verifyToken, enable2fa);
 router.post('/2fa/disable', authMiddleware.verifyToken, disable2fa);
 router.post('/email/request-verify', authMiddleware.verifyToken, requestEmailVerification);
 router.post('/email/confirm', confirmEmailVerification);
+// Passkey / WebAuthn
+router.post('/webauthn/register/options', authMiddleware.verifyToken, webauthnRegisterOptions);
+router.post('/webauthn/register/verify', authMiddleware.verifyToken, webauthnRegisterVerify);
+router.post('/webauthn/login/options', loginLimiter, webauthnLoginOptions);
+router.post('/webauthn/login/verify', loginLimiter, webauthnLoginVerify);
+router.get('/webauthn/credentials', authMiddleware.verifyToken, webauthnList);
+router.delete('/webauthn/credentials/:credentialId', authMiddleware.verifyToken, webauthnRevoke);
 router.post('/logout', logoutUser);
 router.get('/me', authMiddleware.verifyToken, getMe);
 router.post('/change-password', authMiddleware.verifyToken, changePassword);
