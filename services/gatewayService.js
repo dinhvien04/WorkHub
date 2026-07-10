@@ -456,6 +456,30 @@ async function getSession(sessionId) {
   return session;
 }
 
+/**
+ * Owner-scoped DTO — never return raw GatewayPayment / provider internals.
+ */
+async function getSessionForCustomer(sessionId, customerId) {
+  const session = await GatewayPayment.findOne({
+    SessionId: sessionId,
+    CustomerID: customerId,
+  }).lean();
+  // 404 (not 403) to avoid session existence oracle across customers
+  if (!session) throw new NotFoundError("Session not found");
+  return {
+    status: session.Status,
+    amount: session.Amount,
+    currency: session.Currency || "VND",
+    paymentType:
+      session.PaymentType ||
+      session.Meta?.paymentType ||
+      session.Type ||
+      null,
+    bookingId: session.BookingID ? String(session.BookingID) : null,
+    createdAt: session.createdAt || null,
+  };
+}
+
 /** Dev/test only — not mounted in production */
 async function mockCompleteSession(sessionId, customerId) {
   if (!env.ALLOW_MOCK_COMPLETE || env.isProduction) {
@@ -492,6 +516,7 @@ module.exports = {
   createCheckoutSession,
   handleWebhook,
   getSession,
+  getSessionForCustomer,
   mockCompleteSession,
   signPayload,
   verifySignature,

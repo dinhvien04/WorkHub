@@ -74,8 +74,12 @@ const mockCompleteGateway = asyncHandler(async (req, res) => {
 });
 
 const getGatewaySession = asyncHandler(async (req, res) => {
-  const session = await gatewayService.getSession(req.params.sessionId);
-  res.json({ session });
+  // Owner-only — SessionId is not an authorization secret
+  const dto = await gatewayService.getSessionForCustomer(
+    req.params.sessionId,
+    req.user.userId
+  );
+  res.json(dto);
 });
 
 // —— Payout ——
@@ -1041,11 +1045,20 @@ const myHostPermissions = asyncHandler(async (req, res) => {
 });
 
 const staffHostInbox = asyncHandler(async (req, res) => {
-  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const hostOwnerId = req.hostOwnerId || req.hostContext?.hostOwnerId || req.user.userId;
+  const staffService = require('../services/staffService');
+  const spaceFilter = await staffService.branchScopedSpaceFilter(
+    req.hostContext || {
+      hostOwnerId,
+      isOwner: req.user.role === 'host',
+      allowedBranchIds: null,
+    }
+  );
   const data = await require('../services/hostInboxService').listHostInbox(hostOwnerId, {
     bucket: req.query.bucket,
     page: req.query.page,
     limit: req.query.limit,
+    spaceFilter,
   });
   res.json(data);
 });

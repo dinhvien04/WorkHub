@@ -15,6 +15,8 @@ const staffMemberSchema = new mongoose.Schema(
     UserID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     Role: { type: String, enum: ROLES, required: true },
     BranchIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Branch' }],
+    /** true = all host branches; false + empty BranchIDs = deny all (no silent all-access) */
+    AllBranches: { type: Boolean, default: false },
     Status: {
       type: String,
       enum: ['active', 'invited', 'revoked'],

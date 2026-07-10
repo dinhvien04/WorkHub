@@ -78,6 +78,7 @@ describe('Staff calendar proxy', () => {
       HostOwnerID: host._id,
       UserID: mgr._id,
       Role: 'manager',
+      AllBranches: true,
       Status: 'active',
     });
     await seedHostSpace(host);

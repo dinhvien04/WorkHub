@@ -7,6 +7,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "test": "jest --runInBand --detectOpenHandles --testTimeout=90000",
+    "test:noforce": "jest --runInBand --detectOpenHandles --testTimeout=90000",
     "test:force": "jest --runInBand --detectOpenHandles --forceExit",
     "test:ci": "jest --runInBand --detectOpenHandles --testTimeout=90000",
     "test:open": "jest --runInBand --detectOpenHandles --testTimeout=90000",

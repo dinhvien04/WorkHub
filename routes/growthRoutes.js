@@ -17,7 +17,12 @@ const env = require('../config/env');
 router.get('/gateway/providers', g.listGatewayProviders);
 router.post('/gateway/checkout', verifyToken, authorizeRole('customer'), g.createCheckout);
 // Webhook raw-body route is mounted in app.js before express.json()
-router.get('/gateway/sessions/:sessionId', g.getGatewaySession);
+router.get(
+  '/gateway/sessions/:sessionId',
+  verifyToken,
+  authorizeRole('customer'),
+  g.getGatewaySession
+);
 // Mock complete: never registered in production
 if (!env.isProduction && env.ALLOW_MOCK_COMPLETE) {
   router.post(
@@ -91,25 +96,11 @@ router.get(
 router.get('/sessions', verifyToken, g.listSessions);
 router.post('/sessions/logout-all', verifyToken, g.logoutAll);
 
-// i18n (soft-auth for PreferredLang when cookie present)
-function softAuthLang(req, res, next) {
-  try {
-    const token =
-      req.cookies?.authToken ||
-      (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!token) return next();
-    const jwt = require('jsonwebtoken');
-    const env = require('../config/env');
-    const payload = jwt.verify(token, env.JWT_SECRET);
-    req.user = { userId: payload.userId || payload.sub, role: payload.role };
-  } catch {
-    /* guest */
-  }
-  return next();
-}
+// i18n — use central optionalAuth (status/tokenVersion checks)
+const { optionalAuth } = require('../middlewares/authMiddleware');
 router.get('/i18n', g.i18nBundle);
-router.post('/i18n/lang', softAuthLang, g.setLang);
-router.put('/i18n/lang', softAuthLang, g.setLang);
+router.post('/i18n/lang', optionalAuth, g.setLang);
+router.put('/i18n/lang', optionalAuth, g.setLang);
 
 // RUM beacon (public, no auth — no PII accepted)
 router.post('/rum', g.rumBeacon);
@@ -166,29 +157,11 @@ router.put('/admin/seo/redirects', verifyToken, requireAdmin, g.upsertSeoRedirec
 router.delete('/admin/seo/redirects/:id', verifyToken, requireAdmin, g.deleteSeoRedirect);
 router.patch('/admin/seo/redirects/:id', verifyToken, requireAdmin, g.toggleSeoRedirect);
 
-// Alternatives + add-ons + quote (public read; coupon applies when auth cookie present)
+// Alternatives + add-ons + quote (public read; coupon applies when auth present)
 router.get('/availability/alternatives', g.alternativeSlots);
 router.get('/addons', g.publicAddOns);
-function softAuth(req, res, next) {
-  try {
-    const token =
-      req.cookies?.authToken ||
-      (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!token) return next();
-    const jwt = require('jsonwebtoken');
-    const env = require('../config/env');
-    const payload = jwt.verify(token, env.JWT_SECRET);
-    req.user = {
-      userId: payload.userId || payload.sub,
-      role: payload.role,
-    };
-  } catch {
-    /* guest */
-  }
-  return next();
-}
-router.get('/bookings/quote', softAuth, g.quoteBooking);
-router.post('/bookings/quote', softAuth, g.quoteBooking);
+router.get('/bookings/quote', optionalAuth, g.quoteBooking);
+router.post('/bookings/quote', optionalAuth, g.quoteBooking);
 
 // Receipt + finance export
 router.get(

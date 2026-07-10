@@ -266,7 +266,12 @@ async function completeLogin(req, res, user) {
 }
 
 const verify2faLogin = asyncHandler(async (req, res) => {
-  const { pendingToken, code } = req.body;
+  const code = req.body.code;
+  // Prefer HttpOnly pre-session cookie; body token allowed for API clients
+  const pendingToken =
+    req.body.pendingToken ||
+    req.cookies?.preSession2fa ||
+    null;
   if (!pendingToken || !code) throw new ValidationError('Thiếu pendingToken hoặc mã 2FA.');
 
   let decoded;
@@ -295,6 +300,12 @@ const verify2faLogin = asyncHandler(async (req, res) => {
   }
   if (!ok) throw new UnauthorizedError('Mã 2FA không đúng.');
 
+  res.clearCookie('preSession2fa', {
+    httpOnly: true,
+    secure: env.COOKIE_SECURE,
+    sameSite: 'lax',
+    path: '/',
+  });
   return completeLogin(req, res, user);
 });
 
@@ -625,13 +636,24 @@ const webauthnRegisterOptions = asyncHandler(async (req, res) => {
 
 const webauthnRegisterVerify = asyncHandler(async (req, res) => {
   const webauthnService = require('../services/webauthnService');
+  // Accept only standard navigator.credentials.create() shape — no publicKey fallback
+  const credential =
+    req.body.credential ||
+    (req.body.response && (req.body.id || req.body.rawId)
+      ? {
+          id: req.body.id || req.body.rawId,
+          rawId: req.body.rawId || req.body.id,
+          type: req.body.type || 'public-key',
+          response: req.body.response,
+          clientExtensionResults: req.body.clientExtensionResults || {},
+        }
+      : null);
   const cred = await webauthnService.registerCredential({
     userId: req.user.userId,
     challenge: req.body.challenge,
-    credentialId: req.body.credentialId || req.body.id,
-    publicKey: req.body.publicKey || req.body.response?.publicKey || '',
-    transports: req.body.transports,
+    credential,
     deviceName: req.body.deviceName,
+    strictRole: req.user.role === 'admin' || req.user.role === 'host',
   });
   res.status(201).json({
     message: 'Đã đăng ký passkey.',
@@ -722,10 +744,15 @@ const googleCallback = asyncHandler(async (req, res) => {
       env.JWT_SECRET,
       { expiresIn: '5m' }
     );
-    // redirect to login with pending token for 2FA step
-    return res.redirect(
-      `/login?requires2fa=1&pendingToken=${encodeURIComponent(pendingToken)}`
-    );
+    // Never put 2FA token in URL (history/logs/Referer). HttpOnly pre-session cookie only.
+    res.cookie('preSession2fa', pendingToken, {
+      httpOnly: true,
+      secure: env.COOKIE_SECURE,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 5 * 60 * 1000,
+    });
+    return res.redirect('/login?requires2fa=1');
   }
   // Set cookie and redirect home
   const token = signToken(user);

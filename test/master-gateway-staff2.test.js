@@ -95,6 +95,7 @@ describe('Staff confirm + upload scan', () => {
       HostOwnerID: host._id,
       UserID: mgr._id,
       Role: 'manager',
+      AllBranches: true,
       Status: 'active',
     });
     const { space } = await seedHostSpace(host);

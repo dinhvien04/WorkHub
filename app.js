@@ -31,7 +31,7 @@ const meExtraRoutes = require('./routes/meExtraRoutes');
 const platformRoutes = require('./routes/platformRoutes');
 const growthRoutes = require('./routes/growthRoutes');
 const { getHostReportsPage } = require('./controllers/hostController');
-const { expireStaleHolds } = require('./services/bookingService');
+
 const { detectLang, t } = require('./services/i18n');
 
 function createApp() {
@@ -210,11 +210,14 @@ function createApp() {
       // Dev/test without token: allow
       return next();
     }
+    // Never accept secret in query string (leaks via logs/Referer)
     const header = req.get('authorization') || '';
     const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
-    const q = req.query.token || '';
-    const provided = bearer || req.get('x-metrics-token') || q;
-    if (provided !== token) {
+    const provided = bearer || req.get('x-metrics-token') || '';
+    const crypto = require('crypto');
+    const a = Buffer.from(String(provided));
+    const b = Buffer.from(String(token));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     return next();
@@ -298,16 +301,8 @@ function createApp() {
   // Webhook needs raw-ish body for signature — express.json already parsed;
   // gatewayService signs JSON.stringify of object (stable enough for mock).
 
-  // Best-effort: expire holds on hot path for small deployments
-  app.use(async (req, res, next) => {
-    if (req.method === 'GET' || Math.random() > 0.05) return next();
-    try {
-      await expireStaleHolds();
-    } catch {
-      /* ignore */
-    }
-    return next();
-  });
+  // Stale hold cleanup is worker-only (scripts/expire-holds.js / jobWorker).
+  // Never run expireStaleHolds on request hot path (multi-instance race + latency).
 
   app.get('/login', (req, res) => res.render('customer/login', { pageTitle: 'Đăng nhập — WorkHub' }));
   app.get('/register', (req, res) => res.render('customer/register', { pageTitle: 'Đăng ký — WorkHub' }));

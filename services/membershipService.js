@@ -98,16 +98,12 @@ async function subscribe({ userId, planCode }) {
   });
   if (!plan) throw new NotFoundError("Gói membership không tồn tại.");
 
-  // Paid plans require payment flow — disabled until MEMBERSHIP_PAID_ENABLED
-  const env = require("../config/env");
-  if ((plan.MonthlyPrice || 0) > 0 && !env.MEMBERSHIP_PAID_ENABLED) {
-    // Free-tier exception: MonthlyPrice 0 only; paid blocked by flag
-    // Allow in test for existing suites unless explicitly free-only mode
-    if (env.isProduction) {
-      throw new ValidationError(
-        "Đăng ký gói trả phí tạm khóa. Liên hệ hỗ trợ hoặc bật MEMBERSHIP_PAID_ENABLED sau khi có checkout.",
-      );
-    }
+  // Paid plans (MonthlyPrice > 0) always require verified payment flow.
+  // MEMBERSHIP_PAID_ENABLED alone must NEVER activate paid plans for free.
+  if ((plan.MonthlyPrice || 0) > 0) {
+    throw new ValidationError(
+      "Gói trả phí yêu cầu thanh toán đã xác minh. Đăng ký trực tiếp chưa khả dụng.",
+    );
   }
 
   const existing = await Membership.findOne({

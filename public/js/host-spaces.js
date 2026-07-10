@@ -75,11 +75,13 @@ function safeImgSrc(url) {
 function applyImg(id, src) {
     const node = document.getElementById(id);
     if (!node) return;
-    if (src) {
-      node.src = safeImgSrc(src) || src;
+    const safe = safeImgSrc(src);
+    if (safe) {
+      node.src = safe;
       node.classList.remove("hidden");
     } else {
-      node.src = "";
+      // Never fall back to raw unsanitized URL
+      node.removeAttribute("src");
       node.classList.add("hidden");
     }
 }
@@ -152,7 +154,8 @@ function renderFacilityList(branches) {
         const imgWrap = el('div', 'relative h-40 mb-6 rounded-2xl overflow-hidden shadow-inner', null);
         if (b.Images && b.Images.length > 0) {
             const img = document.createElement('img');
-            img.src = safeImgSrc(b.Images[0]) || b.Images[0];
+            const safe0 = safeImgSrc(b.Images[0]);
+            if (safe0) img.src = safe0;
             img.alt = '';
             img.className = 'w-full h-full object-cover group-hover:scale-110 transition duration-500';
             imgWrap.appendChild(img);
@@ -199,7 +202,8 @@ async function openFacilityMgmt(branchId) {
                     branch.Images.forEach((imgUrl) => {
                         const wrap = el('div', 'relative w-20 h-20 inline-block group mr-2', null);
                         const img = document.createElement('img');
-                        img.src = safeImgSrc(imgUrl) || imgUrl;
+                        const safeU = safeImgSrc(imgUrl);
+                        if (safeU) img.src = safeU;
                         img.alt = '';
                         img.className = 'w-full h-full object-cover rounded-xl border shadow-sm';
                         wrap.appendChild(img);
@@ -414,7 +418,8 @@ function renderSpaceImages(space) {
       space.Images.forEach((imgUrl) => {
         const wrap = el('div', 'relative w-20 h-20 inline-block mr-2 mb-2', null);
         const img = document.createElement('img');
-        img.src = safeImgSrc(imgUrl) || imgUrl;
+        const safeI = safeImgSrc(imgUrl);
+        if (safeI) img.src = safeI;
         img.alt = '';
         img.className = 'w-full h-full object-cover rounded-xl border shadow-sm';
         wrap.appendChild(img);

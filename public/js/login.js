@@ -75,14 +75,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Google status + OAuth 2FA return
   try {
     const q = new URLSearchParams(location.search);
-    if (q.get('requires2fa') === '1' && q.get('pendingToken')) {
+    // Google OAuth 2FA: token is HttpOnly preSession2fa cookie — never in URL
+    if (q.get('requires2fa') === '1') {
       const code = window.prompt('Nhập mã 2FA sau đăng nhập Google:');
       if (code) {
         const vRes = await fetch('/api/auth/2fa/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ pendingToken: q.get('pendingToken'), code }),
+          body: JSON.stringify({ code }),
         });
         const vData = await vRes.json();
         if (vRes.ok) return finishLoginRedirect(vData);

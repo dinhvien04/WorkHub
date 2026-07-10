@@ -89,7 +89,7 @@ describe('Membership subscribe', () => {
     await MembershipPlan.create({
       Name: 'Basic',
       Code: 'BASIC',
-      MonthlyPrice: 100000,
+      MonthlyPrice: 0,
       IncludedHours: 10,
       Status: 'active',
     });

@@ -76,6 +76,7 @@ describe('Push subscribe + staff reception proxy', () => {
       HostOwnerID: host._id,
       UserID: staff._id,
       Role: 'receptionist',
+      AllBranches: true,
       Status: 'active',
     });
     const { space } = await seedHostSpace(host);

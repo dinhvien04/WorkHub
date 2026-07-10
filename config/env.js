@@ -189,6 +189,11 @@ const env = {
     process.env.WEBAUTHN_ORIGIN ||
     process.env.PUBLIC_BASE_URL ||
     "http://localhost:3000",
+  /** required | preferred | discouraged — production should use required */
+  WEBAUTHN_USER_VERIFICATION: (
+    process.env.WEBAUTHN_USER_VERIFICATION ||
+    (isProduction ? "required" : "preferred")
+  ).toLowerCase(),
   MEMBERSHIP_PAID_ENABLED: boolEnv("MEMBERSHIP_PAID_ENABLED", false),
   isDev,
   isTest,

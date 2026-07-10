@@ -238,7 +238,7 @@ describe('Membership credit ledger', () => {
     await MembershipPlan.create({
       Name: 'Pro',
       Code: 'PRO',
-      MonthlyPrice: 500000,
+      MonthlyPrice: 0,
       IncludedHours: 20,
       Status: 'active',
     });
@@ -282,7 +282,7 @@ describe('Membership credit ledger', () => {
     await MembershipPlan.create({
       Name: 'Lite',
       Code: 'LITE',
-      MonthlyPrice: 100000,
+      MonthlyPrice: 0,
       IncludedHours: 5,
       Status: 'active',
     });
@@ -301,7 +301,7 @@ describe('Membership credit ledger', () => {
     await MembershipPlan.create({
       Name: 'Basic',
       Code: 'BASIC2',
-      MonthlyPrice: 100000,
+      MonthlyPrice: 0,
       IncludedHours: 8,
       Status: 'active',
     });

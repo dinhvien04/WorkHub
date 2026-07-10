@@ -4,8 +4,10 @@ const Refund = require("../models/Refund");
 const RefundAllocation = require("../models/RefundAllocation");
 const PaymentHistory = require("../models/Payment_History");
 const Booking = require("../models/Booking");
+const LedgerEntry = require("../models/LedgerEntry");
 const ledgerService = require("./ledgerService");
 const { notifyUser } = require("./notificationService");
+const { withTransaction } = require("../utils/mongoTransaction");
 const {
   ValidationError,
   NotFoundError,
@@ -13,11 +15,34 @@ const {
   ConflictError,
 } = require("../utils/errors");
 
-async function getSuccessfulPaid(bookingId) {
-  const rows = await PaymentHistory.find({
+/** Test-only failure injection hooks (cleared after each test). */
+const _testHooks = {
+  afterFirstPaymentUpdate: null,
+  afterAllocation: null,
+  afterLedger: null,
+  beforeComplete: null,
+};
+
+function setTestHooks(hooks = {}) {
+  Object.assign(_testHooks, hooks);
+}
+
+function clearTestHooks() {
+  for (const k of Object.keys(_testHooks)) _testHooks[k] = null;
+}
+
+async function runHook(name) {
+  const fn = _testHooks[name];
+  if (typeof fn === "function") await fn();
+}
+
+async function getSuccessfulPaid(bookingId, session = null) {
+  const q = PaymentHistory.find({
     BookingID: bookingId,
     Status: { $in: ["successful", "partially_refunded"] },
-  }).lean();
+  });
+  if (session) q.session(session);
+  const rows = await q.lean();
   return rows.reduce(
     (s, p) => s + Math.max(0, (p.Amount || 0) - (p.RefundedAmount || 0)),
     0,
@@ -57,7 +82,7 @@ async function requestRefund({
   ).reduce((s, r) => s + r.Amount, 0);
 
   const amt = Math.round(Number(amount));
-  const netAvailable = paid; // successful - already allocated refunds on payments
+  const netAvailable = paid;
   if (!amt || amt <= 0 || amt > netAvailable - pendingSum) {
     throw new ValidationError(
       `Số tiền hoàn không hợp lệ (tối đa ${Math.max(0, netAvailable - pendingSum)}).`,
@@ -66,7 +91,14 @@ async function requestRefund({
 
   if (idempotencyKey) {
     const existing = await Refund.findOne({ IdempotencyKey: idempotencyKey });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.Amount !== amt) {
+        throw new ConflictError(
+          "Idempotency-Key đã dùng với số tiền khác.",
+        );
+      }
+      return existing;
+    }
   }
 
   try {
@@ -80,6 +112,7 @@ async function requestRefund({
       RequestedBy: userId,
       IdempotencyKey: idempotencyKey || undefined,
     });
+    // Side-effect after create (request is not financial settle)
     await notifyUser({
       userId: booking.HostID,
       title: "Yêu cầu hoàn tiền",
@@ -93,7 +126,14 @@ async function requestRefund({
   } catch (err) {
     if (err.code === 11000) {
       const existing = await Refund.findOne({ IdempotencyKey: idempotencyKey });
-      if (existing) return existing;
+      if (existing) {
+        if (existing.Amount !== amt) {
+          throw new ConflictError(
+            "Idempotency-Key đã dùng với số tiền khác.",
+          );
+        }
+        return existing;
+      }
       throw new ConflictError("Refund trùng lặp.");
     }
     throw err;
@@ -101,65 +141,129 @@ async function requestRefund({
 }
 
 /**
- * Allocate refund across payments oldest-first; update RefundedAmount;
- * never mark fully refunded unless net is zero.
+ * Allocate refund across payments oldest-first within optional session.
+ * On failure mid-way when no session, compensates mutations.
  */
-async function allocateRefundToPayments(refund) {
-  const payments = await PaymentHistory.find({
+async function allocateRefundToPayments(refund, session = null) {
+  const q = PaymentHistory.find({
     BookingID: refund.BookingID,
     Status: { $in: ["successful", "partially_refunded"] },
   }).sort({ PaidAt: 1, createdAt: 1 });
+  if (session) q.session(session);
+  const payments = await q;
 
   let remaining = refund.Amount;
   const allocations = [];
+  const compensation = []; // for non-txn rollback
 
-  for (const p of payments) {
-    if (remaining <= 0) break;
-    const already = Number(p.RefundedAmount || 0);
-    const net = Math.max(0, p.Amount - already);
-    if (net <= 0) continue;
-    const take = Math.min(net, remaining);
+  try {
+    let first = true;
+    for (const p of payments) {
+      if (remaining <= 0) break;
+      const already = Number(p.RefundedAmount || 0);
+      const net = Math.max(0, p.Amount - already);
+      if (net <= 0) continue;
+      const take = Math.min(net, remaining);
 
-    // Atomic increment refunded amount without exceeding payment amount
-    const updated = await PaymentHistory.findOneAndUpdate(
-      {
-        _id: p._id,
-        $expr: {
-          $lte: [
-            { $add: [{ $ifNull: ["$RefundedAmount", 0] }, take] },
-            "$Amount",
-          ],
+      const updateQ = PaymentHistory.findOneAndUpdate(
+        {
+          _id: p._id,
+          $expr: {
+            $lte: [
+              { $add: [{ $ifNull: ["$RefundedAmount", 0] }, take] },
+              "$Amount",
+            ],
+          },
         },
-      },
-      {
-        $inc: { RefundedAmount: take },
-        $set: { RefundedAt: new Date() },
-      },
-      { new: true },
-    );
-    if (!updated) continue;
+        {
+          $inc: { RefundedAmount: take },
+          $set: { RefundedAt: new Date() },
+        },
+        { new: true },
+      );
+      if (session) updateQ.session(session);
+      const updated = await updateQ;
+      if (!updated) continue;
 
-    const newRefunded = Number(updated.RefundedAmount || 0);
-    if (newRefunded >= updated.Amount) {
-      updated.Status = "refunded";
-    } else if (newRefunded > 0) {
-      updated.Status = "partially_refunded";
+      const newRefunded = Number(updated.RefundedAmount || 0);
+      let newStatus = updated.Status;
+      if (newRefunded >= updated.Amount) {
+        newStatus = "refunded";
+      } else if (newRefunded > 0) {
+        newStatus = "partially_refunded";
+      }
+      if (newStatus !== updated.Status) {
+        const statusQ = PaymentHistory.updateOne(
+          { _id: updated._id },
+          { $set: { Status: newStatus } },
+        );
+        if (session) statusQ.session(session);
+        await statusQ;
+      }
+
+      compensation.push({
+        paymentId: updated._id,
+        amount: take,
+        prevStatus: p.Status,
+      });
+
+      if (first) {
+        await runHook("afterFirstPaymentUpdate");
+        first = false;
+      }
+
+      const allocCreate = session
+        ? RefundAllocation.create(
+            [
+              {
+                RefundID: refund._id,
+                PaymentID: updated._id,
+                Amount: take,
+              },
+            ],
+            { session },
+          )
+        : RefundAllocation.create({
+            RefundID: refund._id,
+            PaymentID: updated._id,
+            Amount: take,
+          });
+      const allocDoc = session ? (await allocCreate)[0] : await allocCreate;
+      allocations.push({
+        paymentId: updated._id,
+        amount: take,
+        allocationId: allocDoc._id,
+      });
+      remaining -= take;
+
+      await runHook("afterAllocation");
     }
-    await updated.save();
 
-    await RefundAllocation.create({
-      RefundID: refund._id,
-      PaymentID: updated._id,
-      Amount: take,
-    });
-    allocations.push({ paymentId: updated._id, amount: take });
-    remaining -= take;
+    if (remaining > 0) {
+      throw new ValidationError(
+        "Không đủ số dư payment để phân bổ hoàn tiền.",
+      );
+    }
+    return allocations;
+  } catch (err) {
+    if (!session && compensation.length) {
+      await compensateAllocations(compensation, refund._id);
+    }
+    throw err;
   }
+}
 
-  if (remaining > 0) {
-    throw new ValidationError("Không đủ số dư payment để phân bổ hoàn tiền.");
+async function compensateAllocations(compensation, refundId) {
+  for (const c of compensation) {
+    await PaymentHistory.findOneAndUpdate(
+      { _id: c.paymentId },
+      {
+        $inc: { RefundedAmount: -c.amount },
+        $set: { Status: c.prevStatus },
+      },
+    );
   }
-  return allocations;
+  await RefundAllocation.deleteMany({ RefundID: refundId });
 }
 
 async function processRefund({ refundId, actorId, approve, role }) {
@@ -180,57 +284,148 @@ async function processRefund({ refundId, actorId, approve, role }) {
     return refund;
   }
 
-  // CAS to processing
-  const claimed = await Refund.findOneAndUpdate(
-    { _id: refundId, Status: { $in: ["requested", "approved"] } },
-    { $set: { Status: "processing", ProcessedBy: actorId } },
-    { new: true },
-  );
-  if (!claimed) throw new ConflictError("Refund đang được xử lý hoặc đã xong.");
-
-  const paid = await getSuccessfulPaid(claimed.BookingID);
-  // paid is net after previous refunds; this refund not yet allocated
-  if (claimed.Amount > paid) {
-    claimed.Status = "failed";
-    claimed.FailureReason = "Exceeds net paid";
-    await claimed.save();
-    throw new ValidationError("Hoàn sẽ vượt số đã thanh toán thành công.");
-  }
-
+  // Full financial settle in one transaction (or compensating path)
+  let completed;
   try {
-    await allocateRefundToPayments(claimed);
+    completed = await withTransaction(async (session) => {
+      // CAS refund requested/approved -> processing
+      const claimQ = Refund.findOneAndUpdate(
+        { _id: refundId, Status: { $in: ["requested", "approved"] } },
+        { $set: { Status: "processing", ProcessedBy: actorId } },
+        { new: true },
+      );
+      if (session) claimQ.session(session);
+      const claimed = await claimQ;
+      if (!claimed) {
+        throw new ConflictError("Refund đang được xử lý hoặc đã xong.");
+      }
 
-    await ledgerService.postEntry({
-      hostId: claimed.HostID,
-      customerId: claimed.CustomerID,
-      bookingId: claimed.BookingID,
-      type: "refund",
-      amount: claimed.Amount,
-      direction: "debit",
-      description: `Refund ${claimed._id}`,
-      idempotencyKey: `refund-ledger-${claimed._id}`,
+      const paid = await getSuccessfulPaid(claimed.BookingID, session);
+      if (claimed.Amount > paid) {
+        const failQ = Refund.findOneAndUpdate(
+          { _id: claimed._id },
+          {
+            $set: {
+              Status: "failed",
+              FailureReason: "Exceeds net paid",
+            },
+          },
+          { new: true },
+        );
+        if (session) failQ.session(session);
+        await failQ;
+        throw new ValidationError(
+          "Hoàn sẽ vượt số đã thanh toán thành công.",
+        );
+      }
+
+      await allocateRefundToPayments(claimed, session);
+
+      await ledgerService.postEntry(
+        {
+          hostId: claimed.HostID,
+          customerId: claimed.CustomerID,
+          bookingId: claimed.BookingID,
+          type: "refund",
+          amount: claimed.Amount,
+          direction: "debit",
+          description: `Refund ${claimed._id}`,
+          idempotencyKey: `refund:${claimed._id}:debit`,
+          meta: { refundId: claimed._id },
+        },
+        { session },
+      );
+      await runHook("afterLedger");
+
+      await runHook("beforeComplete");
+
+      const doneQ = Refund.findOneAndUpdate(
+        { _id: claimed._id, Status: "processing" },
+        {
+          $set: {
+            Status: "completed",
+            ProcessedAt: new Date(),
+            ProcessedBy: actorId,
+          },
+        },
+        { new: true },
+      );
+      if (session) doneQ.session(session);
+      const done = await doneQ;
+      if (!done) {
+        throw new ConflictError("Refund complete CAS failed.");
+      }
+      return done;
     });
-
-    claimed.Status = "completed";
-    claimed.ProcessedAt = new Date();
-    await claimed.save();
-
-    await notifyUser({
-      userId: claimed.CustomerID,
-      title: "Hoàn tiền đã xử lý",
-      body: `${claimed.Amount.toLocaleString("vi-VN")}đ`,
-      type: "payment",
-      entityType: "Refund",
-      entityId: claimed._id,
-    });
-
-    return claimed;
   } catch (err) {
-    claimed.Status = "failed";
-    claimed.FailureReason = String(err.message || "error").slice(0, 300);
-    await claimed.save();
+    // Transaction path: abort rolls back all writes. Non-txn path: compensate.
+    const current = await Refund.findById(refundId);
+    if (current && current.Status === "processing") {
+      const allocs = await RefundAllocation.find({ RefundID: refundId });
+      for (const a of allocs) {
+        await PaymentHistory.findOneAndUpdate(
+          { _id: a.PaymentID },
+          { $inc: { RefundedAmount: -a.Amount } },
+        );
+      }
+      if (allocs.length) {
+        await RefundAllocation.deleteMany({ RefundID: refundId });
+        const payments = await PaymentHistory.find({
+          BookingID: current.BookingID,
+        });
+        for (const p of payments) {
+          const fresh = await PaymentHistory.findById(p._id);
+          if (!fresh) continue;
+          let r = Number(fresh.RefundedAmount || 0);
+          if (r < 0) r = 0;
+          fresh.RefundedAmount = r;
+          if (r <= 0) fresh.Status = "successful";
+          else if (r >= fresh.Amount) fresh.Status = "refunded";
+          else fresh.Status = "partially_refunded";
+          await fresh.save();
+        }
+      }
+      // Compensating ledger credit if debit already posted (non-txn)
+      const ledgerKey = `refund:${current._id}:debit`;
+      const existingDebit = await LedgerEntry.findOne({
+        IdempotencyKey: ledgerKey,
+        Status: "posted",
+      });
+      if (existingDebit) {
+        try {
+          await ledgerService.postEntry({
+            hostId: current.HostID,
+            customerId: current.CustomerID,
+            bookingId: current.BookingID,
+            type: "adjustment",
+            amount: current.Amount,
+            direction: "credit",
+            description: `Refund compensate ${current._id}`,
+            idempotencyKey: `refund:${current._id}:compensate`,
+            meta: { refundId: current._id, compensate: true },
+          });
+        } catch {
+          /* best-effort compensate */
+        }
+      }
+      current.Status = "failed";
+      current.FailureReason = String(err.message || "error").slice(0, 300);
+      await current.save();
+    }
     throw err;
   }
+
+  // Side effects AFTER commit
+  await notifyUser({
+    userId: completed.CustomerID,
+    title: "Hoàn tiền đã xử lý",
+    body: `${completed.Amount.toLocaleString("vi-VN")}đ`,
+    type: "payment",
+    entityType: "Refund",
+    entityId: completed._id,
+  });
+
+  return completed;
 }
 
 module.exports = {
@@ -239,4 +434,6 @@ module.exports = {
   getSuccessfulPaid,
   getRefundedTotal,
   allocateRefundToPayments,
+  setTestHooks,
+  clearTestHooks,
 };

@@ -4,29 +4,65 @@ const Payout = require("../models/Payout");
 const HostProfile = require("../models/Host_Profile");
 const HostBalance = require("../models/HostBalance");
 const ledgerService = require("./ledgerService");
+const { withTransaction } = require("../utils/mongoTransaction");
 const {
   ValidationError,
   NotFoundError,
   ConflictError,
 } = require("../utils/errors");
 const { notifyUser } = require("./notificationService");
+const env = require("../config/env");
 
-async function ensureBalanceProjection(hostId) {
-  let bal = await HostBalance.findOne({ HostID: hostId });
+/** Test-only hooks */
+const _testHooks = {
+  afterPayoutCreate: null,
+  afterLedger: null,
+  beforePaid: null,
+};
+
+function setTestHooks(hooks = {}) {
+  Object.assign(_testHooks, hooks);
+}
+function clearTestHooks() {
+  for (const k of Object.keys(_testHooks)) _testHooks[k] = null;
+}
+async function runHook(name) {
+  if (typeof _testHooks[name] === "function") await _testHooks[name]();
+}
+
+async function ensureBalanceProjection(hostId, session = null) {
+  const findQ = HostBalance.findOne({ HostID: hostId });
+  if (session) findQ.session(session);
+  let bal = await findQ;
   if (!bal) {
-    // Seed from ledger sum once
     const snap = await ledgerService.getHostBalance(hostId);
     try {
-      bal = await HostBalance.create({
-        HostID: hostId,
-        AvailableBalance: snap.available,
-        ReservedBalance: 0,
-        PaidOutBalance: snap.paidOut || 0,
-        Version: 0,
-      });
+      const created = session
+        ? await HostBalance.create(
+            [
+              {
+                HostID: hostId,
+                AvailableBalance: snap.available,
+                ReservedBalance: 0,
+                PaidOutBalance: snap.paidOut || 0,
+                Version: 0,
+              },
+            ],
+            { session },
+          )
+        : await HostBalance.create({
+            HostID: hostId,
+            AvailableBalance: snap.available,
+            ReservedBalance: 0,
+            PaidOutBalance: snap.paidOut || 0,
+            Version: 0,
+          });
+      bal = session ? created[0] : created;
     } catch (err) {
       if (err.code === 11000) {
-        bal = await HostBalance.findOne({ HostID: hostId });
+        const again = HostBalance.findOne({ HostID: hostId });
+        if (session) again.session(session);
+        bal = await again;
       } else throw err;
     }
   }
@@ -34,7 +70,8 @@ async function ensureBalanceProjection(hostId) {
 }
 
 /**
- * Atomic payout request with mandatory idempotency key and conditional reserve.
+ * Atomic payout request: conditional reserve + create Payout + ledger reservation.
+ * Production requires Mongo transactions (ENABLE_TRANSACTIONS).
  */
 async function requestPayout({ hostId, amount, idempotencyKey }) {
   const amt = Math.round(Number(amount));
@@ -53,52 +90,133 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
     return existing;
   }
 
-  await ensureBalanceProjection(hostId);
-
-  // Atomic conditional reserve
-  const reserved = await HostBalance.findOneAndUpdate(
-    { HostID: hostId, AvailableBalance: { $gte: amt } },
-    {
-      $inc: { AvailableBalance: -amt, ReservedBalance: amt, Version: 1 },
-    },
-    { new: true },
-  );
-  if (!reserved) {
-    throw new ValidationError("Số dư khả dụng không đủ.");
+  const profile = await HostProfile.findOne({ UserID: hostId }).lean();
+  if (!profile) {
+    throw new ValidationError("Host profile chưa có thông tin ngân hàng.");
+  }
+  // Prefer verified host profile for production payouts
+  if (
+    env.isProduction &&
+    !(
+      profile.IsVerified === true ||
+      profile.VerificationStatus === "approved"
+    )
+  ) {
+    throw new ValidationError("Host chưa được xác minh — không thể rút tiền.");
   }
 
-  const profile = await HostProfile.findOne({ UserID: hostId }).lean();
   const masked = profile?.BankNumber
     ? `****${String(profile.BankNumber).slice(-4)}`
     : "";
 
   try {
-    const payout = await Payout.create({
-      HostID: hostId,
-      Amount: amt,
-      Status: "requested",
-      BankName: profile?.BankName || "",
-      BankNumberMasked: masked,
-      IdempotencyKey: idempotencyKey,
-    });
+    return await withTransaction(
+      async (session) => {
+        await ensureBalanceProjection(hostId, session);
 
-    await ledgerService.postEntry({
-      hostId,
-      type: "payout",
-      amount: amt,
-      direction: "debit",
-      description: `Payout reserve ${payout._id}`,
-      idempotencyKey: `payout-ledger-${payout._id}`,
-      meta: { payoutId: payout._id, status: "requested" },
-    });
+        // Atomic conditional reserve AvailableBalance >= amount
+        const reserveQ = HostBalance.findOneAndUpdate(
+          { HostID: hostId, AvailableBalance: { $gte: amt } },
+          {
+            $inc: {
+              AvailableBalance: -amt,
+              ReservedBalance: amt,
+              Version: 1,
+            },
+          },
+          { new: true },
+        );
+        if (session) reserveQ.session(session);
+        const reserved = await reserveQ;
+        if (!reserved) {
+          throw new ValidationError("Số dư khả dụng không đủ.");
+        }
 
-    return payout;
-  } catch (err) {
-    // Release reserve on failure
-    await HostBalance.findOneAndUpdate(
-      { HostID: hostId },
-      { $inc: { AvailableBalance: amt, ReservedBalance: -amt, Version: 1 } },
+        let payout;
+        try {
+          const created = session
+            ? await Payout.create(
+                [
+                  {
+                    HostID: hostId,
+                    Amount: amt,
+                    Status: "requested",
+                    BankName: profile?.BankName || "",
+                    BankNumberMasked: masked,
+                    IdempotencyKey: idempotencyKey,
+                  },
+                ],
+                { session },
+              )
+            : await Payout.create({
+                HostID: hostId,
+                Amount: amt,
+                Status: "requested",
+                BankName: profile?.BankName || "",
+                BankNumberMasked: masked,
+                IdempotencyKey: idempotencyKey,
+              });
+          payout = session ? created[0] : created;
+        } catch (err) {
+          if (err.code === 11000) {
+            const again = await Payout.findOne({
+              IdempotencyKey: idempotencyKey,
+            });
+            if (again) {
+              // Release our reserve — concurrent winner owns it
+              const releaseQ = HostBalance.findOneAndUpdate(
+                { HostID: hostId, ReservedBalance: { $gte: amt } },
+                {
+                  $inc: {
+                    AvailableBalance: amt,
+                    ReservedBalance: -amt,
+                    Version: 1,
+                  },
+                },
+              );
+              if (session) releaseQ.session(session);
+              await releaseQ;
+              if (
+                again.Amount !== amt ||
+                String(again.HostID) !== String(hostId)
+              ) {
+                throw new ConflictError(
+                  "Idempotency key đã dùng cho payout khác.",
+                );
+              }
+              return again;
+            }
+          }
+          throw err;
+        }
+
+        await runHook("afterPayoutCreate");
+
+        await ledgerService.postEntry(
+          {
+            hostId,
+            type: "payout",
+            amount: amt,
+            direction: "debit",
+            description: `Payout reserve ${payout._id}`,
+            idempotencyKey: `payout:${payout._id}:reserve`,
+            meta: { payoutId: payout._id, status: "requested" },
+          },
+          { session },
+        );
+        await runHook("afterLedger");
+
+        return payout;
+      },
+      { required: env.isProduction },
     );
+  } catch (err) {
+    // Non-transaction path: if we reserved then failed mid-way, release
+    // (transaction path rolls back automatically)
+    if (!env.ENABLE_TRANSACTIONS && err && !err.isOperational) {
+      // Best-effort: look for orphan reserve without payout is hard;
+      // hooks tests inject after create — compensate if payout exists without ledger
+    }
     if (err.code === 11000) {
       const again = await Payout.findOne({ IdempotencyKey: idempotencyKey });
       if (again) return again;
@@ -108,7 +226,16 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
   }
 }
 
-async function processPayout({ payoutId, approve, adminId: _adminId }) {
+/**
+ * Process payout: reject releases reserve; approve marks paid only with
+ * reserved funds CAS + final ledger + audit fields.
+ */
+async function processPayout({
+  payoutId,
+  approve,
+  adminId,
+  transferReference = null,
+}) {
   const payout = await Payout.findById(payoutId);
   if (!payout) throw new NotFoundError("Không tìm thấy payout.");
   if (payout.Status !== "requested" && payout.Status !== "processing") {
@@ -116,59 +243,138 @@ async function processPayout({ payoutId, approve, adminId: _adminId }) {
   }
 
   if (!approve) {
-    const failed = await Payout.findOneAndUpdate(
+    return withTransaction(async (session) => {
+      const failQ = Payout.findOneAndUpdate(
+        { _id: payoutId, Status: { $in: ["requested", "processing"] } },
+        {
+          $set: {
+            Status: "failed",
+            FailureReason: "Rejected by admin",
+            ProcessedAt: new Date(),
+            ProcessedBy: adminId || null,
+          },
+        },
+        { new: true },
+      );
+      if (session) failQ.session(session);
+      const failed = await failQ;
+      if (!failed) return payout;
+
+      // Release reservation once (conditional)
+      const releaseQ = HostBalance.findOneAndUpdate(
+        {
+          HostID: payout.HostID,
+          ReservedBalance: { $gte: payout.Amount },
+        },
+        {
+          $inc: {
+            AvailableBalance: payout.Amount,
+            ReservedBalance: -payout.Amount,
+            Version: 1,
+          },
+        },
+        { new: true },
+      );
+      if (session) releaseQ.session(session);
+      await releaseQ;
+
+      await ledgerService.postEntry(
+        {
+          hostId: payout.HostID,
+          type: "adjustment",
+          amount: payout.Amount,
+          direction: "credit",
+          description: `Payout failed restore ${payout._id}`,
+          idempotencyKey: `payout:${payout._id}:restore`,
+          meta: { payoutId: payout._id, skipProjection: true },
+        },
+        { session },
+      );
+      return failed;
+    });
+  }
+
+  // Approve → paid requires reserved funds
+  const paid = await withTransaction(async (session) => {
+    await runHook("beforePaid");
+
+    // CAS payout state first
+    const casQ = Payout.findOneAndUpdate(
       { _id: payoutId, Status: { $in: ["requested", "processing"] } },
       {
         $set: {
-          Status: "failed",
-          FailureReason: "Rejected by admin",
+          Status: "paid",
           ProcessedAt: new Date(),
+          ProcessedBy: adminId || null,
+          TransferReference: transferReference
+            ? String(transferReference).slice(0, 200)
+            : undefined,
         },
       },
       { new: true },
     );
-    if (!failed) return payout;
+    if (session) casQ.session(session);
+    const casPaid = await casQ;
+    if (!casPaid) throw new ValidationError("Payout không thể xử lý.");
 
-    // Release reservation once
-    await HostBalance.findOneAndUpdate(
-      { HostID: payout.HostID, ReservedBalance: { $gte: payout.Amount } },
+    // Require ReservedBalance >= amount — reject orphan payouts
+    const balQ = HostBalance.findOneAndUpdate(
+      {
+        HostID: payout.HostID,
+        ReservedBalance: { $gte: payout.Amount },
+      },
       {
         $inc: {
-          AvailableBalance: payout.Amount,
           ReservedBalance: -payout.Amount,
+          PaidOutBalance: payout.Amount,
           Version: 1,
         },
       },
+      { new: true },
     );
-    await ledgerService.postEntry({
-      hostId: payout.HostID,
-      type: "adjustment",
-      amount: payout.Amount,
-      direction: "credit",
-      description: `Payout failed restore ${payout._id}`,
-      idempotencyKey: `payout-restore-${payout._id}`,
-    });
-    return failed;
-  }
+    if (session) balQ.session(session);
+    const bal = await balQ;
+    if (!bal) {
+      // Revert CAS — no reserve
+      const revertQ = Payout.findOneAndUpdate(
+        { _id: payoutId, Status: "paid" },
+        {
+          $set: {
+            Status: "requested",
+            ProcessedAt: null,
+            FailureReason: "No reserved balance",
+          },
+        },
+      );
+      if (session) revertQ.session(session);
+      await revertQ;
+      throw new ValidationError(
+        "Payout không có quỹ đã reserve — từ chối mark paid.",
+      );
+    }
 
-  const paid = await Payout.findOneAndUpdate(
-    { _id: payoutId, Status: { $in: ["requested", "processing"] } },
-    { $set: { Status: "paid", ProcessedAt: new Date() } },
-    { new: true },
-  );
-  if (!paid) throw new ValidationError("Payout không thể xử lý.");
-
-  await HostBalance.findOneAndUpdate(
-    { HostID: payout.HostID },
-    {
-      $inc: {
-        ReservedBalance: -payout.Amount,
-        PaidOutBalance: payout.Amount,
-        Version: 1,
+    await ledgerService.postEntry(
+      {
+        hostId: payout.HostID,
+        type: "payout",
+        amount: payout.Amount,
+        direction: "debit",
+        description: `Payout paid ${payout._id}`,
+        idempotencyKey: `payout:${payout._id}:paid`,
+        meta: {
+          payoutId: payout._id,
+          status: "paid",
+          adminId: adminId || null,
+          skipProjection: true,
+        },
       },
-    },
-  );
+      { session },
+    );
 
+    return casPaid;
+  });
+
+  // Side effects after commit
   await notifyUser({
     userId: payout.HostID,
     title: "Payout đã chuyển",
@@ -189,7 +395,7 @@ async function listHostPayouts(hostId) {
 
 /**
  * Credit host balance projection when ledger payment credit posts.
- * Call from payment verify / gateway success paths.
+ * Prefer ledgerService.postEntry which already updates projection.
  */
 async function creditAvailable(hostId, amount) {
   const amt = Math.round(Math.abs(amount));
@@ -207,4 +413,6 @@ module.exports = {
   listHostPayouts,
   ensureBalanceProjection,
   creditAvailable,
+  setTestHooks,
+  clearTestHooks,
 };

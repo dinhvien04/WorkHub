@@ -77,6 +77,7 @@ describe('Staff memberships + permissions + admin 2fa flag', () => {
       HostOwnerID: host._id,
       UserID: staffUser._id,
       Role: 'receptionist',
+      AllBranches: true,
       Status: 'active',
     });
 

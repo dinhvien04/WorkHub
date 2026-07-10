@@ -17,5 +17,9 @@ const webAuthnChallengeSchema = new mongoose.Schema(
 );
 
 webAuthnChallengeSchema.index({ ExpiresAt: 1 }, { expireAfterSeconds: 0 });
+webAuthnChallengeSchema.index(
+  { ChallengeHash: 1, Purpose: 1, UserID: 1, ConsumedAt: 1, ExpiresAt: 1 },
+  { name: 'challenge_claim_lookup' }
+);
 
 module.exports = mongoose.model('WebAuthnChallenge', webAuthnChallengeSchema);

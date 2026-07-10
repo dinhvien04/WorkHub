@@ -16,6 +16,8 @@ const payoutSchema = new mongoose.Schema(
     BankNumberMasked: { type: String, default: '' },
     FailureReason: { type: String, default: '' },
     ProcessedAt: { type: Date, default: null },
+    ProcessedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    TransferReference: { type: String, default: '' },
     IdempotencyKey: { type: String, sparse: true, unique: true },
   },
   { collection: 'payouts', timestamps: true }

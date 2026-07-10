@@ -19,7 +19,13 @@ async function listStaff(ownerId) {
     .lean();
 }
 
-async function inviteStaff({ ownerId, email, role, branchIds = [] }) {
+async function inviteStaff({
+  ownerId,
+  email,
+  role,
+  branchIds = [],
+  allBranches = false,
+}) {
   if (!ROLES.includes(role) || role === "owner") {
     throw new ValidationError("Role không hợp lệ.");
   }
@@ -29,6 +35,15 @@ async function inviteStaff({ ownerId, email, role, branchIds = [] }) {
   if (!user) throw new NotFoundError("User chưa đăng ký với email này.");
   if (String(user._id) === String(ownerId)) {
     throw new ValidationError("Không thể mời chính mình.");
+  }
+
+  const ids = Array.isArray(branchIds)
+    ? branchIds.filter(Boolean).map(String)
+    : [];
+  const grantAll = allBranches === true;
+  // Empty BranchIDs without AllBranches = deny all (no silent all-access)
+  if (!grantAll && ids.length === 0) {
+    // Allow invite with empty scope (deny until host assigns branches)
   }
 
   const token = crypto.randomBytes(24).toString("hex");
@@ -41,7 +56,8 @@ async function inviteStaff({ ownerId, email, role, branchIds = [] }) {
         HostOwnerID: ownerId,
         UserID: user._id,
         Role: role,
-        BranchIDs: branchIds,
+        BranchIDs: grantAll ? [] : ids,
+        AllBranches: grantAll,
         Status: "invited",
         InviteTokenHash: hash,
         InviteExpiresAt: new Date(Date.now() + 7 * 86400000),
@@ -132,24 +148,40 @@ async function resolveActingHostOwnerId(userId, role, preferredOwnerId = null) {
   } else {
     throw new ValidationError("Chọn host: gửi header X-Host-Owner-Id.");
   }
-  const branchIds = Array.isArray(m.BranchIDs) ? m.BranchIDs.map(String) : [];
+  // AllBranches=true → all; AllBranches=false + [] → deny; else listed branches
+  // Legacy: AllBranches undefined + empty BranchIDs → deny (no silent all-access)
+  let allowedBranchIds;
+  if (m.AllBranches === true) {
+    allowedBranchIds = null; // null = all branches
+  } else {
+    const branchIds = Array.isArray(m.BranchIDs) ? m.BranchIDs.map(String) : [];
+    allowedBranchIds = branchIds; // may be [] = deny all
+  }
   return {
     hostOwnerId: String(m.HostOwnerID),
     staffRole: m.Role,
     via: "staff",
     isOwner: false,
-    // empty BranchIDs = all branches for that host (legacy invites)
-    allowedBranchIds: branchIds.length ? branchIds : null,
+    allowedBranchIds,
+    allBranches: m.AllBranches === true,
     staffMemberId: String(m._id),
   };
 }
 
 /**
- * Assert staff may access a branch. Owners and empty allowlist pass.
+ * Assert staff may access a branch.
+ * Owners and AllBranches (allowedBranchIds === null) pass.
+ * Empty allowlist [] denies everything.
  */
 function assertBranchAccess(hostContext, branchId) {
   if (!hostContext || hostContext.isOwner) return true;
-  if (!hostContext.allowedBranchIds) return true; // all branches
+  if (hostContext.allowedBranchIds === null) return true; // all branches
+  if (
+    Array.isArray(hostContext.allowedBranchIds) &&
+    hostContext.allowedBranchIds.length === 0
+  ) {
+    throw new ForbiddenError("Staff không có chi nhánh được gán.");
+  }
   if (!branchId) {
     throw new ForbiddenError("Thiếu branch scope cho thao tác staff.");
   }
@@ -161,11 +193,21 @@ function assertBranchAccess(hostContext, branchId) {
 
 /**
  * Filter bookings/spaces query by staff branch scope via Space.BranchID.
- * Returns { spaceIds } restriction or null for no restriction.
+ * Returns null for no restriction, or { SpaceID: { $in } }.
+ * Empty allowlist → { SpaceID: { $in: [] } } (deny all, never "all branches").
  */
 async function branchScopedSpaceFilter(hostContext) {
-  if (!hostContext || hostContext.isOwner || !hostContext.allowedBranchIds) {
+  if (!hostContext || hostContext.isOwner) {
     return null;
+  }
+  if (hostContext.allowedBranchIds === null) {
+    return null; // AllBranches
+  }
+  if (
+    Array.isArray(hostContext.allowedBranchIds) &&
+    hostContext.allowedBranchIds.length === 0
+  ) {
+    return { SpaceID: { $in: [] } };
   }
   const Space = require("../models/Space");
   const spaces = await Space.find({

@@ -91,10 +91,26 @@ async function verifyToken(req, res, next) {
   }
 }
 
+/**
+ * Optional auth: attach identity only when token is fully valid
+ * (status + tokenVersion). Invalid/stale tokens → guest, never stale identity.
+ * Does not 401 — callers that need auth use verifyToken.
+ */
 async function optionalAuth(req, res, next) {
-  const token = extractToken(req);
-  if (!token) return next();
-  return verifyToken(req, res, next);
+  try {
+    const token = extractToken(req);
+    if (!token) return next();
+    try {
+      const { reqUser, user } = await attachUserFromToken(token);
+      req.user = reqUser;
+      req.currentUser = user;
+    } catch {
+      /* guest — do not attach stale identity */
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 const authorizeRole =

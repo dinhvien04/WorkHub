@@ -290,7 +290,7 @@ describe("P0.9 Partial refund allocation", () => {
     expect(net).toBe(150000);
 
     const ledger = await LedgerEntry.countDocuments({
-      IdempotencyKey: `refund-ledger-${refund._id}`,
+      IdempotencyKey: `refund:${refund._id}:debit`,
     });
     expect(ledger).toBe(1);
   });
