@@ -14,6 +14,8 @@
   const _galleryUrls = _gallery.map(function(g) { return g.url || g.fallback; }).filter(Boolean).join('|');
   const _minPrice = typeof minPrice !== 'undefined' ? minPrice : null;
   const _faq = typeof faq !== 'undefined' ? faq : [];
+  const _amenities = typeof amenities !== 'undefined' ? amenities : [];
+  const _policies = typeof policies !== 'undefined' ? policies : null;
 %>
 <div class="flex flex-col lg:flex-row gap-8" data-branch-id="<%= branch._id %>">
     <div class="flex-1">
@@ -80,6 +82,28 @@
         <p class="text-slate-500 text-sm leading-relaxed mb-4">
             <%= branch.Description %>
         </p>
+
+        <% if (_policies || _amenities.length) { %>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <% if (_policies && _policies.instantBook) { %>
+            <span class="text-[11px] font-bold uppercase tracking-wide bg-teal-100 text-teal-800 px-2.5 py-1 rounded-full">⚡ Instant book</span>
+          <% } %>
+          <% if (_policies) { %>
+            <span class="text-[11px] font-bold uppercase tracking-wide bg-amber-50 text-amber-800 px-2.5 py-1 rounded-full">Hủy miễn phí <%= _policies.freeCancelHours %>h</span>
+            <span class="text-[11px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">Cọc ~<%= _policies.depositPercent %>%</span>
+          <% } %>
+        </div>
+        <% if (_amenities.length) { %>
+        <div class="mb-6" aria-label="Tiện nghi">
+          <h2 class="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">Tiện nghi</h2>
+          <div class="flex flex-wrap gap-1.5">
+            <% _amenities.forEach(function(a) { %>
+              <span class="text-xs px-2.5 py-1 rounded-full bg-white border border-slate-200 text-slate-700"><%= a %></span>
+            <% }) %>
+          </div>
+        </div>
+        <% } %>
+        <% } %>
 
         <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-8">
             <div class="grid md:grid-cols-2 gap-4 text-sm">
@@ -174,6 +198,13 @@
             <% } else { %>
               <p class="text-[10px] font-bold uppercase text-slate-400 mb-3">Yêu cầu / chờ host xác nhận</p>
             <% } %>
+            <% if (_policies) { %>
+              <p class="text-[11px] text-slate-500 mb-3 leading-relaxed"><%= _policies.freeCancelSummary %></p>
+            <% } %>
+            <a href="/booking/wizard?branchId=<%= branch._id %>&autocheck=1"
+               class="block w-full text-center mb-4 py-3 rounded-2xl bg-teal-600 text-white font-bold text-sm hover:bg-teal-700 transition shadow">
+              Mở wizard 3 bước
+            </a>
             
             <div class="space-y-4 mb-4">
                 <div>

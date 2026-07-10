@@ -119,6 +119,8 @@ async function detailPage(req, res) {
             gallery: vm.gallery,
             faq: vm.faq,
             minPrice: vm.minPrice,
+            amenities: vm.amenities,
+            policies: vm.policies,
             pageTitle: vm.pageTitle,
             metaDescription: vm.metaDescription,
             canonicalPath: vm.canonicalPath,

@@ -514,6 +514,25 @@ const publicAddOns = asyncHandler(async (req, res) => {
   res.json({ addOns: items });
 });
 
+/** Public/server quote — no booking created; coupon needs auth user if provided */
+const quoteBooking = asyncHandler(async (req, res) => {
+  const bookingQuoteService = require('../services/bookingQuoteService');
+  const body = { ...req.body, ...req.query };
+  const userId = req.user?.userId || null;
+  const result = await bookingQuoteService.quoteBooking({
+    spaceId: body.spaceId,
+    startTime: body.startTime,
+    endTime: body.endTime,
+    addOns: body.addOns || [],
+    couponCode: body.couponCode || null,
+    userId,
+  });
+  if (result.ok === false) {
+    return res.status(400).json(result);
+  }
+  res.json({ quote: result });
+});
+
 // —— Receipt + ledger CSV ——
 const bookingReceipt = asyncHandler(async (req, res) => {
   const Booking = require('../models/Booking');
@@ -980,6 +999,7 @@ module.exports = {
   listSeoRedirects,
   alternativeSlots,
   publicAddOns,
+  quoteBooking,
   bookingReceipt,
   exportLedgerCsv,
   enqueueLedgerExport,

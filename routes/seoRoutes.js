@@ -314,6 +314,8 @@ async function renderListing(req, res, next, { city, district, slug }) {
       gallery: vm.gallery,
       faq: vm.faq,
       minPrice: vm.minPrice,
+      amenities: vm.amenities,
+      policies: vm.policies,
       pageTitle: vm.pageTitle,
       metaDescription: vm.metaDescription,
       canonicalPath: vm.canonicalPath,

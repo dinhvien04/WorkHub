@@ -1,6 +1,6 @@
 <div class="max-w-3xl mx-auto" id="booking-wizard" data-step="1">
   <h1 class="text-2xl font-black text-slate-800 mb-2">Đặt chỗ trong 3 bước</h1>
-  <p class="text-sm text-slate-500 mb-6">Server là nguồn sự thật cho giá, cọc và chỗ trống.</p>
+  <p class="text-sm text-slate-500 mb-6">Server là nguồn sự thật cho giá, cọc, add-on và chỗ trống. Draft được lưu cục bộ nếu bạn đăng nhập giữa chừng.</p>
 
   <ol class="flex gap-2 mb-8 text-[10px] font-black uppercase tracking-wider" id="wizard-steps" aria-label="Các bước đặt chỗ">
     <li class="flex-1 rounded-xl bg-teal-600 text-white py-2 text-center step-pill" data-step="1">1. Thời gian</li>
@@ -13,7 +13,7 @@
   <!-- Step 1 -->
   <section id="step-1" class="wizard-step bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
     <h2 class="font-bold text-lg mb-4">Chọn thời gian & phòng</h2>
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-branch">Branch ID (tạm)</label>
+    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-branch">Branch ID</label>
     <input id="wz-branch" class="w-full border rounded-xl px-3 py-2 mb-3 text-sm" placeholder="branchId" autocomplete="off" />
 
     <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-date">Ngày</label>
@@ -41,12 +41,15 @@
 
   <!-- Step 2 -->
   <section id="step-2" class="wizard-step hidden bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-    <h2 class="font-bold text-lg mb-4">Thông tin & ưu đãi</h2>
+    <h2 class="font-bold text-lg mb-4">Thông tin, add-on & ưu đãi</h2>
     <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-note">Ghi chú</label>
     <textarea id="wz-note" rows="3" class="w-full border rounded-xl px-3 py-2 mb-3 text-sm" maxlength="500" placeholder="Nhu cầu thiết bị, số người..."></textarea>
 
+    <p class="text-xs font-bold text-slate-500 mb-2">Add-on (giá server)</p>
+    <div id="wz-addons" class="space-y-2 mb-4" aria-live="polite"></div>
+
     <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-coupon">Mã giảm giá</label>
-    <div class="flex gap-2 mb-4">
+    <div class="flex gap-2 mb-2">
       <input id="wz-coupon" class="flex-1 border rounded-xl px-3 py-2 text-sm uppercase" placeholder="CODE" />
       <button type="button" id="wz-apply-coupon" class="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">Áp dụng</button>
     </div>
@@ -54,19 +57,21 @@
 
     <div class="flex gap-2">
       <button type="button" id="wz-back-2" class="flex-1 py-2 rounded-xl border font-bold text-sm">Quay lại</button>
-      <button type="button" id="wz-next-2" class="flex-1 btn-primary">Tiếp tục</button>
+      <button type="button" id="wz-next-2" class="flex-1 btn-primary">Xem giá & tiếp tục</button>
     </div>
   </section>
 
   <!-- Step 3 -->
   <section id="step-3" class="wizard-step hidden bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-    <h2 class="font-bold text-lg mb-4">Xác nhận & thanh toán</h2>
-    <div id="wz-summary" class="text-sm space-y-2 mb-4 bg-slate-50 rounded-2xl p-4"></div>
+    <h2 class="font-bold text-lg mb-4">Price breakdown & xác nhận</h2>
+    <div id="wz-summary" class="text-sm space-y-2 mb-4 bg-slate-50 rounded-2xl p-4" aria-live="polite"></div>
+    <button type="button" id="wz-refresh-quote" class="text-xs text-teal-700 font-bold underline mb-3">Làm mới báo giá server</button>
     <p id="wz-hold-timer" class="text-xs text-amber-600 font-bold mb-4"></p>
-    <label class="flex items-start gap-2 text-sm mb-4">
+    <label class="flex items-start gap-2 text-sm mb-2">
       <input type="checkbox" id="wz-policy" class="mt-1" />
       <span>Tôi đồng ý chính sách hủy/đặt chỗ của WorkHub và cơ sở.</span>
     </label>
+    <p id="wz-policy-text" class="text-xs text-slate-500 mb-4 pl-6"></p>
     <div class="flex gap-2">
       <button type="button" id="wz-back-3" class="flex-1 py-2 rounded-xl border font-bold text-sm">Quay lại</button>
       <button type="button" id="wz-submit" class="flex-1 btn-primary">Tạo đơn & thanh toán</button>

@@ -120,9 +120,29 @@ router.get('/admin/system-health', verifyToken, requireAdmin, g.systemHealth);
 router.get('/admin/seo/redirects', verifyToken, requireAdmin, g.listSeoRedirects);
 router.put('/admin/seo/redirects', verifyToken, requireAdmin, g.upsertSeoRedirect);
 
-// Alternatives + add-ons (public read)
+// Alternatives + add-ons + quote (public read; coupon applies when auth cookie present)
 router.get('/availability/alternatives', g.alternativeSlots);
 router.get('/addons', g.publicAddOns);
+function softAuth(req, res, next) {
+  try {
+    const token =
+      req.cookies?.authToken ||
+      (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (!token) return next();
+    const jwt = require('jsonwebtoken');
+    const env = require('../config/env');
+    const payload = jwt.verify(token, env.JWT_SECRET);
+    req.user = {
+      userId: payload.userId || payload.sub,
+      role: payload.role,
+    };
+  } catch {
+    /* guest */
+  }
+  return next();
+}
+router.get('/bookings/quote', softAuth, g.quoteBooking);
+router.post('/bookings/quote', softAuth, g.quoteBooking);
 
 // Receipt + finance export
 router.get(

@@ -256,6 +256,33 @@ async function buildDetailViewModel(branch, { req, spaces: preloadedSpaces } = {
   branch.RatingAvg = breakdown.total ? breakdown.average : branch.RatingAvg || 0;
   branch.RatingCount = breakdown.total;
 
+  // Aggregate amenities + policies from spaces (above-the-fold)
+  const amenitySet = new Set();
+  let hasInstant = false;
+  let freeCancelHours = null;
+  for (const s of spaces) {
+    if (Array.isArray(s.Amenities)) s.Amenities.forEach((a) => a && amenitySet.add(String(a)));
+    if (s.InstantBook) hasInstant = true;
+    if (s.FreeCancelHours != null) {
+      freeCancelHours =
+        freeCancelHours == null
+          ? s.FreeCancelHours
+          : Math.max(freeCancelHours, s.FreeCancelHours);
+    }
+  }
+  if (freeCancelHours == null) freeCancelHours = 24;
+  const amenities = Array.from(amenitySet).slice(0, 24);
+  const policies = {
+    freeCancelHours,
+    freeCancelSummary: `Hủy miễn phí trước ${freeCancelHours}h so với giờ bắt đầu (theo từng phòng).`,
+    depositPercent:
+      branch.DepositPercentage != null ? Math.round(Number(branch.DepositPercentage) * 100) : 30,
+    instantBook: hasInstant,
+    bookingModes: hasInstant
+      ? 'Có phòng instant book; một số phòng cần host xác nhận.'
+      : 'Đặt chỗ cần host xác nhận.',
+  };
+
   return {
     branch,
     spaces,
@@ -269,6 +296,8 @@ async function buildDetailViewModel(branch, { req, spaces: preloadedSpaces } = {
     minPrice,
     jsonLd,
     ogImage: images[0] || '',
+    amenities,
+    policies,
   };
 }
 

@@ -113,6 +113,9 @@ npm run seed:extras  # coupons + feature flags demo
 - Public host profile page (`/hosts/:hostId`, `GET /api/public/hosts/:hostId`)
 - Skip-safe Playwright smoke: `npm run test:e2e`
 - Listing detail: gallery AVIF/WebP srcset + lightbox, FAQ, Review/AggregateRating JSON-LD, slug 301 redirect
+- Booking quote API `GET|POST /api/bookings/quote` (server price breakdown, add-ons, policy)
+- Wizard: add-ons, server quote step 3, localStorage draft, idempotent submit
+- Detail above-the-fold amenities + free-cancel/instant badges + wizard CTA
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
