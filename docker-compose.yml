@@ -1,0 +1,40 @@
+# WorkHub local stack: app dependencies (Mongo, Redis, ClamAV)
+# Usage:
+#   docker compose up -d
+#   set MONGODB_URI / REDIS_URL / CLAMAV_HOST in .env
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - workhub_mongo:/data/db
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}) }" | mongosh --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - workhub_redis:/data
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    ports:
+      - '3310:3310'
+    volumes:
+      - workhub_clamav:/var/lib/clamav
+
+volumes:
+  workhub_mongo:
+  workhub_redis:
+  workhub_clamav:

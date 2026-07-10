@@ -130,11 +130,16 @@ npm run seed:extras  # coupons + feature flags demo
 - Stripe/MoMo **live** session create when keys set (else mock)
 - Booking kill switch flag `kill_switch_bookings`
 - Guest favorites auto-merge after login
+- Stripe-Signature + MoMo IPN signature verification helpers
+- Platform maintenance mode (`MAINTENANCE_MODE` / `kill_switch_platform`)
+- `X-WorkHub-Version` / `X-API-Version` headers
+- `Dockerfile` + `docker-compose.yml` (mongo replica-ish, redis, clamav)
 
 ```bash
 npm run backup
 npm run sbom
 npm run build:css
+docker compose up -d   # optional infra
 ```
 
 ## Roles

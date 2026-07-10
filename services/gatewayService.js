@@ -23,8 +23,8 @@ function signPayload(body, provider = 'workhub_mock') {
   return providers.signForProvider(provider, body);
 }
 
-function verifySignature(rawBody, signature, provider = 'workhub_mock') {
-  return providers.verifyForProvider(provider, rawBody, signature);
+function verifySignature(rawBody, signature, provider = 'workhub_mock', event = null) {
+  return providers.verifyForProvider(provider, rawBody, signature, event);
 }
 
 /**
@@ -131,9 +131,9 @@ async function handleWebhook({ rawBody, signature, event, provider: providerHint
     if (peek?.Provider) provider = peek.Provider;
   }
 
-  if (!verifySignature(rawBody, signature, provider)) {
-    // fallback workhub secret for legacy tests
-    if (!verifySignature(rawBody, signature, 'workhub_mock')) {
+  if (!verifySignature(rawBody, signature, provider, event)) {
+    // fallback workhub secret for legacy tests / multi-provider routing
+    if (!verifySignature(rawBody, signature, 'workhub_mock', event)) {
       const err = new Error('Invalid webhook signature');
       err.statusCode = 401;
       err.code = 'UNAUTHORIZED';

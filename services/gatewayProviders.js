@@ -164,14 +164,95 @@ function signForProvider(provider, rawBody) {
   return crypto.createHmac('sha256', webhookSecretFor(provider)).update(rawBody).digest('hex');
 }
 
-function verifyForProvider(provider, rawBody, signature) {
-  if (!signature) return false;
-  const expected = signForProvider(provider, rawBody);
+/**
+ * Stripe-Signature header: t=timestamp,v1=hmac_sha256(secret, `${t}.${rawBody}`)
+ */
+function verifyStripeSignature(rawBody, stripeSignatureHeader, secret) {
+  if (!stripeSignatureHeader || !secret) return false;
+  const parts = String(stripeSignatureHeader).split(',').map((p) => p.trim());
+  const map = {};
+  for (const p of parts) {
+    const [k, v] = p.split('=');
+    if (k && v) map[k] = v;
+  }
+  const t = map.t;
+  const v1 = map.v1;
+  if (!t || !v1) {
+    // allow plain HMAC for mock tests
+    return verifyPlainHmac(rawBody, stripeSignatureHeader, secret);
+  }
+  const age = Math.abs(Date.now() / 1000 - Number(t));
+  if (Number.isFinite(age) && age > 60 * 5) return false; // 5 min skew
+  const signed = crypto
+    .createHmac('sha256', secret)
+    .update(`${t}.${rawBody}`)
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(signed));
+  } catch {
+    return false;
+  }
+}
+
+function verifyPlainHmac(rawBody, signature, secret) {
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
   try {
     return crypto.timingSafeEqual(Buffer.from(String(signature)), Buffer.from(expected));
   } catch {
     return false;
   }
+}
+
+/**
+ * MoMo IPN signature: HMAC SHA256 over sorted accessKey... fields (simplified).
+ */
+function verifyMomoIpn(event, secret) {
+  if (!event || !secret) return false;
+  const accessKey = process.env.MOMO_ACCESS_KEY || '';
+  const amount = event.amount ?? '';
+  const extraData = event.extraData ?? '';
+  const message = event.message ?? '';
+  const orderId = event.orderId ?? '';
+  const orderInfo = event.orderInfo ?? '';
+  const orderType = event.orderType ?? '';
+  const partnerCode = event.partnerCode ?? process.env.MOMO_PARTNER_CODE ?? '';
+  const payType = event.payType ?? '';
+  const requestId = event.requestId ?? '';
+  const responseTime = event.responseTime ?? '';
+  const resultCode = event.resultCode ?? '';
+  const transId = event.transId ?? '';
+  const raw =
+    `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&message=${message}` +
+    `&orderId=${orderId}&orderInfo=${orderInfo}&orderType=${orderType}&partnerCode=${partnerCode}` +
+    `&payType=${payType}&requestId=${requestId}&responseTime=${responseTime}` +
+    `&resultCode=${resultCode}&transId=${transId}`;
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  const sig = event.signature || '';
+  try {
+    return crypto.timingSafeEqual(Buffer.from(String(sig)), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+function verifyForProvider(provider, rawBody, signature, event) {
+  if (provider === 'stripe' || provider === 'stripe_mock') {
+    const secret = webhookSecretFor(provider);
+    // Live Stripe uses Stripe-Signature format; mock uses plain HMAC
+    if (provider === 'stripe' && String(signature || '').includes('t=') && String(signature).includes('v1=')) {
+      return verifyStripeSignature(rawBody, signature, secret);
+    }
+    return verifyPlainHmac(rawBody, signature, secret);
+  }
+  if (provider === 'momo' || provider === 'momo_mock') {
+    const secret = webhookSecretFor(provider);
+    if (provider === 'momo' && event && event.signature) {
+      return verifyMomoIpn(event, secret);
+    }
+    return verifyPlainHmac(rawBody, signature, secret);
+  }
+  if (!signature) return false;
+  return verifyPlainHmac(rawBody, signature, webhookSecretFor(provider));
 }
 
 /**
@@ -249,6 +330,8 @@ module.exports = {
   tryCreateLiveSession,
   signForProvider,
   verifyForProvider,
+  verifyStripeSignature,
+  verifyMomoIpn,
   normalizeWebhookEvent,
   listProviders,
   webhookSecretFor,

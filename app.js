@@ -13,6 +13,8 @@ const expressLayouts = require('express-ejs-layouts');
 const env = require('./config/env');
 const requestId = require('./middlewares/requestId');
 const requestTiming = require('./middlewares/requestTiming');
+const apiVersion = require('./middlewares/apiVersion');
+const maintenanceMode = require('./middlewares/maintenanceMode');
 const { ensureCsrfCookie, csrfProtection } = require('./middlewares/csrfMiddleware');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { requireHostPage, requireAdminPage } = require('./middlewares/authMiddleware');
@@ -40,6 +42,7 @@ function createApp() {
 
   app.use(requestId);
   app.use(requestTiming);
+  app.use(apiVersion);
 
   // Per-request CSP nonce (no 'unsafe-inline' for scripts)
   app.use((req, res, next) => {
@@ -89,6 +92,7 @@ function createApp() {
   app.use(express.urlencoded({ limit: '1mb', extended: true }));
   app.use(cookieParser());
   app.use(ensureCsrfCookie);
+  app.use(maintenanceMode);
 
   app.use((req, res, next) => {
     if (!req.path.startsWith('/api/')) return next();
