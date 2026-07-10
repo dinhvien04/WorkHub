@@ -91,7 +91,14 @@ const spaceSchema = new mongoose.Schema({
     RatingCount: { 
         type: Number, 
         default: 0 
-    }
+    },
+    Moderation: {
+      LastAction: { type: String, default: '' },
+      Reason: { type: String, default: '' },
+      Note: { type: String, default: '' },
+      ModeratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      ModeratedAt: { type: Date, default: null },
+    },
 
 }, {
     collection: 'spaces',

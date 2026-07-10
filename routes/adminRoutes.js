@@ -19,4 +19,7 @@ router.patch('/hosts/:id/verify', adminController.verifyHost);
 router.get('/activity-logs', adminController.getActivityLogs);
 router.get('/entity-detail', adminController.getEntityDetail);
 
+router.get('/listings/flagged', adminController.listFlaggedListings);
+router.post('/listings/moderate', adminController.moderateListing);
+
 module.exports = router;

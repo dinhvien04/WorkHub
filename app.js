@@ -289,6 +289,13 @@ function createApp() {
       scripts: res.locals.scriptsFrom(['/js/host-staff.js']),
     })
   );
+  app.get('/host/ops', requireHostPage, (req, res) =>
+    res.render('host/ops', {
+      currentUser: req.currentUser,
+      pageTitle: 'Bulk ops — Host',
+      scripts: res.locals.scriptsFrom(['/js/host-ops.js']),
+    })
+  );
   app.get('/host/finance', requireHostPage, (req, res) =>
     res.render('host/finance', {
       currentUser: req.currentUser,
@@ -484,6 +491,12 @@ function createApp() {
     res.render('admin/flags', {
       pageTitle: 'Feature flags — Admin',
       scripts: res.locals.scriptsFrom(['/js/admin-flags.js']),
+    })
+  );
+  app.get('/admin/listings', requireAdminPage, (req, res) =>
+    res.render('admin/listings', {
+      pageTitle: 'Listing moderation — Admin',
+      scripts: res.locals.scriptsFrom(['/js/admin-listings.js']),
     })
   );
   app.get('/admin/health', requireAdminPage, (req, res) =>

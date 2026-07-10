@@ -1,0 +1,68 @@
+<div class="max-w-4xl mx-auto" id="host-ops">
+  <h1 class="text-2xl font-black text-slate-800 mb-1">Bulk ops & blackout</h1>
+  <p class="text-sm text-slate-500 mb-6">Cập nhật hàng loạt giá/status/amenities; tạo blackout có thông báo khách.</p>
+  <div id="ops-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status"></div>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Bulk update spaces</h2>
+    <label class="block text-xs font-bold text-slate-500 mb-1">Space IDs (mỗi dòng hoặc CSV)
+      <textarea id="ops-space-ids" rows="3" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" placeholder="id1&#10;id2"></textarea>
+    </label>
+    <div class="grid sm:grid-cols-3 gap-3 mt-3">
+      <label class="text-xs font-bold text-slate-500">Status
+        <select id="ops-status" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="">— giữ nguyên —</option>
+          <option value="available">available</option>
+          <option value="maintenance">maintenance</option>
+          <option value="inactive">inactive</option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-slate-500">Price/hour
+        <input id="ops-price" type="number" min="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="optional" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Deposit
+        <input id="ops-deposit" type="number" min="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="optional" />
+      </label>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-3 mt-3">
+      <label class="text-xs font-bold text-slate-500 flex items-center gap-2 mt-6">
+        <input type="checkbox" id="ops-instant" /> Instant book
+      </label>
+      <label class="text-xs font-bold text-slate-500">Free cancel hours
+        <input id="ops-fc" type="number" min="0" max="168" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Amenities (comma)
+        <input id="ops-amenities" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Wifi, Projector" />
+      </label>
+    </div>
+    <button type="button" id="ops-bulk-btn" class="btn-primary mt-4">Áp dụng bulk</button>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Blackout / maintenance</h2>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="text-xs font-bold text-slate-500">Space ID
+        <input id="bo-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Reason
+        <input id="bo-reason" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" value="maintenance" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Start
+        <input id="bo-start" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">End
+        <input id="bo-end" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <label class="flex items-center gap-2 text-sm mt-3">
+      <input type="checkbox" id="bo-notify" checked /> Thông báo khách có booking chồng
+    </label>
+    <button type="button" id="bo-create" class="btn-primary mt-3">Tạo blackout</button>
+    <div id="bo-alts" class="mt-3 text-xs text-slate-500"></div>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6">
+    <h2 class="font-bold mb-3">Blackouts hiện có</h2>
+    <ul id="bo-list" class="space-y-2 text-sm"></ul>
+  </section>
+</div>

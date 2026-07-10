@@ -221,19 +221,30 @@ const createAddOn = asyncHandler(async (req, res) => {
 });
 
 const createBlackout = asyncHandler(async (req, res) => {
-  const doc = await Blackout.create({
-    HostID: req.user.userId,
-    SpaceID: req.body.spaceId,
-    StartTime: new Date(req.body.startTime),
-    EndTime: new Date(req.body.endTime),
-    Reason: req.body.reason || 'maintenance',
+  const hostBulkService = require('../services/hostBulkService');
+  const result = await hostBulkService.createBlackoutWithNotify({
+    hostId: req.user.userId,
+    spaceId: req.body.spaceId,
+    startTime: req.body.startTime,
+    endTime: req.body.endTime,
+    reason: req.body.reason || 'maintenance',
+    notifyCustomers: req.body.notifyCustomers !== false,
   });
-  res.status(201).json({ blackout: doc });
+  res.status(201).json(result);
 });
 
 const listBlackouts = asyncHandler(async (req, res) => {
   const items = await Blackout.find({ HostID: req.user.userId }).sort({ StartTime: -1 }).limit(100).lean();
   res.json({ blackouts: items });
+});
+
+const deleteBlackout = asyncHandler(async (req, res) => {
+  const hostBulkService = require('../services/hostBulkService');
+  const result = await hostBulkService.deleteBlackout({
+    hostId: req.user.userId,
+    blackoutId: req.params.blackoutId,
+  });
+  res.json(result);
 });
 
 const createPricingRule = asyncHandler(async (req, res) => {
@@ -344,18 +355,57 @@ const adminUpsertFlag = asyncHandler(async (req, res) => {
   res.json({ flag });
 });
 
-// —— Bulk space status ——
+// —— Bulk space status (legacy) + full bulk patch ——
 const bulkSpaceStatus = asyncHandler(async (req, res) => {
-  const ids = req.body.spaceIds || [];
-  const status = req.body.status;
-  if (!['available', 'maintenance', 'inactive'].includes(status)) {
-    return res.status(400).json({ error: 'Status không hợp lệ' });
-  }
-  const r = await Space.updateMany(
-    { _id: { $in: ids }, HostID: req.user.userId },
-    { $set: { Status: status } }
-  );
-  res.json({ modified: r.modifiedCount });
+  const hostBulkService = require('../services/hostBulkService');
+  const result = await hostBulkService.bulkUpdateSpaces({
+    hostId: req.user.userId,
+    spaceIds: req.body.spaceIds || [],
+    patch: { status: req.body.status },
+  });
+  res.json(result);
+});
+
+const bulkSpaces = asyncHandler(async (req, res) => {
+  const hostBulkService = require('../services/hostBulkService');
+  const {
+    spaceIds,
+    status,
+    pricePerHour,
+    depositAmount,
+    amenities,
+    instantBook,
+    freeCancelHours,
+    bufferBeforeMinutes,
+    cleanupAfterMinutes,
+  } = req.body;
+  const result = await hostBulkService.bulkUpdateSpaces({
+    hostId: req.user.userId,
+    spaceIds: spaceIds || [],
+    patch: {
+      status,
+      pricePerHour,
+      depositAmount,
+      amenities,
+      instantBook,
+      freeCancelHours,
+      bufferBeforeMinutes,
+      cleanupAfterMinutes,
+    },
+  });
+  res.json(result);
+});
+
+const setBranchStatusHost = asyncHandler(async (req, res) => {
+  const hostBulkService = require('../services/hostBulkService');
+  const result = await hostBulkService.setBranchStatus({
+    actorId: req.user.userId,
+    role: 'host',
+    branchId: req.params.branchId,
+    status: req.body.status,
+    note: req.body.note,
+  });
+  res.json(result);
 });
 
 // —— Reception today ——
@@ -430,6 +480,7 @@ module.exports = {
   createAddOn,
   createBlackout,
   listBlackouts,
+  deleteBlackout,
   createPricingRule,
   createTicket,
   listTickets,
@@ -443,6 +494,8 @@ module.exports = {
   adminListFlags,
   adminUpsertFlag,
   bulkSpaceStatus,
+  bulkSpaces,
+  setBranchStatusHost,
   receptionToday,
   checkout,
   verifyPaymentWithLedger,

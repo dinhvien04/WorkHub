@@ -115,7 +115,15 @@ const branchSchema = new mongoose.Schema({
         default: 'active',
         index: true
         
-    }
+    },
+    // Admin moderation metadata
+    Moderation: {
+      LastAction: { type: String, default: '' },
+      Reason: { type: String, default: '' },
+      Note: { type: String, default: '' },
+      ModeratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      ModeratedAt: { type: Date, default: null },
+    },
 
 }, {
     collection: 'branches',

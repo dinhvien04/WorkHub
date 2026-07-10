@@ -100,15 +100,18 @@ describe('Availability GET (no CSRF)', () => {
   test('guest can check availability', async () => {
     const host = await createUser({ email: 'h@test.com', role: 'host' });
     const { branch, space } = await seedHostSpace(host);
-    const { start, end } = futureRange(3, 1);
-    const date = start.toISOString().slice(0, 10);
-    const startStr = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
-    const endStr = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+    // Align with API parsing `${date}T${hm}:00+07:00` — use a future VN calendar day
+    const day = new Date();
+    day.setUTCDate(day.getUTCDate() + 5);
+    const y = day.getUTCFullYear();
+    const m = String(day.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(day.getUTCDate()).padStart(2, '0');
+    const date = `${y}-${m}-${d}`;
 
     const params = new URLSearchParams({
       branchId: branch._id.toString(),
       date,
-      timeSlot: `${startStr} - ${endStr}`,
+      timeSlot: '10:00 - 11:00',
       roomType: 'meeting',
     });
 

@@ -1,0 +1,46 @@
+<div class="max-w-5xl mx-auto" id="admin-listings">
+  <h1 class="text-2xl font-black text-slate-800 mb-1">Listing moderation</h1>
+  <p class="text-sm text-slate-500 mb-6">Suspend / restore / request change. Audit + notify host.</p>
+  <div id="al-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status"></div>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Moderate</h2>
+    <div class="grid sm:grid-cols-4 gap-3">
+      <label class="text-xs font-bold text-slate-500">Type
+        <select id="al-type" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="branch">branch</option>
+          <option value="space">space</option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-slate-500">Target ID
+        <input id="al-id" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Action
+        <select id="al-action" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="suspend">suspend</option>
+          <option value="restore">restore</option>
+          <option value="approve">approve</option>
+          <option value="request_change">request_change</option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-slate-500">Reason
+        <input id="al-reason" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <label class="block text-xs font-bold text-slate-500 mt-3">Note
+      <textarea id="al-note" rows="2" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm"></textarea>
+    </label>
+    <button type="button" id="al-submit" class="btn-primary mt-3">Gửi moderation</button>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6">
+    <div class="flex justify-between items-center mb-3">
+      <h2 class="font-bold">Flagged / inactive queue</h2>
+      <button type="button" id="al-refresh" class="text-xs font-bold text-teal-700">Refresh</button>
+    </div>
+    <h3 class="text-xs font-black uppercase text-slate-400 mb-2">Branches</h3>
+    <ul id="al-branches" class="space-y-2 text-sm mb-6"></ul>
+    <h3 class="text-xs font-black uppercase text-slate-400 mb-2">Spaces</h3>
+    <ul id="al-spaces" class="space-y-2 text-sm"></ul>
+  </section>
+</div>

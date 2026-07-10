@@ -411,6 +411,40 @@ async function getEntityDetail(req, res) {
     }
 }
 
+async function moderateListing(req, res) {
+  try {
+    const listingModerationService = require('../services/listingModerationService');
+    const result = await listingModerationService.moderateListing({
+      adminId: req.user.userId,
+      targetType: req.body.targetType || req.params.targetType,
+      targetId: req.body.targetId || req.params.targetId,
+      action: req.body.action,
+      reason: req.body.reason,
+      note: req.body.note,
+    });
+    return res.json(result);
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    console.error('moderateListing:', error);
+    return res.status(500).json({ error: 'Lỗi moderation.' });
+  }
+}
+
+async function listFlaggedListings(req, res) {
+  try {
+    const listingModerationService = require('../services/listingModerationService');
+    const data = await listingModerationService.listFlaggedListings({
+      limit: Number(req.query.limit) || 50,
+    });
+    return res.json(data);
+  } catch (error) {
+    console.error('listFlaggedListings:', error);
+    return res.status(500).json({ error: 'Lỗi tải queue moderation.' });
+  }
+}
+
 module.exports = {
   getAdminDashboard,
   listUsers,
@@ -420,4 +454,6 @@ module.exports = {
   getActivityLogs,
   getEntityDetail,
   getConversionMetrics,
+  moderateListing,
+  listFlaggedListings,
 };
