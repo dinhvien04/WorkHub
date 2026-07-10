@@ -258,6 +258,20 @@ const logoutAll = asyncHandler(async (req, res) => {
 // —— i18n ——
 const i18nBundle = asyncHandler(async (req, res) => {
   const lang = detectLang(req);
+  res.json({ lang, messages: require('../services/i18n').dictionaries[lang] || require('../services/i18n').dictionaries.vi });
+});
+
+const setLang = asyncHandler(async (req, res) => {
+  const { setLangCookie } = require('../services/i18n');
+  const lang = setLangCookie(res, req.body.lang || req.query.lang || 'vi');
+  // Persist on user when authenticated
+  if (req.user?.userId) {
+    try {
+      await User.findByIdAndUpdate(req.user.userId, { $set: { PreferredLang: lang } });
+    } catch {
+      /* ignore */
+    }
+  }
   res.json({ lang, messages: require('../services/i18n').dictionaries[lang] });
 });
 
@@ -1031,6 +1045,7 @@ module.exports = {
   listSessions,
   logoutAll,
   i18nBundle,
+  setLang,
   hostIcalFeed,
   listDeadLetters,
   discardDeadLetter,

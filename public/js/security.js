@@ -133,15 +133,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const push = document.getElementById('pref-push');
     const sms = document.getElementById('pref-sms');
     const marketing = document.getElementById('pref-marketing');
+    const lang = document.getElementById('pref-lang');
+    const tz = document.getElementById('pref-tz');
     if (email) email.checked = p.email !== false;
     if (push) push.checked = p.push !== false;
     if (sms) sms.checked = !!p.sms;
     if (marketing) marketing.checked = !!p.marketing;
+    if (lang) lang.value = p.lang === 'en' ? 'en' : 'vi';
+    if (tz && p.timezone) {
+      const opt = Array.from(tz.options).find((o) => o.value === p.timezone);
+      if (opt) tz.value = p.timezone;
+      else {
+        const o = document.createElement('option');
+        o.value = p.timezone;
+        o.textContent = p.timezone;
+        tz.appendChild(o);
+        tz.value = p.timezone;
+      }
+    }
   }
 
   const prefSave = document.getElementById('pref-save-btn');
   if (prefSave) {
     prefSave.addEventListener('click', async () => {
+      const langVal = document.getElementById('pref-lang')?.value || 'vi';
       const res = await WorkHubAPI.api('/api/me/notification-prefs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -150,12 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
           push: document.getElementById('pref-push').checked,
           sms: document.getElementById('pref-sms').checked,
           marketing: document.getElementById('pref-marketing').checked,
+          lang: langVal,
+          timezone: document.getElementById('pref-tz')?.value || 'Asia/Ho_Chi_Minh',
         }),
       });
       const msg = document.getElementById('pref-msg');
       if (res.ok) {
         msg.textContent = 'Đã lưu tùy chọn.';
         msg.className = 'text-sm text-teal-700 mt-2 font-bold';
+        if (window.WorkHubI18n) await WorkHubI18n.setLang(langVal);
       } else {
         const data = await res.json().catch(() => ({}));
         msg.textContent = data.error || 'Lỗi';

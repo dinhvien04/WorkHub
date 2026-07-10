@@ -110,6 +110,7 @@ function createApp() {
       (req.path === '/api/auth/webauthn/login/verify' && req.method === 'POST') ||
       (req.path === '/api/auth/google/mock' && req.method === 'POST') ||
       (req.path === '/api/auth/csrf' && req.method === 'GET') ||
+      (req.path === '/api/i18n/lang' && (req.method === 'POST' || req.method === 'PUT')) ||
       req.path === '/api/gateway/webhook' ||
       req.path === '/api/rum' ||
       req.path.startsWith('/api/partner/v1/');

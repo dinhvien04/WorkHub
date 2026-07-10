@@ -81,8 +81,25 @@ router.get(
 router.get('/sessions', verifyToken, g.listSessions);
 router.post('/sessions/logout-all', verifyToken, g.logoutAll);
 
-// i18n
+// i18n (soft-auth for PreferredLang when cookie present)
+function softAuthLang(req, res, next) {
+  try {
+    const token =
+      req.cookies?.authToken ||
+      (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (!token) return next();
+    const jwt = require('jsonwebtoken');
+    const env = require('../config/env');
+    const payload = jwt.verify(token, env.JWT_SECRET);
+    req.user = { userId: payload.userId || payload.sub, role: payload.role };
+  } catch {
+    /* guest */
+  }
+  return next();
+}
 router.get('/i18n', g.i18nBundle);
+router.post('/i18n/lang', softAuthLang, g.setLang);
+router.put('/i18n/lang', softAuthLang, g.setLang);
 
 // RUM beacon (public, no auth — no PII accepted)
 router.post('/rum', g.rumBeacon);

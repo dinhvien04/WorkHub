@@ -47,11 +47,27 @@
   </section>
 
   <section class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Tùy chọn thông báo</h2>
+    <h2 class="font-bold mb-3">Tùy chọn thông báo & ngôn ngữ</h2>
     <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="pref-email" /> Email</label>
     <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="pref-push" /> Push</label>
     <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="pref-sms" /> SMS</label>
     <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="pref-marketing" /> Marketing opt-in</label>
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <label class="block text-xs font-bold text-slate-500">Ngôn ngữ
+        <select id="pref-lang" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <label class="block text-xs font-bold text-slate-500">Múi giờ
+        <select id="pref-tz" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+          <option value="Asia/Bangkok">Asia/Bangkok</option>
+          <option value="Asia/Singapore">Asia/Singapore</option>
+          <option value="UTC">UTC</option>
+        </select>
+      </label>
+    </div>
     <button type="button" id="pref-save-btn"
       class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">Lưu</button>
     <p id="pref-msg" class="text-sm mt-2" role="status"></p>

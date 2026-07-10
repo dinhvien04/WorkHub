@@ -75,6 +75,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       startHold(holdAt);
     }
 
+    // Check-in QR for confirmed / in-use
+    const st = b.Status || b.status;
+    const checkSec = document.getElementById('bd-checkin-section');
+    if (checkSec && ['confirmed', 'in-use'].includes(st) && !(b.CheckInAt || b.checkInAt)) {
+      checkSec.classList.remove('hidden');
+      document.getElementById('bd-qr-btn')?.addEventListener('click', async () => {
+        const res = await WorkHubAPI.api(`/api/bookings/${bookingId}/check-in-token`, {
+          method: 'POST',
+          body: {},
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Không tạo được QR');
+          return;
+        }
+        const codeEl = document.getElementById('bd-qr-code');
+        const img = document.getElementById('bd-qr-img');
+        const exp = document.getElementById('bd-qr-exp');
+        if (codeEl) codeEl.textContent = data.code || '';
+        if (img) {
+          img.src =
+            'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' +
+            encodeURIComponent(data.token || data.code || '');
+          img.classList.remove('hidden');
+        }
+        if (exp && data.expiresAt) {
+          exp.textContent = 'Hết hạn: ' + new Date(data.expiresAt).toLocaleString('vi-VN');
+        }
+      });
+    }
+
     const pol = b.CancellationPolicy || b.cancellationPolicy || detail.cancelPreview?.policy;
     document.getElementById('bd-policy').textContent =
       pol?.summary || detail.cancelPreview?.processingNote || '';

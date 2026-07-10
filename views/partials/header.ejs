@@ -36,7 +36,11 @@
     </div>
   </div>
 
-  <div id="auth-header-section">
+  <div id="auth-header-section" class="flex items-center gap-3">
+    <div class="flex items-center gap-1 border rounded-xl p-0.5 bg-slate-50" role="group" aria-label="Language">
+      <button type="button" data-lang-set="vi" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white">VI</button>
+      <button type="button" data-lang-set="en" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white">EN</button>
+    </div>
     <button
       id="nav-login-btn"
       onclick="navigateTo('login')"

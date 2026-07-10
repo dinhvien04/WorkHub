@@ -24,7 +24,9 @@ async function getCustomerDashboard(userId) {
     })
       .sort({ StartTime: 1 })
       .limit(10)
-      .select('Status StartTime EndTime TotalAmount DepositAmount Snapshot HoldExpiresAt InstantBook')
+      .select(
+        'Status StartTime EndTime TotalAmount DepositAmount Snapshot HoldExpiresAt InstantBook CheckInAt'
+      )
       .lean(),
     Booking.find({
       CustomerID: userId,
@@ -52,16 +54,34 @@ async function getCustomerDashboard(userId) {
     Notification.countDocuments({ UserID: userId, IsRead: false }),
   ]);
 
+  // Check-in ready: confirmed today / starting soon / in-use without check-in
+  const soon = new Date(now.getTime() + 4 * 3600000);
+  const checkInReady = upcoming
+    .filter((b) => {
+      if (b.CheckInAt) return false;
+      if (!['confirmed', 'in-use'].includes(b.Status)) return false;
+      const start = new Date(b.StartTime);
+      return start <= soon || b.Status === 'in-use';
+    })
+    .slice(0, 5)
+    .map((b) => ({
+      ...b,
+      bookingCode: `WH-${String(b._id).slice(-6).toUpperCase()}`,
+      canMintQr: true,
+    }));
+
   return {
     upcoming,
     actionRequired,
     paymentPending,
+    checkInReady,
     counts: {
       upcoming: upcoming.length,
       actionRequired: actionRequired.length,
       paymentPending: paymentPending.length,
       favorites: favoritesCount,
       unreadNotifications,
+      checkInReady: checkInReady.length,
     },
   };
 }

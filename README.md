@@ -125,6 +125,8 @@ npm run seed:extras  # coupons + feature flags demo
 - Admin listing moderation (`/api/admin/listings/*`) + `/admin/listings`
 - PWA v2: offline.html, install prompt, SW network-first public pages, shortcuts
 - Host inbox quick confirm/check-in/cancel; finance export job poll + download
+- Customer dashboard check-in QR (mint token + code); booking-detail QR
+- i18n VI/EN switcher + cookie; notification prefs lang/timezone
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities
