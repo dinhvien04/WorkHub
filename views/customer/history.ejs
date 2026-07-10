@@ -36,7 +36,7 @@
         <div class="relative h-56 bg-slate-100">
             <img id="md-img" src="" class="w-full h-full object-cover" alt="Space">
             <div class="absolute inset-0 bg-gradient-to-t from-slate-900/50 to-transparent"></div>
-            <button onclick="closeModal('modal-booking-detail')" class="absolute top-4 right-4 w-9 h-9 flex justify-center items-center rounded-full bg-white/90 text-slate-700 font-black hover:bg-red-500 hover:text-white transition shadow-md">&times;</button>
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-booking-detail&quot;]" class="absolute top-4 right-4 w-9 h-9 flex justify-center items-center rounded-full bg-white/90 text-slate-700 font-black hover:bg-red-500 hover:text-white transition shadow-md">&times;</button>
             <div class="absolute bottom-4 left-6 text-white">
                 <h3 id="md-space-name" class="font-black text-2xl tracking-tight drop-shadow-md">Tên không gian</h3>
                 <p id="md-space-code" class="text-sm font-bold text-teal-300 mt-0.5">Mã phòng: --</p>
@@ -94,7 +94,7 @@
 
 <div id="modal-review" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
     <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden p-8 relative">
-        <button onclick="closeModal('modal-review')" class="absolute top-4 right-4 text-slate-400 hover:text-red-500 font-black text-xl">&times;</button>
+        <button data-wh-click="closeModal" data-wh-args="[&quot;modal-review&quot;]" class="absolute top-4 right-4 text-slate-400 hover:text-red-500 font-black text-xl">&times;</button>
         <h3 class="font-black text-xl text-slate-800 mb-2">Đánh giá trải nghiệm</h3>
         <p class="text-xs font-medium text-slate-500 mb-6">Bạn có thể chỉnh sửa đánh giá trong vòng 7 ngày.</p>
         <form id="review-form">

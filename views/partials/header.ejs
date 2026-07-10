@@ -4,7 +4,7 @@
   <div class="flex items-center gap-4">
     <button
       id="sidebar-toggle"
-      onclick="toggleSidebar()"
+      data-wh-click="toggleSidebar"
       class="hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition"
     >
       <svg
@@ -23,7 +23,7 @@
     </button>
     <div
       class="flex items-center gap-2 cursor-pointer"
-      onclick="navigateTo('home')"
+      data-wh-click="navigateTo" data-wh-args="[&quot;home&quot;]"
     >
       <div
         class="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md"
@@ -43,7 +43,7 @@
     </div>
     <button
       id="nav-login-btn"
-      onclick="navigateTo('login')"
+      data-wh-click="navigateTo" data-wh-args="[&quot;login&quot;]"
       class="px-5 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium"
     >
       Đăng nhập
@@ -60,7 +60,7 @@
         </p>
         <p class="text-xs text-slate-500" id="user-display-role">Thành viên</p>
       </div>
-      <div class="group relative cursor-pointer" onclick="toggleUserMenu()">
+      <div class="group relative cursor-pointer" data-wh-click="toggleUserMenu">
         <div
           class="w-10 h-10 bg-teal-100 border border-teal-200 rounded-full flex items-center justify-center text-teal-700 font-bold overflow-hidden shadow-sm"
         >
@@ -77,14 +77,14 @@
         >
           <a
             href="#"
-            onclick="navigateTo('profile')"
+            data-wh-click="navigateTo" data-wh-args="[&quot;profile&quot;]"
             class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium"
             >Hồ sơ cá nhân</a
           >
           <div class="border-t border-slate-100 my-1"></div>
           <a
             href="#"
-            onclick="logout()"
+            data-wh-click="logout"
             class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-bold"
             >Đăng xuất</a
           >

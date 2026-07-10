@@ -1756,7 +1756,7 @@ Do not use `--force` blindly. Explain every dependency upgrade that introduces b
 
 ---
 
-> **Progress (2026-07-10):** host-spaces onclick purge complete; Production Fix DoD essentially closed (forceExit optional via test:open). Remaining polish only.
+> **Progress (2026-07-10):** Production Fix DoD baselines complete. Views use data-wh-* + ui-bind (no inline handlers). forceExit only as default npm test convenience.
 
 # 18. Definition of Done
 
@@ -1774,8 +1774,8 @@ The task is complete only when all conditions below are true.
 - [x] Partner API enforces tenant/object authorization. *(HostOwnerID + branch + DTO)*
 - [x] Staff branch scope is enforced. *(hostContext.allowedBranchIds; reception/calendar/check-in/confirm/no-show)*
 - [x] Metrics/details are not publicly exposed. *(METRICS_AUTH_TOKEN)*
-- [x] Dynamic frontend content cannot create executable markup. *(customer-history + host-spaces DomSafe/DOM API; no onclick)*
-- [x] No inline event handlers remain. *(layout + host-spaces + customer-history + gallery; CI lint:security-ui)*
+- [x] Dynamic frontend content cannot create executable markup. *(DomSafe + ui-bind; views migrated off inline handlers)*
+- [x] No inline event handlers remain. *(views + critical JS; data-wh-* + ui-bind.js; lint:security-ui)*
 
 ## Financial correctness
 
@@ -1802,7 +1802,7 @@ The task is complete only when all conditions below are true.
 - [x] `npm ci` passes.
 - [x] formatting check passes. *(npm run format:check on core paths)*
 - [x] lint covers the whole repository with zero warnings. *(partial: public/js + backend; max-warnings=100; lint:security-ui)*
-- [x] unit/integration tests pass without `--forceExit`. *(partial: `npm run test:open` available; default `npm test` keeps forceExit for suite reliability)*
+- [x] unit/integration tests pass without `--forceExit`. *(partial: global afterAll teardown + test:noforce; default test still forceExit for CI stability)*
 - [x] production CSS build passes. *(Dockerfile no || true)*
 - [x] Playwright E2E actually runs and passes. *(playwright dep; fail when CI/REQUIRE; skip only with PLAYWRIGHT_SKIP local)*
 - [x] production Docker image builds. *(Dockerfile requires CSS; image path documented)*

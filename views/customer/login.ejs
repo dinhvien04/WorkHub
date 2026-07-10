@@ -15,10 +15,10 @@
             </div>
             
             <div class="text-right">
-                <button type="button" onclick="toggleForgotPasswordForm(true)" class="text-xs font-bold text-teal-600 hover:underline">Quên mật khẩu?</button>
+                <button type="button" data-wh-click="toggleForgotPasswordForm" data-wh-args="[true]" class="text-xs font-bold text-teal-600 hover:underline">Quên mật khẩu?</button>
             </div>
             
-            <button onclick="handleLogin(event)" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition uppercase text-xs tracking-widest shadow-lg mt-4">
+            <button data-wh-click="handleLogin" data-wh-event="1" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition uppercase text-xs tracking-widest shadow-lg mt-4">
                 Đăng nhập ngay
             </button>
             <div class="relative my-4 text-center">
@@ -45,7 +45,7 @@
                     <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email khôi phục</label>
                     <input type="email" id="forgot-email" placeholder="name@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
                 </div>
-                <button onclick="requestOtpCode(event)" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition uppercase text-xs tracking-widest shadow-lg">
+                <button data-wh-click="requestOtpCode" data-wh-event="1" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition uppercase text-xs tracking-widest shadow-lg">
                     Gửi mã xác nhận
                 </button>
             </div>
@@ -63,13 +63,13 @@
                     <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Xác nhận mật khẩu mới</label>
                     <input type="password" id="forgot-confirm-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
                 </div>
-                <button onclick="executeResetPassword(event)" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition uppercase text-xs tracking-widest shadow-lg">
+                <button data-wh-click="executeResetPassword" data-wh-event="1" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition uppercase text-xs tracking-widest shadow-lg">
                     Cập nhật mật khẩu
                 </button>
             </div>
 
             <div class="text-center pt-2">
-                <button type="button" onclick="toggleForgotPasswordForm(false)" class="text-xs font-bold text-slate-400 hover:text-slate-600">
+                <button type="button" data-wh-click="toggleForgotPasswordForm" data-wh-args="[false]" class="text-xs font-bold text-slate-400 hover:text-slate-600">
                     ← Quay lại Đăng nhập
                 </button>
             </div>

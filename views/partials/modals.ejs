@@ -11,14 +11,14 @@
     <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Quét mã QR Check-in</h3>
-            <button onclick="closeModal('modal-qr')" class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]" class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
         </div>
         <div class="p-8 text-center bg-slate-800">
             <div class="relative w-64 h-64 mx-auto mb-6 bg-slate-900 rounded-3xl border-4 border-dashed border-teal-500 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(20,184,166,0.3)]">
                 <div class="w-full h-1 bg-teal-400 absolute top-0 left-0 shadow-[0_0_15px_rgba(45,212,191,1)] animate-[scan_2s_ease-in-out_infinite]"></div>
                 <p class="text-slate-500 font-bold text-xs uppercase tracking-widest z-10">Đưa QR vào khung</p>
             </div>
-            <button onclick="closeModal('modal-qr'); showToast('Check-in thành công cho mã đơn BK-9902!');" class="w-full bg-teal-500 text-slate-900 py-4 rounded-xl font-black shadow-lg hover:bg-teal-400 transition uppercase text-xs tracking-widest">
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]" data-wh-then="showToast" data-wh-then-args="[&quot;Check-in thành công cho mã đơn BK-9902!&quot;]" class="w-full bg-teal-500 text-slate-900 py-4 rounded-xl font-black shadow-lg hover:bg-teal-400 transition uppercase text-xs tracking-widest">
                 [Demo] Bấm để giả lập Quét
             </button>
         </div>
@@ -29,7 +29,7 @@
     <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Thêm Không Gian Mới</h3>
-            <button onclick="closeModal('modal-add-space')" class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]" class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
         </div>
         <div class="p-8 space-y-4">
             <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -62,7 +62,7 @@
                     <option value="suspended">Tạm ngừng hoạt động</option>
                 </select>
             </div>
-            <button onclick="closeModal('modal-add-space'); showToast('Đã thêm không gian mới!');" class="w-full mt-4 bg-teal-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-teal-700 transition">
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]" data-wh-then="showToast" data-wh-then-args="[&quot;Đã thêm không gian mới!&quot;]" class="w-full mt-4 bg-teal-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-teal-700 transition">
                 Lưu Không Gian
             </button>
         </div>

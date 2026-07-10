@@ -11,7 +11,7 @@
     <button
       type="button"
       id="btn-start-add-facility"
-      onclick="startAddFacility()"
+      data-wh-click="startAddFacility"
       class="px-6 py-3 bg-teal-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition flex items-center gap-2 shrink-0"
     >
       <span class="text-lg leading-none">+</span> Thêm cơ sở
@@ -27,7 +27,7 @@
 <div id="space-mgr-layer-2" class="hidden">
   <button
     type="button"
-    onclick="backToLayer1()"
+    data-wh-click="backToLayer1"
     class="text-slate-400 hover:text-teal-600 mb-6 flex items-center gap-2 font-bold text-sm"
   >
     ← Quay lại danh sách cơ sở
@@ -62,7 +62,7 @@
                 accept="image/*"
                 multiple
                 class="hidden"
-                onchange="previewBranchImagesFromInput(this)"
+                data-wh-change="previewBranchImagesFromInput" data-wh-this="1"
               />
             </label>
           </div>
@@ -97,7 +97,7 @@
 
           <button
             type="button"
-            onclick="saveBranchInfo()"
+            data-wh-click="saveBranchInfo"
             class="w-full bg-teal-600 text-white py-3 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition"
           >
             Cập nhật cơ sở
@@ -114,7 +114,7 @@
           </h3>
           <button
             type="button"
-            onclick="openSpaceModal()"
+            data-wh-click="openSpaceModal"
             class="px-5 py-2.5 bg-teal-600 text-white font-black text-xs uppercase rounded-xl hover:bg-teal-700 shadow transition relative z-10"
           >
             + Thêm mới
@@ -141,7 +141,7 @@
 <div id="space-mgr-layer-3" class="hidden">
   <button
     type="button"
-    onclick="backToLayer2()"
+    data-wh-click="backToLayer2"
     class="text-slate-400 hover:text-teal-600 mb-6 flex items-center gap-2 font-bold text-sm"
   >
     ← Quay lại danh sách không gian
@@ -173,7 +173,7 @@
                 accept="image/*"
                 multiple
                 class="hidden"
-                onchange="previewNewSpaceDetailImages(this)"
+                data-wh-change="previewNewSpaceDetailImages" data-wh-this="1"
               />
             </label>
           </div>
@@ -198,7 +198,7 @@
           </div>
           <button
             type="button"
-            onclick="saveSpaceDetail()"
+            data-wh-click="saveSpaceDetail"
             class="w-full bg-teal-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition"
           >
             Lưu chi tiết
@@ -240,13 +240,13 @@
       </h3>
       <button
         type="button"
-        onclick="closeSpaceModal()"
+        data-wh-click="closeSpaceModal"
         class="text-slate-400 hover:text-slate-600 text-2xl font-bold p-1"
       >
         &times;
       </button>
     </div>
-    <form onsubmit="submitNewSpace(event)" class="space-y-4">
+    <form data-wh-submit="submitNewSpace" data-wh-event="1" class="space-y-4">
       <div class="p-3 bg-slate-50 rounded-xl border">
         <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Mã không gian</label>
         <input
@@ -295,7 +295,7 @@
           name="image"
           accept="image/*"
           multiple
-          onchange="previewModalSpaceImage(this)"
+          data-wh-change="previewModalSpaceImage" data-wh-this="1"
           class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-teal-50 file:text-teal-700"
         />
         <div id="modal-space-img-preview" class="mt-2 flex flex-wrap gap-1"></div>
@@ -303,7 +303,7 @@
       <div class="flex gap-2 pt-2">
         <button
           type="button"
-          onclick="closeSpaceModal()"
+          data-wh-click="closeSpaceModal"
           class="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase hover:bg-slate-200"
         >
           Hủy

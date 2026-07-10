@@ -5,14 +5,14 @@
     <div class="space-y-4">
         <div class="flex gap-3 mb-6">
             <label class="flex-1 cursor-pointer">
-                <input type="radio" name="role" value="customer" id="roleCustomer" class="hidden peer" checked onchange="toggleHostFields()">
+                <input type="radio" name="role" value="customer" id="roleCustomer" class="hidden peer" checked data-wh-change="toggleHostFields">
                 <div class="p-4 border-2 border-slate-100 rounded-2xl text-center peer-checked:border-teal-500 peer-checked:bg-teal-50 transition">
                     <span class="block text-xl mb-1">🧑‍💻</span>
                     <span class="block text-[10px] font-black uppercase text-slate-500 peer-checked:text-teal-700">Khách hàng</span>
                 </div>
             </label>
             <label class="flex-1 cursor-pointer">
-                <input type="radio" name="role" value="host" id="roleHost" class="hidden peer" onchange="toggleHostFields()">
+                <input type="radio" name="role" value="host" id="roleHost" class="hidden peer" data-wh-change="toggleHostFields">
                 <div class="p-4 border-2 border-slate-100 rounded-2xl text-center peer-checked:border-indigo-500 peer-checked:bg-indigo-50 transition">
                     <span class="block text-xl mb-1">🏢</span>
                     <span class="block text-[10px] font-black uppercase text-slate-500 peer-checked:text-indigo-700">Chủ cơ sở</span>
@@ -75,7 +75,7 @@
             </div>
         </div>
 
-        <button onclick="handleRegister(event)" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition uppercase text-xs tracking-widest shadow-lg shadow-teal-100 mt-4">
+        <button data-wh-click="handleRegister" data-wh-event="1" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition uppercase text-xs tracking-widest shadow-lg shadow-teal-100 mt-4">
             Xác nhận đăng ký
         </button>
     </div>

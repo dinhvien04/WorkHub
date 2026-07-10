@@ -12,3 +12,15 @@ if (!process.env.MONGODB_URI) {
 process.env.ENABLE_TRANSACTIONS = 'false';
 process.env.PORT = process.env.PORT || '0';
 // Do NOT set DISABLE_CSRF globally — security tests must exercise CSRF.
+
+// Global teardown: close mongoose / memory mongo leftovers so tests can run without --forceExit
+afterAll(async () => {
+  try {
+    const helpers = require('./helpers');
+    if (helpers && typeof helpers.stopMemoryMongo === 'function') {
+      await helpers.stopMemoryMongo();
+    }
+  } catch {
+    /* ignore */
+  }
+});

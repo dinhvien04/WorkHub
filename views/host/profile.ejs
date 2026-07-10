@@ -1,4 +1,4 @@
-<form id="profile-form" autocomplete="off" onsubmit="event.preventDefault(); updateProfile();"
+<form id="profile-form" autocomplete="off" data-wh-submit="updateProfile"
     enctype="multipart/form-data" class="space-y-6">
 
     <div class="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
@@ -33,7 +33,7 @@
             <div class="md:col-span-2 border border-slate-100 rounded-2xl p-4 bg-slate-50/30">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-xs font-bold text-slate-600">Mật khẩu</span>
-                    <button type="button" onclick="togglePasswordFields()"
+                    <button type="button" data-wh-click="togglePasswordFields"
                         class="text-indigo-600 hover:text-indigo-800 font-black text-xs uppercase tracking-wider flex items-center gap-1">
                         ✏️ Thay đổi mật khẩu
                     </button>
@@ -59,7 +59,7 @@
                             mới</label>
                         <input type="password" id="confirm-password" autocomplete="new-password" placeholder="••••••••"
                             class="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 outline-none"
-                            oninput="validatePasswordMatch()">
+                            data-wh-input="validatePasswordMatch">
                     </div>
                     <p id="password-error" class="hidden text-xs text-rose-600 font-bold md:col-span-3">
                         ❌ Mật khẩu xác nhận không trùng khớp!</p>
@@ -90,7 +90,7 @@
                 <div>
                     <label class="block text-xs font-black text-slate-700 uppercase mb-2">Logo Thương Hiệu</label>
                     <input type="file" name="LogoFile" id="logo-file-input" accept="image/*"
-                        onchange="previewImage(event)"
+                        data-wh-change="previewImage" data-wh-event="1"
                         class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer">
                     <p class="text-[10px] text-slate-400 mt-1">Chấp nhận file định dạng PNG, JPG, JPEG. Tối đa 2MB.</p>
                 </div>

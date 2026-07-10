@@ -213,14 +213,14 @@
                         <button 
                             type="button" 
                             id="btn-type-meeting" 
-                            onclick="switchRoomType('meeting')" 
+                            data-wh-click="switchRoomType" data-wh-args="[&quot;meeting&quot;]" 
                             class="py-2 text-xs font-bold rounded-lg transition bg-white text-teal-700 shadow-sm">
                             Phòng họp
                         </button>
                         <button 
                             type="button" 
                             id="btn-type-study" 
-                            onclick="switchRoomType('desk')" 
+                            data-wh-click="switchRoomType" data-wh-args="[&quot;desk&quot;]" 
                             class="py-2 text-xs font-bold rounded-lg transition text-slate-500 hover:text-slate-800">
                             Chỗ ngồi tự do
                         </button>
@@ -290,7 +290,7 @@
 
                 <button 
                     type="button"
-                    onclick="checkAvailableSlots()" 
+                    data-wh-click="checkAvailableSlots" 
                     class="w-full py-2.5 bg-teal-100 text-teal-700 font-black text-[11px] uppercase tracking-widest rounded-xl hover:bg-teal-200 transition">
                     Xem tình trạng trống
                 </button>
@@ -305,7 +305,7 @@
                 <div id="val-deposit" class="text-teal-700 font-black text-center mb-4 text-xl">Cọc: 0đ</div>
                 <button 
                     type="button"
-                    onclick="checkAuthAndGoToPayment()" 
+                    data-wh-click="checkAuthAndGoToPayment" 
                     class="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold hover:bg-orange-600 transition shadow-lg uppercase text-xs tracking-widest">
                     Xác nhận & Thanh toán
                 </button>
@@ -321,7 +321,7 @@
             
             <button
                 type="button"
-                onclick="closeRoomModal()"
+                data-wh-click="closeRoomModal"
                 class="absolute top-3 right-3 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 text-slate-600 font-bold text-xl shadow-md hover:bg-white hover:text-red-500 transition leading-none"
                 aria-label="Đóng">
                 &times;
@@ -330,7 +330,7 @@
             <button
                 type="button"
                 id="modal-btn-prev"
-                onclick="changeRoomImage(-1); event.stopPropagation();"
+                data-wh-click="changeRoomImage" data-wh-args="[-1]" data-wh-stop="1"
                 class="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/30 text-white font-bold text-lg hover:bg-black/60 transition shadow-md"
                 aria-label="Ảnh trước">
                 &lt;
@@ -339,7 +339,7 @@
             <button
                 type="button"
                 id="modal-btn-next"
-                onclick="changeRoomImage(1); event.stopPropagation();"
+                data-wh-click="changeRoomImage" data-wh-args="[1]" data-wh-stop="1"
                 class="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/30 text-white font-bold text-lg hover:bg-black/60 transition shadow-md"
                 aria-label="Ảnh sau">
                 &gt;
@@ -376,7 +376,7 @@
 
             <button
                 type="button"
-                onclick="closeRoomModal()"
+                data-wh-click="closeRoomModal"
                 class="w-full bg-teal-600 text-white py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-teal-700 transition shadow-lg">
                 Đã hiểu
             </button>

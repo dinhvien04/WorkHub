@@ -9,7 +9,7 @@
                     </div>
                     <button
                         class="bg-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-xl hover:bg-teal-700 transition flex items-center gap-3 uppercase text-xs tracking-widest"
-                        onclick="alert('Tính năng quét mã QR đang được kết nối!')">
+                        data-wh-click="alert" data-wh-args="[&quot;Tính năng quét mã QR đang được kết nối!&quot;]">
                         <span>📷</span> QUÉT QR CHECK-IN
                     </button>
                 </div>
@@ -18,7 +18,7 @@
                     class="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 w-fit">
                     <button type="button"
                         class="branch-tab bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition"
-                        id="tab-all" onclick="switchBranch('all')">Tất cả</button>
+                        id="tab-all" data-wh-click="switchBranch" data-wh-args="[&quot;all&quot;]">Tất cả</button>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -150,7 +150,7 @@
     <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Quét mã QR Check-in</h3>
-            <button onclick="closeModal('modal-qr')"
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]"
                 class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
         </div>
         <div class="p-8 text-center bg-slate-800">
@@ -161,7 +161,7 @@
                 </div>
                 <p class="text-slate-500 font-bold text-xs uppercase tracking-widest z-10">Đưa QR vào khung</p>
             </div>
-            <button onclick="closeModal('modal-qr'); showToast('Check-in thành công cho mã đơn BK-9902!');"
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]" data-wh-then="showToast" data-wh-then-args="[&quot;Check-in thành công cho mã đơn BK-9902!&quot;]"
                 class="w-full bg-teal-500 text-slate-900 py-4 rounded-xl font-black shadow-lg hover:bg-teal-400 transition uppercase text-xs tracking-widest">
                 [Demo] Bấm để giả lập Quét
             </button>
@@ -174,7 +174,7 @@
     <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Thêm Không Gian Mới</h3>
-            <button onclick="closeModal('modal-add-space')"
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]"
                 class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
         </div>
         <div class="p-8 space-y-4">
@@ -215,7 +215,7 @@
                     <option value="suspended">Tạm ngừng hoạt động</option>
                 </select>
             </div>
-            <button onclick="closeModal('modal-add-space'); showToast('Đã thêm không gian mới!');"
+            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]" data-wh-then="showToast" data-wh-then-args="[&quot;Đã thêm không gian mới!&quot;]"
                 class="w-full mt-4 bg-teal-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-teal-700 transition">
                 Lưu Không Gian
             </button>

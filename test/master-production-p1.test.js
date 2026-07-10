@@ -317,23 +317,31 @@ describe("P1.8 Check-in random code + no-show grace", () => {
 });
 
 describe("P1.13 Inline handler CI guard", () => {
-  test("critical modules have no inline handlers", () => {
+  test("critical modules and views have no inline handlers", () => {
     const fs = require("fs");
     const path = require("path");
-    for (const f of [
+    const files = [
       "public/js/api.js",
       "public/js/domSafe.js",
       "public/js/security.js",
       "public/js/customer-history.js",
       "public/js/gallery-lightbox.js",
       "public/js/host-spaces.js",
+      "public/js/ui-bind.js",
       "views/layout.ejs",
-    ]) {
+      "views/customer/login.ejs",
+      "views/partials/header.ejs",
+    ];
+    for (const f of files) {
       const p = path.join(process.cwd(), f);
       if (!fs.existsSync(p)) continue;
       const text = fs.readFileSync(p, "utf8");
-      expect(text).not.toMatch(/\sonclick\s*=/i);
-      expect(text).not.toMatch(/\sonerror\s*=/i);
+      expect(text).not.toMatch(
+        /\son(?:click|error|change|submit|input)\s*=/i,
+      );
     }
+    expect(fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js"))).toBe(
+      true,
+    );
   });
 });

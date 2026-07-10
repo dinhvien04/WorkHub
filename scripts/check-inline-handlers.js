@@ -20,7 +20,7 @@ const CRITICAL = [
 ];
 
 const INLINE_RE =
-  /\son(?:click|error|load|change|submit|mouseover|focus|blur)\s*=/i;
+  /\son(?:click|error|load|change|submit|input|mouseover|focus|blur)\s*=/i;
 
 let failed = false;
 for (const rel of CRITICAL) {
@@ -49,6 +49,34 @@ if (fs.existsSync(layout)) {
   }
 }
 
-console.log("Critical UI modules clean of inline handlers (" + CRITICAL.length + " files).");
+// All EJS views: no remaining onclick/onchange/onerror
+function walkViews(dir, acc = []) {
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    if (fs.statSync(p).isDirectory()) walkViews(p, acc);
+    else if (name.endsWith(".ejs")) acc.push(p);
+  }
+  return acc;
+}
+const viewsDir = path.join(process.cwd(), "views");
+if (fs.existsSync(viewsDir)) {
+  for (const vp of walkViews(viewsDir)) {
+    const t = fs.readFileSync(vp, "utf8");
+    if (INLINE_RE.test(t) || /\sonerror\s*=/i.test(t)) {
+      console.error("FAIL: inline handler in", path.relative(process.cwd(), vp));
+      failed = true;
+    }
+  }
+}
+
+if (!fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js"))) {
+  console.error("FAIL: public/js/ui-bind.js missing");
+  failed = true;
+}
+
+console.log(
+  "Critical UI modules clean of inline handlers (" + CRITICAL.length + " files)."
+);
+console.log("Views scanned for inline handlers.");
 if (failed) process.exit(1);
 process.exit(0);
