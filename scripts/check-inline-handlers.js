@@ -63,7 +63,10 @@ if (fs.existsSync(viewsDir)) {
   for (const vp of walkViews(viewsDir)) {
     const t = fs.readFileSync(vp, "utf8");
     if (INLINE_RE.test(t) || /\sonerror\s*=/i.test(t)) {
-      console.error("FAIL: inline handler in", path.relative(process.cwd(), vp));
+      console.error(
+        "FAIL: inline handler in",
+        path.relative(process.cwd(), vp),
+      );
       failed = true;
     }
   }
@@ -75,7 +78,9 @@ if (!fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js"))) {
 }
 
 console.log(
-  "Critical UI modules clean of inline handlers (" + CRITICAL.length + " files)."
+  "Critical UI modules clean of inline handlers (" +
+    CRITICAL.length +
+    " files).",
 );
 console.log("Views scanned for inline handlers.");
 if (failed) process.exit(1);

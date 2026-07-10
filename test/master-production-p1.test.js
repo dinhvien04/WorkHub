@@ -336,12 +336,10 @@ describe("P1.13 Inline handler CI guard", () => {
       const p = path.join(process.cwd(), f);
       if (!fs.existsSync(p)) continue;
       const text = fs.readFileSync(p, "utf8");
-      expect(text).not.toMatch(
-        /\son(?:click|error|change|submit|input)\s*=/i,
-      );
+      expect(text).not.toMatch(/\son(?:click|error|change|submit|input)\s*=/i);
     }
-    expect(fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js"))).toBe(
-      true,
-    );
+    expect(
+      fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js")),
+    ).toBe(true);
   });
 });

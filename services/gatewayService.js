@@ -452,10 +452,7 @@ async function claimWebhookEvent({
   });
   if (!existing) return null;
 
-  if (
-    existing.PayloadHash &&
-    existing.PayloadHash !== payloadHash
-  ) {
+  if (existing.PayloadHash && existing.PayloadHash !== payloadHash) {
     return "payload_mismatch";
   }
 
@@ -582,10 +579,7 @@ async function getSessionForCustomer(sessionId, customerId) {
     amount: session.Amount,
     currency: session.Currency || "VND",
     paymentType:
-      session.PaymentType ||
-      session.Meta?.paymentType ||
-      session.Type ||
-      null,
+      session.PaymentType || session.Meta?.paymentType || session.Type || null,
     bookingId: session.BookingID ? String(session.BookingID) : null,
     createdAt: session.createdAt || null,
   };

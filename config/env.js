@@ -185,8 +185,7 @@ const env = {
     process.env.JWT_SECRET,
   CHECKIN_TOKEN_SECRET:
     process.env.CHECKIN_TOKEN_SECRET || process.env.JWT_SECRET,
-  OAUTH_STATE_SECRET:
-    process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET,
+  OAUTH_STATE_SECRET: process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET,
   ICAL_FEED_SECRET: process.env.ICAL_FEED_SECRET || process.env.JWT_SECRET,
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",

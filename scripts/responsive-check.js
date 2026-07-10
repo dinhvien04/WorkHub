@@ -1,31 +1,31 @@
-'use strict';
+"use strict";
 
 /**
  * Responsive viewport checklist (manual + optional Playwright).
  * Breakpoints: 320, 360, 390, 430, 768, 1024, 1280, 1440
  */
 const VIEWPORTS = [320, 360, 390, 430, 768, 1024, 1280, 1440];
-const PATHS = ['/', '/search', '/login', '/booking/wizard'];
+const PATHS = ["/", "/search", "/login", "/booking/wizard"];
 
 async function main() {
-  console.log('Responsive checklist (master prompt)');
-  console.log('Viewports:', VIEWPORTS.join(', '));
-  console.log('Paths:', PATHS.join(', '));
+  console.log("Responsive checklist (master prompt)");
+  console.log("Viewports:", VIEWPORTS.join(", "));
+  console.log("Paths:", PATHS.join(", "));
 
-  if (process.env.PLAYWRIGHT_SKIP === '1') {
-    console.log('PLAYWRIGHT_SKIP=1 — print-only mode. Manual QA required.');
+  if (process.env.PLAYWRIGHT_SKIP === "1") {
+    console.log("PLAYWRIGHT_SKIP=1 — print-only mode. Manual QA required.");
     process.exit(0);
   }
 
   let chromium;
   try {
-    ({ chromium } = require('playwright'));
+    ({ chromium } = require("playwright"));
   } catch {
-    console.log('Playwright not installed — checklist printed only.');
+    console.log("Playwright not installed — checklist printed only.");
     process.exit(0);
   }
 
-  const base = process.env.BASE_URL || 'http://127.0.0.1:3000';
+  const base = process.env.BASE_URL || "http://127.0.0.1:3000";
   const browser = await chromium.launch({ headless: true });
   const failures = [];
 
@@ -34,7 +34,7 @@ async function main() {
     for (const path of PATHS) {
       try {
         const res = await page.goto(`${base}${path}`, {
-          waitUntil: 'domcontentloaded',
+          waitUntil: "domcontentloaded",
           timeout: 15000,
         });
         const status = res ? res.status() : 0;
@@ -48,10 +48,10 @@ async function main() {
   }
   await browser.close();
   if (failures.length) {
-    console.error(failures.join('\n'));
+    console.error(failures.join("\n"));
     process.exit(1);
   }
-  console.log('Responsive smoke OK');
+  console.log("Responsive smoke OK");
 }
 
 main().catch((e) => {

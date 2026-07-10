@@ -97,10 +97,7 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
   // Prefer verified host profile for production payouts
   if (
     env.isProduction &&
-    !(
-      profile.IsVerified === true ||
-      profile.VerificationStatus === "approved"
-    )
+    !(profile.IsVerified === true || profile.VerificationStatus === "approved")
   ) {
     throw new ValidationError("Host chưa được xác minh — không thể rút tiền.");
   }

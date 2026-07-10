@@ -254,7 +254,9 @@ function verifyForProvider(provider, rawBody, signature, _event) {
       const parsed = JSON.parse(raw);
       // Require core MoMo identifiers when present in payload
       if (parsed.partnerCode && process.env.MOMO_PARTNER_CODE) {
-        if (String(parsed.partnerCode) !== String(process.env.MOMO_PARTNER_CODE)) {
+        if (
+          String(parsed.partnerCode) !== String(process.env.MOMO_PARTNER_CODE)
+        ) {
           return false;
         }
       }

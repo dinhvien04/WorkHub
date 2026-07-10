@@ -93,9 +93,7 @@ async function requestRefund({
     const existing = await Refund.findOne({ IdempotencyKey: idempotencyKey });
     if (existing) {
       if (existing.Amount !== amt) {
-        throw new ConflictError(
-          "Idempotency-Key đã dùng với số tiền khác.",
-        );
+        throw new ConflictError("Idempotency-Key đã dùng với số tiền khác.");
       }
       return existing;
     }
@@ -128,9 +126,7 @@ async function requestRefund({
       const existing = await Refund.findOne({ IdempotencyKey: idempotencyKey });
       if (existing) {
         if (existing.Amount !== amt) {
-          throw new ConflictError(
-            "Idempotency-Key đã dùng với số tiền khác.",
-          );
+          throw new ConflictError("Idempotency-Key đã dùng với số tiền khác.");
         }
         return existing;
       }
@@ -240,9 +236,7 @@ async function allocateRefundToPayments(refund, session = null) {
     }
 
     if (remaining > 0) {
-      throw new ValidationError(
-        "Không đủ số dư payment để phân bổ hoàn tiền.",
-      );
+      throw new ValidationError("Không đủ số dư payment để phân bổ hoàn tiền.");
     }
     return allocations;
   } catch (err) {
@@ -314,9 +308,7 @@ async function processRefund({ refundId, actorId, approve, role }) {
         );
         if (session) failQ.session(session);
         await failQ;
-        throw new ValidationError(
-          "Hoàn sẽ vượt số đã thanh toán thành công.",
-        );
+        throw new ValidationError("Hoàn sẽ vượt số đã thanh toán thành công.");
       }
 
       await allocateRefundToPayments(claimed, session);

@@ -148,10 +148,7 @@ async function redeemCoupon({
       });
     }
   } catch (err) {
-    const rb = Coupon.updateOne(
-      { _id: couponId },
-      { $inc: { UsedCount: -1 } },
-    );
+    const rb = Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
     if (session) rb.session(session);
     await rb;
     if (err.code === 11000) {

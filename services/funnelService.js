@@ -1,13 +1,13 @@
-'use strict';
+"use strict";
 
 /**
  * Product funnel: landing → search → detail → availability → booking → payment → confirmed → completed → review
  * Counts are server-side events (not client-only analytics).
  */
-const Booking = require('../models/Booking');
-const PaymentHistory = require('../models/Payment_History');
-const Review = require('../models/Review');
-const User = require('../models/User');
+const Booking = require("../models/Booking");
+const PaymentHistory = require("../models/Payment_History");
+const Review = require("../models/Review");
+const User = require("../models/User");
 
 // In-process counters (also exportable via metrics); reset on restart.
 const counters = {
@@ -23,7 +23,7 @@ const counters = {
 };
 
 function track(step) {
-  const key = String(step || '').toLowerCase();
+  const key = String(step || "").toLowerCase();
   if (Object.prototype.hasOwnProperty.call(counters, key)) {
     counters[key] += 1;
   }
@@ -35,7 +35,9 @@ function snapshotProcess() {
 }
 
 async function funnelReport({ days = 30 } = {}) {
-  const since = new Date(Date.now() - Math.min(90, Math.max(1, days)) * 86400000);
+  const since = new Date(
+    Date.now() - Math.min(90, Math.max(1, days)) * 86400000,
+  );
   const match = { createdAt: { $gte: since } };
 
   const [
@@ -46,14 +48,14 @@ async function funnelReport({ days = 30 } = {}) {
     paymentsSuccess,
     reviews,
   ] = await Promise.all([
-    User.countDocuments({ ...match, Role: 'customer' }),
+    User.countDocuments({ ...match, Role: "customer" }),
     Booking.countDocuments(match),
     Booking.countDocuments({
       ...match,
-      Status: { $in: ['confirmed', 'in-use', 'completed'] },
+      Status: { $in: ["confirmed", "in-use", "completed"] },
     }),
-    Booking.countDocuments({ ...match, Status: 'completed' }),
-    PaymentHistory.countDocuments({ ...match, Status: 'successful' }),
+    Booking.countDocuments({ ...match, Status: "completed" }),
+    PaymentHistory.countDocuments({ ...match, Status: "successful" }),
     Review.countDocuments(match),
   ]);
 
@@ -63,7 +65,7 @@ async function funnelReport({ days = 30 } = {}) {
     windowDays: days,
     since: since.toISOString(),
     stages: {
-      landing_hint: 'client/page — process counters in processCounters',
+      landing_hint: "client/page — process counters in processCounters",
       newCustomers,
       bookingsCreated,
       paymentsSuccess,
@@ -80,15 +82,15 @@ async function funnelReport({ days = 30 } = {}) {
     },
     processCounters: snapshotProcess(),
     path: [
-      'landing',
-      'search',
-      'detail',
-      'availability',
-      'booking',
-      'payment',
-      'confirmed',
-      'completed',
-      'review',
+      "landing",
+      "search",
+      "detail",
+      "availability",
+      "booking",
+      "payment",
+      "confirmed",
+      "completed",
+      "review",
     ],
   };
 }

@@ -1,31 +1,31 @@
-'use strict';
+"use strict";
 
 /**
  * List indexes for critical collections (verify after deploy).
  * Does not create indexes — models handle syncIndexes if enabled.
  */
-require('dotenv').config();
-const mongoose = require('mongoose');
+require("dotenv").config();
+const mongoose = require("mongoose");
 
 const COLLECTIONS = [
-  'bookings',
-  'booking_slots',
-  'payment_histories',
-  'ledger_entries',
-  'webhook_events',
-  'webauthn_challenges',
-  'user_sessions',
-  'host_balances',
-  'refund_allocations',
-  'refunds',
-  'payouts',
-  'api_keys',
-  'staff_members',
-  'users',
-  'spaces',
-  'branches',
-  'recurring_series',
-  'background_jobs',
+  "bookings",
+  "booking_slots",
+  "payment_histories",
+  "ledger_entries",
+  "webhook_events",
+  "webauthn_challenges",
+  "user_sessions",
+  "host_balances",
+  "refund_allocations",
+  "refunds",
+  "payouts",
+  "api_keys",
+  "staff_members",
+  "users",
+  "spaces",
+  "branches",
+  "recurring_series",
+  "background_jobs",
 ];
 
 async function main() {
@@ -34,12 +34,12 @@ async function main() {
   for (const name of COLLECTIONS) {
     try {
       const idxs = await db.collection(name).indexes();
-      console.log('\n##', name);
+      console.log("\n##", name);
       for (const i of idxs) {
-        console.log(' ', i.name, JSON.stringify(i.key));
+        console.log(" ", i.name, JSON.stringify(i.key));
       }
     } catch (err) {
-      console.log('\n##', name, '—', err.message);
+      console.log("\n##", name, "—", err.message);
     }
   }
   await mongoose.disconnect();

@@ -138,12 +138,20 @@ async function main() {
     };
     report.push(row);
 
-    if (!dryRun && proj && typeof row.deltaProjection === "number" && Math.abs(row.deltaProjection) > 0) {
+    if (
+      !dryRun &&
+      proj &&
+      typeof row.deltaProjection === "number" &&
+      Math.abs(row.deltaProjection) > 0
+    ) {
       await HostBalance.updateOne(
         { HostID: hostId },
         {
           $set: {
-            AvailableBalance: Math.max(0, ledgerAvail - (proj.ReservedBalance || 0)),
+            AvailableBalance: Math.max(
+              0,
+              ledgerAvail - (proj.ReservedBalance || 0),
+            ),
           },
           $inc: { Version: 1 },
         },

@@ -118,7 +118,7 @@ function calendarDeepLinks(booking) {
     outlook,
     microsoft: office365,
     icsPath: `/api/me/bookings/${booking._id}/ics`,
-    providers: ['ics', 'google', 'microsoft_outlook', 'microsoft_365'],
+    providers: ["ics", "google", "microsoft_outlook", "microsoft_365"],
   };
 }
 
@@ -129,30 +129,30 @@ function hostFeedIcs(events, hostId) {
   const dt = (d) =>
     new Date(d)
       .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d{3}/, '');
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
   const lines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//WorkHub//HostFeed//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//WorkHub//HostFeed//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
     `X-WR-CALNAME:WorkHub Host ${hostId}`,
   ];
   for (const ev of events || []) {
     lines.push(
-      'BEGIN:VEVENT',
+      "BEGIN:VEVENT",
       `UID:${ev.id || ev._id}@workhub`,
       `DTSTAMP:${dt(new Date())}`,
       `DTSTART:${dt(ev.start || ev.StartTime)}`,
       `DTEND:${dt(ev.end || ev.EndTime)}`,
-      `SUMMARY:${String(ev.title || 'Booking').replace(/\n/g, ' ')}`,
-      `STATUS:${ev.status === 'cancelled' ? 'CANCELLED' : 'CONFIRMED'}`,
-      'END:VEVENT'
+      `SUMMARY:${String(ev.title || "Booking").replace(/\n/g, " ")}`,
+      `STATUS:${ev.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`,
+      "END:VEVENT",
     );
   }
-  lines.push('END:VCALENDAR', '');
-  return lines.join('\r\n');
+  lines.push("END:VCALENDAR", "");
+  return lines.join("\r\n");
 }
 
 module.exports = {

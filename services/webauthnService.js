@@ -128,10 +128,20 @@ async function claimChallengeByHash({
 
 /** @deprecated use claimChallengeByHash — kept for internal call sites */
 async function consumeChallenge({ challenge, purpose, userId = null }) {
-  return claimChallengeByHash({ challenge, purpose, userId, markConsumed: true });
+  return claimChallengeByHash({
+    challenge,
+    purpose,
+    userId,
+    markConsumed: true,
+  });
 }
 
-async function registrationOptions({ userId, email, host, strictRole = false }) {
+async function registrationOptions({
+  userId,
+  email,
+  host,
+  strictRole = false,
+}) {
   assertEnabled();
   const user = await User.findById(userId).select("Email FullName Status Role");
   if (!user) throw new NotFoundError("User not found");
@@ -214,10 +224,7 @@ async function registerCredential({
   }
 
   // Reject any legacy publicKey-only path explicitly
-  if (
-    !clientDataJSON &&
-    (credential.publicKey || response.publicKey)
-  ) {
+  if (!clientDataJSON && (credential.publicKey || response.publicKey)) {
     throw new ValidationError(
       "Đăng ký passkey yêu cầu attestation đầy đủ; không chấp nhận publicKey client.",
     );
