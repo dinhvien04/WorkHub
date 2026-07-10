@@ -179,6 +179,15 @@ function createApp() {
   app.set('views', path.join(__dirname, 'views'));
   app.set('layout', 'layout');
 
+  // Public human-readable status (after views so layout works)
+  app.get('/status', (req, res) => {
+    res.render('customer/status', {
+      pageTitle: 'Trạng thái hệ thống — WorkHub',
+      metaDescription: 'Trạng thái và phiên bản WorkHub.',
+      canonicalPath: '/status',
+    });
+  });
+
   app.use((req, res, next) => {
     res.locals.req = req;
     res.locals.branches = [];

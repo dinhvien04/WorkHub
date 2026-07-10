@@ -47,6 +47,9 @@ async function main() {
     await check('/metrics'),
     await check('/api/auth/google/status'),
     await check('/api/featured'),
+    await check('/status'),
+    await check('/offline.html'),
+    await check('/manifest.webmanifest'),
   ];
 
   let failed = 0;

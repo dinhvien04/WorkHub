@@ -153,6 +153,8 @@ router.get('/me/dashboard', verifyToken, authorizeRole('customer'), g.customerDa
 router.get('/admin/system-health', verifyToken, requireAdmin, g.systemHealth);
 router.get('/admin/seo/redirects', verifyToken, requireAdmin, g.listSeoRedirects);
 router.put('/admin/seo/redirects', verifyToken, requireAdmin, g.upsertSeoRedirect);
+router.delete('/admin/seo/redirects/:id', verifyToken, requireAdmin, g.deleteSeoRedirect);
+router.patch('/admin/seo/redirects/:id', verifyToken, requireAdmin, g.toggleSeoRedirect);
 
 // Alternatives + add-ons + quote (public read; coupon applies when auth cookie present)
 router.get('/availability/alternatives', g.alternativeSlots);

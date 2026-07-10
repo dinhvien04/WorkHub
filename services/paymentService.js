@@ -131,6 +131,45 @@ async function createPendingPayment({
       'info'
     );
 
+    try {
+      const User = require('../models/User');
+      const emailService = require('./emailService');
+      const { notifyUser } = require('./notificationService');
+      const [customer, host] = await Promise.all([
+        User.findById(customerId).select('Email FullName NotifyEmail').lean(),
+        User.findById(booking.HostID).select('Email FullName NotifyEmail').lean(),
+      ]);
+      await notifyUser({
+        userId: booking.HostID,
+        title: 'Thanh toán chờ xác minh',
+        body: `${amountToPay.toLocaleString('vi-VN')}đ · ${booking.Snapshot?.SpaceName || ''}`,
+        type: 'payment',
+        entityType: 'Booking',
+        entityId: booking._id,
+        link: '/host/payments',
+      });
+      if (customer?.Email && customer.NotifyEmail !== false) {
+        emailService.safeSendTemplate('payment_received', {
+          to: customer.Email,
+          toName: customer.FullName,
+          amount: amountToPay,
+          bookingId: booking._id,
+        });
+      }
+      if (host?.Email && host.NotifyEmail !== false) {
+        emailService.safeSendTemplate('generic', {
+          to: host.Email,
+          subject: 'WorkHub: thanh toán chờ xác minh',
+          title: 'Khách đã báo cáo thanh toán',
+          body: `Khoản ${amountToPay.toLocaleString('vi-VN')}đ cần bạn xác minh trên trang Payments.`,
+          ctaLabel: 'Mở payments',
+          ctaUrl: `${emailService.publicBaseUrl()}/host/payments`,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
     return { payment, duplicate: false };
   } catch (err) {
     if (err.code === 11000) {
@@ -216,6 +255,38 @@ async function verifyPayment(hostId, paymentId) {
   } catch {
     /* ignore */
   }
+
+  // Notify customer: payment verified
+  try {
+    const User = require('../models/User');
+    const emailService = require('./emailService');
+    const { notifyUser } = require('./notificationService');
+    const customer = await User.findById(stillOk.CustomerID)
+      .select('Email FullName NotifyEmail')
+      .lean();
+    await notifyUser({
+      userId: stillOk.CustomerID,
+      title: 'Thanh toán đã xác minh',
+      body: `${Number(stillOk.Amount || 0).toLocaleString('vi-VN')}đ đã được host xác nhận.`,
+      type: 'payment',
+      entityType: 'Booking',
+      entityId: stillOk.BookingID,
+      link: `/booking/detail?id=${stillOk.BookingID}`,
+    });
+    if (customer?.Email && customer.NotifyEmail !== false) {
+      emailService.safeSendTemplate('generic', {
+        to: customer.Email,
+        subject: 'WorkHub: thanh toán đã được host xác minh',
+        title: 'Thanh toán thành công',
+        body: `Khoản ${Number(stillOk.Amount || 0).toLocaleString('vi-VN')}đ cho booking đã được host xác minh.`,
+        ctaLabel: 'Xem booking',
+        ctaUrl: `${emailService.publicBaseUrl()}/booking/detail?id=${stillOk.BookingID}`,
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
   return stillOk;
 }
 

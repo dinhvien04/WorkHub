@@ -556,6 +556,31 @@ const listSeoRedirects = asyncHandler(async (req, res) => {
   res.json({ redirects: await SeoRedirect.find().sort({ FromPath: 1 }).lean() });
 });
 
+const deleteSeoRedirect = asyncHandler(async (req, res) => {
+  const SeoRedirect = require('../models/SeoRedirect');
+  const id = req.params.id;
+  const fromPath = req.query?.fromPath || (req.body && req.body.fromPath);
+  let doc;
+  if (id && String(id).match(/^[a-f\d]{24}$/i)) {
+    doc = await SeoRedirect.findByIdAndDelete(id);
+  } else if (fromPath) {
+    doc = await SeoRedirect.findOneAndDelete({ FromPath: String(fromPath).trim() });
+  } else {
+    throw new ValidationError('Thiếu id hoặc fromPath.');
+  }
+  if (!doc) throw new NotFoundError('Không tìm thấy redirect.');
+  res.json({ deleted: true, redirect: doc });
+});
+
+const toggleSeoRedirect = asyncHandler(async (req, res) => {
+  const SeoRedirect = require('../models/SeoRedirect');
+  const doc = await SeoRedirect.findById(req.params.id);
+  if (!doc) throw new NotFoundError('Không tìm thấy redirect.');
+  doc.Active = typeof req.body.active === 'boolean' ? req.body.active : !doc.Active;
+  await doc.save();
+  res.json({ redirect: doc });
+});
+
 // —— Alternatives / public add-ons ——
 const alternativeSlots = asyncHandler(async (req, res) => {
   const availabilityService = require('../services/availabilityService');
@@ -1067,6 +1092,8 @@ module.exports = {
   customerDashboard,
   upsertSeoRedirect,
   listSeoRedirects,
+  deleteSeoRedirect,
+  toggleSeoRedirect,
   alternativeSlots,
   publicAddOns,
   quoteBooking,

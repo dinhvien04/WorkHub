@@ -17,11 +17,21 @@
         <option value="302">302 temporary</option>
       </select>
     </div>
+    <div class="md:col-span-2">
+      <label class="text-[10px] font-black uppercase text-slate-400" for="seo-note">Note (optional)</label>
+      <input id="seo-note" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="legacy slug / campaign" />
+    </div>
     <div class="flex items-end">
       <button type="button" id="seo-save" class="bg-teal-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase">Lưu</button>
     </div>
   </div>
   <p id="seo-msg" class="text-sm mb-3" role="status"></p>
   <div id="seo-list" class="bg-white rounded-3xl border overflow-hidden"></div>
-  <p class="text-xs text-slate-400 mt-4">Sitemaps: <a class="text-teal-700 underline" href="/sitemap_index.xml">/sitemap_index.xml</a></p>
+  <p class="text-xs text-slate-400 mt-4">
+    Sitemaps:
+    <a class="text-teal-700 underline" href="/sitemap_index.xml">index</a> ·
+    <a class="text-teal-700 underline" href="/sitemap-images.xml">images</a> ·
+    <a class="text-teal-700 underline" href="/robots.txt">robots</a> ·
+    <a class="text-teal-700 underline" href="/status">status</a>
+  </p>
 </div>

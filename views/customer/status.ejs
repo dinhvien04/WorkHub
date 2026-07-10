@@ -1,0 +1,64 @@
+<div class="max-w-xl mx-auto">
+  <h1 class="text-2xl font-black text-slate-800 mb-2">Trạng thái hệ thống</h1>
+  <p class="text-sm text-slate-500 mb-6">Phiên bản, uptime và liên kết vận hành công khai (không lộ secret).</p>
+
+  <div class="bg-white rounded-3xl border p-6 mb-4 space-y-3 text-sm">
+    <div class="flex justify-between gap-2">
+      <span class="text-slate-500">Trạng thái</span>
+      <span id="st-status" class="font-bold text-teal-700">…</span>
+    </div>
+    <div class="flex justify-between gap-2">
+      <span class="text-slate-500">Version</span>
+      <span id="st-version" class="font-mono font-semibold">…</span>
+    </div>
+    <div class="flex justify-between gap-2">
+      <span class="text-slate-500">Node</span>
+      <span id="st-node" class="font-mono text-xs">…</span>
+    </div>
+    <div class="flex justify-between gap-2">
+      <span class="text-slate-500">Uptime</span>
+      <span id="st-uptime" class="font-semibold">…</span>
+    </div>
+    <div class="flex justify-between gap-2">
+      <span class="text-slate-500">DB</span>
+      <span id="st-db" class="font-semibold">…</span>
+    </div>
+    <div class="flex justify-between gap-2">
+      <span class="text-slate-500">Cập nhật</span>
+      <span id="st-ts" class="text-xs text-slate-400">…</span>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap gap-2 text-xs">
+    <a class="px-3 py-1.5 rounded-xl border bg-white font-bold text-teal-800" href="/health">/health</a>
+    <a class="px-3 py-1.5 rounded-xl border bg-white font-bold text-teal-800" href="/health/details">/health/details</a>
+    <a class="px-3 py-1.5 rounded-xl border bg-white font-bold text-teal-800" href="/metrics">/metrics</a>
+    <a class="px-3 py-1.5 rounded-xl border bg-white font-bold text-teal-800" href="/sitemap_index.xml">sitemap</a>
+  </div>
+  <p id="st-err" class="text-sm text-red-600 mt-4 hidden" role="alert"></p>
+</div>
+<script>
+(function () {
+  fetch('/health/details', { credentials: 'same-origin' })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (x) {
+      var d = x.j || {};
+      document.getElementById('st-status').textContent = d.status || (x.ok ? 'ok' : 'degraded');
+      document.getElementById('st-version').textContent = d.version || '—';
+      document.getElementById('st-node').textContent = d.node || '—';
+      document.getElementById('st-uptime').textContent =
+        d.uptimeSec != null ? Math.round(d.uptimeSec / 60) + ' phút' : '—';
+      var rs = d.db && d.db.readyState;
+      document.getElementById('st-db').textContent =
+        rs === 1 ? 'connected' : 'readyState=' + String(rs);
+      document.getElementById('st-ts').textContent = d.timestamp
+        ? new Date(d.timestamp).toLocaleString('vi-VN')
+        : '—';
+    })
+    .catch(function (e) {
+      var el = document.getElementById('st-err');
+      el.textContent = e.message || 'Không tải được health';
+      el.classList.remove('hidden');
+    });
+})();
+</script>
