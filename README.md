@@ -101,9 +101,15 @@ npm run seed:extras  # coupons + feature flags demo
 - Booking detail page (timeline, cancel, Google/Outlook/ICS)
 - Host internal notes; consent/privacy page; modal focus trap
 - OpenAPI 1.4.0
+- Geo search (`lat`/`lng`/`radiusKm`/`sort=near`) + zero-result tips
+- Staff act-as-host context (`X-Host-Owner-Id`, `/api/staff/*`)
+- Admin optional 2FA gate (flag `admin_require_2fa` or `ADMIN_REQUIRE_2FA=1`)
+- SBOM: `npm run sbom` → `docs/sbom.json`; `npm run audit:prod`
+- FAQPage JSON-LD for CMS guides with `Q:`/`A:` lines
 
 ```bash
 npm run backup
+npm run sbom
 ```
 
 ## Roles

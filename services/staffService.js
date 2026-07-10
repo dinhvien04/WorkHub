@@ -81,4 +81,47 @@ async function revokeStaff({ ownerId, staffId }) {
   return staff;
 }
 
-module.exports = { listStaff, inviteStaff, acceptInvite, revokeStaff, ROLES };
+/** Memberships where current user is active staff (not owner). */
+async function listMyMemberships(userId) {
+  return StaffMember.find({ UserID: userId, Status: 'active' })
+    .populate('HostOwnerID', 'FullName Email')
+    .lean();
+}
+
+/**
+ * Resolve which host owner this actor operates as.
+ * - Host role: self
+ * - Staff: X-Host-Owner-Id header or single membership
+ */
+async function resolveActingHostOwnerId(userId, role, preferredOwnerId = null) {
+  if (role === 'host') {
+    return { hostOwnerId: String(userId), staffRole: 'owner', via: 'host' };
+  }
+  const memberships = await StaffMember.find({ UserID: userId, Status: 'active' }).lean();
+  if (!memberships.length) {
+    throw new ForbiddenError('Bạn không phải host hoặc staff.');
+  }
+  if (preferredOwnerId) {
+    const m = memberships.find((x) => String(x.HostOwnerID) === String(preferredOwnerId));
+    if (!m) throw new ForbiddenError('Không có quyền staff trên host này.');
+    return { hostOwnerId: String(m.HostOwnerID), staffRole: m.Role, via: 'staff' };
+  }
+  if (memberships.length === 1) {
+    return {
+      hostOwnerId: String(memberships[0].HostOwnerID),
+      staffRole: memberships[0].Role,
+      via: 'staff',
+    };
+  }
+  throw new ValidationError('Chọn host: gửi header X-Host-Owner-Id.');
+}
+
+module.exports = {
+  listStaff,
+  inviteStaff,
+  acceptInvite,
+  revokeStaff,
+  listMyMemberships,
+  resolveActingHostOwnerId,
+  ROLES,
+};

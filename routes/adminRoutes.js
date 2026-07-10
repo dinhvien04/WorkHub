@@ -4,8 +4,9 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { verifyToken, requireAdmin } = require('../middlewares/authMiddleware');
+const { requireAdmin2faIfEnabled } = require('../middlewares/admin2fa');
 
-router.use(verifyToken, requireAdmin);
+router.use(verifyToken, requireAdmin, requireAdmin2faIfEnabled);
 
 router.get('/stats', adminController.getAdminDashboard);
 router.get('/users', adminController.listUsers);

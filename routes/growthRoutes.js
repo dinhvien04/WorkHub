@@ -196,4 +196,18 @@ router.patch(
 // Privacy policy meta (public)
 router.get('/privacy/policy', g.privacyPolicy);
 
+// Staff memberships + host permissions matrix for UI
+router.get('/staff/me', verifyToken, g.myStaffMemberships);
+router.get('/host/me/permissions', verifyToken, g.myHostPermissions);
+
+// Staff-accessible inbox (host or staff with booking:manage / reception)
+const { resolveHostContext, requireStaffPermission } = require('../middlewares/hostContext');
+router.get(
+  '/staff/host/inbox',
+  verifyToken,
+  resolveHostContext,
+  requireStaffPermission('reception:view'),
+  g.staffHostInbox
+);
+
 module.exports = router;

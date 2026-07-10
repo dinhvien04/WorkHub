@@ -321,7 +321,9 @@ async function createBranch(req, res) {
     const city = req.body.city || '';
     const district = req.body.district || '';
     const slug = await uniqueSlug(Branch, name || 'branch');
-    const branch = await Branch.create({
+    const lat = req.body.latitude != null ? Number(req.body.latitude) : null;
+    const lng = req.body.longitude != null ? Number(req.body.longitude) : null;
+    const branchPayload = {
       HostID: hostId,
       Name: name,
       Slug: slug,
@@ -334,8 +336,14 @@ async function createBranch(req, res) {
       OpeningTime: req.body.openingTime || "07:00",
       ClosingTime: req.body.closingTime || "22:00",
       Status: 'active',
-      Images: images
-    });
+      Images: images,
+    };
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      branchPayload.Latitude = lat;
+      branchPayload.Longitude = lng;
+      branchPayload.Location = { type: 'Point', coordinates: [lng, lat] };
+    }
+    const branch = await Branch.create(branchPayload);
     return res.status(201).json(branch);
   } catch (error) {
     return sendServerError(res, error);
@@ -354,6 +362,15 @@ async function updateBranch(req, res) {
       OpeningTime: req.body.openingTime || undefined,
       ClosingTime: req.body.closingTime || undefined,
     };
+    if (req.body.latitude != null && req.body.longitude != null) {
+      const lat = Number(req.body.latitude);
+      const lng = Number(req.body.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        updateData.Latitude = lat;
+        updateData.Longitude = lng;
+        updateData.Location = { type: 'Point', coordinates: [lng, lat] };
+      }
+    }
 
     if (req.files && req.files.length > 0) {
       // Lấy URL mây từ Cloudinary

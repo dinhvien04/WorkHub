@@ -656,6 +656,50 @@ const privacyPolicy = asyncHandler(async (req, res) => {
   });
 });
 
+// —— Staff context ——
+const myStaffMemberships = asyncHandler(async (req, res) => {
+  const staffService = require('../services/staffService');
+  const items = await staffService.listMyMemberships(req.user.userId);
+  res.json({ memberships: items });
+});
+
+const myHostPermissions = asyncHandler(async (req, res) => {
+  const staffService = require('../services/staffService');
+  const { PERMS, roleHas } = require('../policies/permissions');
+  if (req.user.role === 'host') {
+    return res.json({
+      hostOwnerId: req.user.userId,
+      staffRole: 'owner',
+      permissions: PERMS.owner,
+      canFinance: true,
+      canPaymentVerify: true,
+    });
+  }
+  const preferred = req.get('x-host-owner-id') || null;
+  const ctx = await staffService.resolveActingHostOwnerId(
+    req.user.userId,
+    req.user.role,
+    preferred
+  );
+  res.json({
+    hostOwnerId: ctx.hostOwnerId,
+    staffRole: ctx.staffRole,
+    permissions: PERMS[ctx.staffRole] || [],
+    canFinance: roleHas(ctx.staffRole, 'finance:view'),
+    canPaymentVerify: roleHas(ctx.staffRole, 'payment:verify'),
+  });
+});
+
+const staffHostInbox = asyncHandler(async (req, res) => {
+  const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const data = await require('../services/hostInboxService').listHostInbox(hostOwnerId, {
+    bucket: req.query.bucket,
+    page: req.query.page,
+    limit: req.query.limit,
+  });
+  res.json(data);
+});
+
 // —— Admin force logout ——
 const adminForceLogout = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.userId);
@@ -724,4 +768,7 @@ module.exports = {
   listHostNotes,
   patchSpaceOps,
   privacyPolicy,
+  myStaffMemberships,
+  myHostPermissions,
+  staffHostInbox,
 };

@@ -322,10 +322,41 @@ function createApp() {
     try {
       const cmsService = require('./services/cmsService');
       const page = await cmsService.getBySlug(req.params.slug);
+      const jsonLd = [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: page.Title,
+          description: page.MetaDescription || page.Body.slice(0, 160),
+          datePublished: page.PublishedAt || page.createdAt,
+        },
+      ];
+      // FAQPage schema when body contains Q:/A: lines
+      const qa = [];
+      const lines = String(page.Body || '').split('\n');
+      for (let i = 0; i < lines.length - 1; i++) {
+        const q = lines[i].match(/^Q:\s*(.+)/i);
+        const a = lines[i + 1] && lines[i + 1].match(/^A:\s*(.+)/i);
+        if (q && a) {
+          qa.push({
+            '@type': 'Question',
+            name: q[1].trim(),
+            acceptedAnswer: { '@type': 'Answer', text: a[1].trim() },
+          });
+        }
+      }
+      if (qa.length) {
+        jsonLd.push({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: qa,
+        });
+      }
       res.render('customer/cms-page', {
         page,
         pageTitle: page.MetaTitle || page.Title,
         metaDescription: page.MetaDescription || page.Body.slice(0, 160),
+        jsonLd,
       });
     } catch (e) {
       if (e.statusCode === 404) return res.status(404).send('Không tìm thấy');

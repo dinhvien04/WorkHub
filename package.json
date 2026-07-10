@@ -14,7 +14,9 @@
     "check": "npm run lint && npm test",
     "migrate:fields": "node scripts/migrateCanonicalFields.js --dry-run",
     "seed:extras": "node scripts/seedDemoExtras.js",
-    "backup": "node scripts/backup-mongo.js"
+    "backup": "node scripts/backup-mongo.js",
+    "sbom": "node scripts/generate-sbom.js",
+    "audit:prod": "npm audit --omit=dev --audit-level=high"
   },
   "keywords": [
     "coworking",

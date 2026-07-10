@@ -65,6 +65,20 @@ const branchSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    // Geo for radius search (WGS84)
+    Latitude: { type: Number, default: null, min: -90, max: 90 },
+    Longitude: { type: Number, default: null, min: -180, max: 180 },
+    // Only set when lat/lng known — incomplete Points break 2dsphere index
+    Location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+      },
+      coordinates: {
+        // [lng, lat]
+        type: [Number],
+      },
+    },
 
     // 3. THỜI GIAN HOẠT ĐỘNG
     OpeningTime: {
@@ -111,5 +125,18 @@ const branchSchema = new mongoose.Schema({
 branchSchema.index({ Status: 1, CitySlug: 1, DistrictSlug: 1 });
 branchSchema.index({ HostID: 1, Status: 1 });
 branchSchema.index({ Slug: 1 }, { unique: true, sparse: true });
+branchSchema.index({ Location: '2dsphere' }, { sparse: true });
+
+// Keep Location in sync when lat/lng set (mongoose 9 async middleware)
+branchSchema.pre('save', function syncGeo() {
+  if (this.Latitude != null && this.Longitude != null) {
+    this.Location = {
+      type: 'Point',
+      coordinates: [Number(this.Longitude), Number(this.Latitude)],
+    };
+  } else if (this.isModified('Latitude') || this.isModified('Longitude')) {
+    this.Location = undefined;
+  }
+});
 
 module.exports = mongoose.model('Branch', branchSchema);

@@ -160,6 +160,24 @@ function toggleSidebar() {
 
 document.addEventListener('DOMContentLoaded', () => {
   updateUIBasedOnAuth();
+  // Hide finance nav for staff without finance:view (host owners always see it)
+  if (window.WorkHubAPI && WorkHubAPI.api) {
+    WorkHubAPI.api('/api/host/me/permissions', { redirectOn401: false })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || data.canFinance) return;
+        document.querySelectorAll('[data-nav="host_finance"], [data-menu="host_finance"]').forEach((el) => {
+          el.classList.add('hidden');
+        });
+        // sidebar items by label path
+        document.querySelectorAll('a, button, div').forEach((el) => {
+          if (el.textContent && el.textContent.trim() === 'Tài chính' && el.closest('.sidebar, #sidebar, nav')) {
+            el.classList.add('hidden');
+          }
+        });
+      })
+      .catch(() => {});
+  }
 });
 
 async function updateUIBasedOnAuth() {
