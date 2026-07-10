@@ -1,0 +1,64 @@
+/* public/css/style.css */
+body { font-family: 'Inter', sans-serif; background-color: #f8fafc; height: 100vh; overflow: hidden; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(240px); } }
+
+.hero-gradient { background: linear-gradient(rgba(13, 148, 136, 0.8), rgba(15, 23, 42, 0.9)); }
+
+/* Layout cấu trúc chính */
+.app-wrapper { display: flex; flex-direction: column; height: 100vh; }
+.header { height: 64px; background: #ffffff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; z-index: 50; }
+.main-container { display: flex; flex-grow: 1; overflow: hidden; position: relative; }
+
+/* Sidebar */
+.sidebar { width: 260px; background-color: #1e293b; color: white; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.sidebar.collapsed { margin-left: -260px; }
+.sidebar.hidden-permanent { display: none; }
+
+.nav-item { padding: 12px 24px; display: flex; align-items: center; gap: 12px; color: #94a3b8; transition: all 0.2s; cursor: pointer; text-decoration: none; border-left: 4px solid transparent; }
+.nav-item:hover { background-color: #334155; color: white; }
+.nav-item.active { background-color: #0f172a; color: white; border-left-color: #0d9488; }
+
+/* Nội dung chính */
+.content-area { flex-grow: 1; overflow-y: auto; padding: 24px; background-color: #f8fafc; transition: all 0.3s; }
+
+/* Các Component khác */
+.available-seat-item { border: 2px solid #e2e8f0; cursor: pointer; transition: all 0.2s; }
+.available-seat-item:hover { border-color: #0d9488; background-color: #f0fdf4; }
+.available-seat-item.selected { border-color: #0d9488; background-color: #0d9488; color: white; }
+
+.floor-plan-item { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: bold; font-size: 10px; transition: transform 0.2s; }
+.status-available { background-color: #10b981; color: white; }
+.status-booked { background-color: #f59e0b; color: white; }
+.status-occupied { background-color: #ef4444; color: white; }
+.status-maintenance { background-color: #64748b; color: white; }
+
+.payment-card { border: 2px solid #f1f5f9; cursor: pointer; transition: all 0.2s; }
+.payment-card.active { border-color: #0d9488; background-color: #f0fdf4; }
+
+.branch-tab { cursor: pointer; color: #64748b; background: transparent; border: none; }
+.branch-tab:hover:not(.active) { color: #334155; background-color: #f8fafc; }
+.branch-tab.active { color: #fff; background-color: #0d9488; box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35); }
+
+.modal-active { overflow: hidden; }
+.text-primary:hover { color: #0d9488; }
+
+.choices {position: relative; z-index: 10;}
+.choices__inner { background-color: #f8fafc !important; border-radius: 0.75rem !important;border: none !important; padding: 6px 12px !important; min-height: 48px !important; display: flex !important; align-items: center !important; font-size: 0.875rem !important; color: #475569 !important; }
+.choices__list--dropdown {z-index: 999 !important; border-radius: 0.75rem !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important }
+.choices.is-focused .choices__inner {border: 2px solid #0d9488 !important; box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1) !important; }
+
+.report-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+}
+.report-card-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.report-card-label {
+  min-height: 52px;
+}

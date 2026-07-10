@@ -1,0 +1,87 @@
+<!-- File này chứa thanh điều hướng trên cùng, logo và phần hiển thị thông tin tài khoản/đăng nhập. -->
+<script src="/js/host-spaces.js"></script>
+<header class="header shadow-sm">
+  <div class="flex items-center gap-4">
+    <button
+      id="sidebar-toggle"
+      onclick="toggleSidebar()"
+      class="hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition"
+    >
+      <svg
+        class="w-6 h-6"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 6h16M4 12h16M4 18h16"
+        ></path>
+      </svg>
+    </button>
+    <div
+      class="flex items-center gap-2 cursor-pointer"
+      onclick="navigateTo('home')"
+    >
+      <div
+        class="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md"
+      >
+        W
+      </div>
+      <span class="text-2xl font-bold text-teal-800 tracking-tight"
+        >WorkHub</span
+      >
+    </div>
+  </div>
+
+  <div id="auth-header-section">
+    <button
+      id="nav-login-btn"
+      onclick="navigateTo('login')"
+      class="px-5 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium"
+    >
+      Đăng nhập
+    </button>
+
+    <div id="user-info" class="hidden flex items-center gap-3">
+      <div class="text-right">
+        <p class="text-sm font-bold text-slate-800" id="user-display-name">
+          Người dùng
+        </p>
+        <p class="text-xs text-slate-500" id="user-display-role">Thành viên</p>
+      </div>
+      <div class="group relative cursor-pointer" onclick="toggleUserMenu()">
+        <div
+          class="w-10 h-10 bg-teal-100 border border-teal-200 rounded-full flex items-center justify-center text-teal-700 font-bold overflow-hidden shadow-sm"
+        >
+          <img
+            id="header-avatar-preview"
+            src="https://ui-avatars.com/api/?name=User"
+            class="w-full h-full object-cover"
+            alt="avatar"
+          />
+        </div>
+        <div
+          id="dropdown-menu"
+          class="absolute right-0 w-44 bg-white shadow-xl border border-slate-100 rounded-xl py-2 mt-2 hidden z-50"
+        >
+          <a
+            href="#"
+            onclick="navigateTo('profile')"
+            class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium"
+            >Hồ sơ cá nhân</a
+          >
+          <div class="border-t border-slate-100 my-1"></div>
+          <a
+            href="#"
+            onclick="logout()"
+            class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-bold"
+            >Đăng xuất</a
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

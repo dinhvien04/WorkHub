@@ -1,0 +1,117 @@
+<h2 class="text-2xl font-black text-slate-800 mb-6 tracking-tight">Lịch sử thanh toán</h2>
+
+<form action="/payment_history" method="GET" class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        
+        <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1">Tìm theo cơ sở</label>
+            <select name="branchKeyword" id="branch-select" class="w-full">
+                <option value="">Tất cả cơ sở</option>
+                <% if (typeof allSpaces !== 'undefined' && allSpaces.length > 0) { %>
+                    <% allSpaces.forEach(space => { %>
+                        <option value="<%= space.name %>" <%= (typeof filters !== 'undefined' && filters.branchKeyword === space.name) ? 'selected' : '' %>>
+                            <%= space.name %>
+                        </option>
+                    <% }) %>
+                <% } %>
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1 font-black">Từ ngày</label>
+            <input type="date" name="startDate" value="<%= (typeof filters !== 'undefined' && filters.startDate) ? filters.startDate : '' %>" class="w-full p-3 bg-slate-50 border-none rounded-xl text-sm">
+        </div>
+        
+        <div>
+            <label class="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1 font-black">Trạng thái</label>
+            <select name="statusFilter" class="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-600 outline-none">
+                <% let currentStatus = (typeof filters !== 'undefined' && filters.statusFilter) ? filters.statusFilter : 'Tất cả'; %>
+                <option value="Tất cả" <%= currentStatus === 'Tất cả' ? 'selected' : '' %>>Tất cả</option>
+                <option value="Thành công" <%= currentStatus === 'Thành công' ? 'selected' : '' %>>Thành công</option>
+                <option value="Thất bại" <%= currentStatus === 'Thất bại' ? 'selected' : '' %>>Thất bại</option>
+            </select>
+        </div>
+        
+        <div>
+            <button type="submit" class="w-full bg-teal-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:bg-teal-700 transition font-black">ÁP DỤNG</button>
+        </div>
+    </div>
+</form>
+
+<div class="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+    <table class="w-full text-left border-collapse">
+        <thead class="bg-slate-50 border-b text-[11px] uppercase text-slate-400 font-black">
+            <tr>
+                <th class="p-5">Ngày giao dịch</th>
+                <th class="p-5 text-center">Giờ</th>
+                <th class="p-5">Tên cơ sở</th>
+                <th class="p-5">Số tiền</th>
+                <th class="p-5 text-center">Ghi chú</th>
+                <th class="p-5">Trạng thái</th>
+            </tr>
+        </thead>
+        <tbody class="text-sm">
+            <% if (typeof payments !== 'undefined' && payments && payments.length > 0) { %>
+                <% payments.forEach(item => { %>
+                    <tr class="border-b hover:bg-slate-50/50 transition">
+                        <td class="p-5 font-medium text-slate-600">
+                            <%= item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—' %>
+                        </td>
+                        <td class="p-5 text-center font-bold text-slate-400 text-xs">
+                            <%= item.createdAt ? new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—' %>
+                        </td>
+                        <td class="p-5 font-bold text-slate-700">
+                            <%= (item.BookingID && item.BookingID.SpaceID && (item.BookingID.SpaceID.Name || item.BookingID.SpaceID.name)) 
+                                ? (item.BookingID.SpaceID.Name || item.BookingID.SpaceID.name) 
+                                : 'WorkHub Space' %>
+                        </td>
+                        <td class="p-5 font-black text-teal-600">
+                            <%= item.Amount ? item.Amount.toLocaleString('vi-VN') : '0' %>đ
+                        </td>
+                        <td class="p-5 text-[11px] text-orange-500 font-bold uppercase italic text-center">
+                            <% if (item.PaymentType === 'deposit') { %>
+                                Đặt cọc (30%)
+                            <% } else if (item.PaymentType === 'full_payment') { %>
+                                Thanh toán 100%
+                            <% } else if (item.PaymentType === 'remaining_balance') { %>
+                                Thanh toán nốt (70%)
+                            <% } else { %>
+                                <%= item.PaymentType || 'Thanh toán' %>
+                            <% } %>
+                        </td>
+                        <td class="p-5">
+                            <% if (item.Status === 'successful') { %>
+                                <span class="bg-green-50 text-green-600 px-3 py-1 rounded-full font-bold text-[10px] uppercase border border-green-100">Thành công</span>
+                            <% } else if (item.Status === 'failed') { %>
+                                <span class="bg-green-50 text-red-500 px-3 py-1 rounded-full font-bold text-[10px] uppercase border border-red-100">Thất bại</span>
+                            <% } else { %>
+                                <span class="bg-slate-50 text-slate-500 px-3 py-1 rounded-full font-bold text-[10px] uppercase border border-slate-100">Chờ xử lý</span>
+                            <% } %>
+                        </td>
+                    </tr>
+                <% }) %>
+            <% } else { %>
+                <tr><td colspan="6" class="p-5 text-center text-slate-400">Không có dữ liệu giao dịch.</td></tr>
+            <% } %>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const branchSelect = document.getElementById('branch-select');
+        
+        if (branchSelect) {
+            new Choices(branchSelect, {
+                searchEnabled: true,          
+                searchChoices: true,          
+                itemSelectText: 'Nhấn để chọn', 
+                noResultsText: 'Không tìm thấy chi nhánh',
+                shouldSort: false,
+                position: 'bottom',          
+                placeholder: true,
+                placeholderValue: 'Chọn chi nhánh...'
+            });
+        }
+    });
+</script>

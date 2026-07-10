@@ -1,0 +1,127 @@
+<h2 class="text-2xl font-black text-slate-800 mb-6 tracking-tight">Lịch sử đặt chỗ</h2>
+
+<div class="mb-8 bg-white p-3 md:p-4 rounded-[2rem] shadow-sm border border-slate-100 flex justify-end items-center w-full relative z-10">
+    <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
+        <div class="relative inline-block text-left" id="custom-time-dropdown">
+            <button type="button" id="custom-time-btn" class="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-2 text-sm font-bold text-slate-700 hover:border-teal-500 transition shadow-sm outline-none w-full sm:w-auto justify-center">
+                <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                <span id="custom-time-text">Tất cả thời gian</span>
+            </button>
+            <div id="custom-time-menu" class="hidden absolute left-0 sm:right-0 sm:left-auto mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden transform opacity-0 scale-95 transition-all duration-200 origin-top-right">
+                <div class="py-2 flex flex-col">
+                    <button type="button" class="time-option-btn w-full text-left px-5 py-3 text-sm font-bold text-teal-600 hover:bg-slate-50 transition" data-value="all">Tất cả thời gian</button>
+                    <button type="button" class="time-option-btn w-full text-left px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition" data-value="specific">Ngày cụ thể...</button>
+                    <button type="button" class="time-option-btn w-full text-left px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition" data-value="range">Khoảng thời gian...</button>
+                </div>
+            </div>
+        </div>
+        <div class="absolute w-0 h-0 overflow-hidden opacity-0 pointer-events-none">
+            <input type="date" id="filter-date-1">
+            <input type="date" id="filter-date-2">
+        </div>
+        <div class="relative flex items-center bg-white border border-slate-200 rounded-full p-1.5 pl-5 w-full sm:w-72 focus-within:border-teal-500 transition shadow-sm">
+            <input type="text" id="filter-keyword" placeholder="Tìm tên cơ sở, mã đơn..." class="w-full bg-transparent border-none text-sm font-medium text-slate-700 outline-none placeholder-slate-400 focus:ring-0 p-0">
+            <button type="button" class="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition shrink-0 ml-2 shadow-md">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="space-y-5 max-w-5xl" id="history-list"></div>
+
+<div id="modal-booking-detail" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
+    <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar transform transition-all scale-100" id="modal-detail-content">
+        
+        <div class="relative h-56 bg-slate-100">
+            <img id="md-img" src="" class="w-full h-full object-cover" alt="Space">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/50 to-transparent"></div>
+            <button onclick="closeModal('modal-booking-detail')" class="absolute top-4 right-4 w-9 h-9 flex justify-center items-center rounded-full bg-white/90 text-slate-700 font-black hover:bg-red-500 hover:text-white transition shadow-md">&times;</button>
+            <div class="absolute bottom-4 left-6 text-white">
+                <h3 id="md-space-name" class="font-black text-2xl tracking-tight drop-shadow-md">Tên không gian</h3>
+                <p id="md-space-code" class="text-sm font-bold text-teal-300 mt-0.5">Mã phòng: --</p>
+            </div>
+        </div>
+
+        <div class="p-6 md:p-8">
+            <div class="mb-6 space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Thông tin liên hệ</p>
+                <div class="flex items-start gap-2 text-sm font-medium text-slate-600">
+                    <span class="mt-0.5">📍</span> <span id="md-branch-address">Địa chỉ: --</span>
+                </div>
+                <div class="flex items-start gap-2 text-sm font-bold text-teal-700">
+                    <span class="mt-0.5">📞</span> <span id="md-branch-hotline">Hotline: --</span>
+                </div>
+            </div>
+            
+            <div class="space-y-3 mb-6">
+                <div class="flex justify-between items-center border-b border-dashed pb-3">
+                    <span class="font-bold text-slate-400 uppercase text-[10px]">Mã đơn hàng</span>
+                    <span id="md-booking-id" class="font-black text-slate-800 bg-slate-100 px-3 py-1 rounded-lg">#...</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-dashed pb-3">
+                    <span class="font-bold text-slate-400 uppercase text-[10px]">Thời gian đặt</span>
+                    <span id="md-time-created" class="font-bold text-slate-600 text-xs">...</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-dashed pb-3">
+                    <span class="font-bold text-slate-400 uppercase text-[10px]">Thời gian sử dụng</span>
+                    <span id="md-time" class="font-black text-teal-600 text-xs text-right">...</span>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-end mb-4">
+                <div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase mb-1">Tổng chi phí</div>
+                    <div id="md-total" class="text-2xl font-black text-slate-800">0đ</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] font-black text-slate-400 uppercase mb-1">Đã cọc</div>
+                    <div id="md-deposit" class="text-sm font-black text-emerald-600">0đ</div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-rose-50 p-4 rounded-xl mb-6 border border-rose-100">
+                <span class="text-xs font-black text-rose-600 uppercase">CÒN PHẢI TRẢ</span>
+                <span id="md-remaining" class="text-xl font-black text-rose-700">0đ</span>
+            </div>
+
+            <div class="flex gap-3">
+                <a href="#" id="md-link-detail" class="flex-1 bg-teal-600 text-white text-center py-3.5 rounded-xl font-black uppercase text-[11px] tracking-widest hover:bg-teal-700 transition shadow-md">Xem trang cơ sở</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-review" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden p-8 relative">
+        <button onclick="closeModal('modal-review')" class="absolute top-4 right-4 text-slate-400 hover:text-red-500 font-black text-xl">&times;</button>
+        <h3 class="font-black text-xl text-slate-800 mb-2">Đánh giá trải nghiệm</h3>
+        <p class="text-xs font-medium text-slate-500 mb-6">Bạn có thể chỉnh sửa đánh giá trong vòng 7 ngày.</p>
+        <form id="review-form">
+            <input type="hidden" id="rv-booking-id">
+            <div class="flex justify-center gap-2 mb-6" id="star-container">
+                <label class="cursor-pointer text-4xl text-slate-200 hover:text-amber-400 transition"><input type="radio" name="rating" value="1" class="hidden" required>★</label>
+                <label class="cursor-pointer text-4xl text-slate-200 hover:text-amber-400 transition"><input type="radio" name="rating" value="2" class="hidden">★</label>
+                <label class="cursor-pointer text-4xl text-slate-200 hover:text-amber-400 transition"><input type="radio" name="rating" value="3" class="hidden">★</label>
+                <label class="cursor-pointer text-4xl text-slate-200 hover:text-amber-400 transition"><input type="radio" name="rating" value="4" class="hidden">★</label>
+                <label class="cursor-pointer text-4xl text-amber-400 transition"><input type="radio" name="rating" value="5" class="hidden" checked>★</label>
+            </div>
+            <textarea id="rv-comment" class="w-full bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm font-medium outline-none focus:border-teal-500 mb-6" rows="3" placeholder="Nhận xét của bạn..."></textarea>
+            <button type="submit" class="w-full bg-teal-600 text-white py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-teal-700 transition shadow-lg">Gửi đánh giá</button>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* Ẩn thanh cuộn Chrome, Safari, Edge */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    /* Ẩn thanh cuộn Firefox & IE */
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>
+
+<script src="/js/customer-history.js"></script>

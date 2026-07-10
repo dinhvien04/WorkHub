@@ -1,0 +1,154 @@
+<div id="space-mgr-layer-add" class="hidden">
+  <button
+    type="button"
+    onclick="cancelAddFacility()"
+    class="text-slate-400 hover:text-teal-600 mb-6 flex items-center gap-2 font-bold text-sm"
+  >
+    ← Quay lại danh sách cơ sở
+  </button>
+
+  <div
+    class="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm max-w-4xl mx-auto"
+  >
+    <div
+      class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 border-b border-slate-100 pb-6"
+    >
+      <div>
+        <h2
+          class="text-2xl font-black text-slate-800 uppercase tracking-tighter"
+        >
+          Thêm cơ sở mới
+        </h2>
+        <p
+          class="text-slate-400 text-sm font-medium mt-1"
+          id="add-facility-step-label"
+        >
+          Giai đoạn 1: Nhập thông tin cơ sở
+        </p>
+      </div>
+      <div
+        class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+      >
+        <span
+          id="add-fac-step-1-badge"
+          class="px-4 py-2 rounded-xl bg-teal-600 text-white"
+          >1. Cơ sở</span
+        >
+        <span class="text-slate-300">→</span>
+        <span
+          id="add-fac-step-2-badge"
+          class="px-4 py-2 rounded-xl bg-slate-100 text-slate-400"
+          >2. Không gian</span
+        >
+      </div>
+    </div>
+
+    <div id="add-facility-step-1" class="space-y-5">
+      <div>
+        <p class="text-[10px] font-black text-slate-400 uppercase mb-2 pl-1">
+          Hình ảnh cơ sở
+        </p>
+        <div class="flex flex-col gap-3">
+          <div
+            id="add-fac-image-preview"
+            class="flex flex-wrap gap-2 p-3 bg-slate-50 min-h-[80px] rounded-2xl border border-slate-200 shadow-inner items-center justify-start"
+          >
+            <span class="text-[10px] font-bold text-slate-400 uppercase mx-auto"
+              >Chưa chọn ảnh</span
+            >
+          </div>
+          <label
+            class="w-full h-14 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-2 text-slate-400 font-bold text-[10px] uppercase cursor-pointer hover:border-teal-500 hover:text-teal-600 transition"
+          >
+            <span>+ Chọn ảnh cơ sở</span>
+            <input
+              type="file"
+              id="add-fac-image"
+              name="image"
+              accept="image/*"
+              class="hidden"
+              onchange="previewFacilityImage(this)"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label
+          class="block text-[10px] font-black text-slate-400 uppercase mb-1"
+          >Tên cơ sở <span class="text-red-500">*</span></label
+        >
+        <input
+          type="text"
+          id="add-fac-name"
+          placeholder="VD: WorkHub Quận 7"
+          class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800"
+        />
+      </div>
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label
+          class="block text-[10px] font-black text-slate-400 uppercase mb-1"
+          >Địa chỉ <span class="text-red-500">*</span></label
+        >
+        <input
+          type="text"
+          id="add-fac-address"
+          placeholder="Địa chỉ cơ sở"
+          class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800"
+        />
+      </div>
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label
+          class="block text-[10px] font-black text-slate-400 uppercase mb-1"
+          >Ghi chú</label
+        >
+        <textarea
+          id="add-fac-note"
+          rows="3"
+          placeholder="Mô tả cơ sở..."
+          class="w-full bg-transparent border-none p-0 text-sm font-medium focus:ring-0 outline-none text-slate-700 resize-none"
+        ></textarea>
+      </div>
+      <button
+        type="button"
+        onclick="addFacilityGoStep2()"
+        class="w-full bg-teal-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition"
+      >
+        Tiếp tục — Thêm không gian →
+      </button>
+    </div>
+
+    <div id="add-facility-step-2" class="hidden space-y-5">
+      <div class="p-4 bg-teal-50/50 rounded-2xl border border-teal-100 text-sm">
+        <p class="font-black text-slate-800" id="add-fac-summary-name">—</p>
+        <p class="text-slate-500 text-xs mt-0.5" id="add-fac-summary-address">
+          —
+        </p>
+      </div>
+      <div id="add-facility-spaces-list" class="space-y-4"></div>
+      <button
+        type="button"
+        onclick="addFacilitySpaceRow()"
+        class="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-black text-[10px] uppercase hover:border-teal-500 hover:text-teal-600 transition"
+      >
+        + Thêm không gian vào cơ sở này
+      </button>
+      <div class="flex flex-col sm:flex-row gap-3 pt-2">
+        <button
+          type="button"
+          onclick="addFacilityBackToStep1()"
+          class="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+        >
+          ← Quay lại
+        </button>
+        <button
+          type="button"
+          onclick="saveNewFacility()"
+          class="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-teal-600 text-white shadow-lg hover:bg-teal-700 transition"
+        >
+          Hoàn tất & Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

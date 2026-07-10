@@ -1,0 +1,227 @@
+<main class="content-area">
+            <div class="flex flex-col gap-8">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-4xl font-black text-slate-800 uppercase tracking-tighter">Bảng điều hành
+                        </h2>
+                        <p class="text-slate-400 text-sm font-medium">Theo dõi thời gian thực tình hình kinh doanh
+                        </p>
+                    </div>
+                    <button
+                        class="bg-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-xl hover:bg-teal-700 transition flex items-center gap-3 uppercase text-xs tracking-widest"
+                        onclick="alert('Tính năng quét mã QR đang được kết nối!')">
+                        <span>📷</span> QUÉT QR CHECK-IN
+                    </button>
+                </div>
+
+                <div id="branch-tabs-container"
+                    class="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 w-fit">
+                    <button type="button"
+                        class="branch-tab bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition"
+                        id="tab-all" onclick="switchBranch('all')">Tất cả</button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div
+                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
+                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
+                            aria-hidden="true">💰</span>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
+                            Tổng giá trị
+                            Booking</p>
+                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-revenue">0đ</p>
+                    </div>
+                    <div
+                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
+                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
+                            aria-hidden="true">📅</span>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
+                            Tổng Đặt Chỗ
+                        </p>
+                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-bookings">0</p>
+                    </div>
+                    <div
+                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
+                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
+                            aria-hidden="true">👥</span>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
+                            Lượt khách đã
+                            dùng</p>
+                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-occupied">0</p>
+                    </div>
+                    <div
+                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
+                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
+                            aria-hidden="true">🏢</span>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
+                            Số chỗ đang
+                            hoạt động</p>
+                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-rooms">0</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
+                        <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Xu hướng đặt
+                            chỗ</h3>
+                        <div class="relative h-64">
+                            <canvas id="bookingChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div
+                        class="lg:col-span-1 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
+                        <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-4">Trạng thái
+                            phòng Live</h3>
+                        <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-4 gap-2 flex-1 content-start"
+                            id="host-floor-plan-mini"></div>
+                        <div
+                            class="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold text-slate-500">
+                            <span class="flex items-center gap-1.5"><span
+                                    class="w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-200"></span> Đang
+                                trống</span>
+                            <span class="flex items-center gap-1.5"><span
+                                    class="w-3 h-3 rounded-sm bg-red-100 border border-red-200"></span> Đang
+                                dùng</span>
+                            <span class="flex items-center gap-1.5"><span
+                                    class="w-3 h-3 rounded-sm bg-amber-100 border border-amber-200"></span> Sắp có
+                                khách</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 class="font-black text-slate-800 mb-4 uppercase tracking-tight text-sm">📅 Booking gần nhất
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 text-[9px] uppercase text-slate-400 font-black">
+                                <tr>
+                                    <th class="p-3">Khách</th>
+                                    <th class="p-3">Phòng / Chỗ</th>
+                                    <th class="p-3">Thời gian đặt</th>
+                                    <th class="p-3">Trạng thái đơn</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[11px] text-slate-600" id="host-recent-table">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                    <h3 class="font-black text-xl text-slate-800 uppercase tracking-tighter mb-4">💰 Chi tiết dòng
+                        tiền</h3>
+                    <div class="grid lg:grid-cols-1 gap-12">
+                        <div>
+                            <div class="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between border-b pb-2 mb-2">
+                                        <span class="font-bold text-slate-700">🟢 Tổng giá trị Booking:</span>
+                                        <span class="font-black text-emerald-600 text-lg" id="finance-paid">0đ</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-medium text-slate-500">💳 Đã thanh toán (Đặt cọc):</span>
+                                        <span class="font-bold text-amber-500" id="finance-pending">0đ</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <script src="/js/host-dashboard.js"></script>
+        </main>
+    </div>
+</div>
+
+<div id="page-indicator">Trang: <span id="current-page-label">Trang Chủ</span></div>
+
+<div id="success-toast"
+    class="fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-8 py-3 rounded-full shadow-2xl z-[100] hidden">
+    <div class="flex items-center gap-3 font-bold">
+        <span id="toast-msg">Thành công!</span>
+    </div>
+</div>
+
+<div id="modal-qr"
+    class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm transition-all">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Quét mã QR Check-in</h3>
+            <button onclick="closeModal('modal-qr')"
+                class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-8 text-center bg-slate-800">
+            <div
+                class="relative w-64 h-64 mx-auto mb-6 bg-slate-900 rounded-3xl border-4 border-dashed border-teal-500 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(20,184,166,0.3)]">
+                <div
+                    class="w-full h-1 bg-teal-400 absolute top-0 left-0 shadow-[0_0_15px_rgba(45,212,191,1)] animate-[scan_2s_ease-in-out_infinite]">
+                </div>
+                <p class="text-slate-500 font-bold text-xs uppercase tracking-widest z-10">Đưa QR vào khung</p>
+            </div>
+            <button onclick="closeModal('modal-qr'); showToast('Check-in thành công cho mã đơn BK-9902!');"
+                class="w-full bg-teal-500 text-slate-900 py-4 rounded-xl font-black shadow-lg hover:bg-teal-400 transition uppercase text-xs tracking-widest">
+                [Demo] Bấm để giả lập Quét
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-add-space"
+    class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Thêm Không Gian Mới</h3>
+            <button onclick="closeModal('modal-add-space')"
+                class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-8 space-y-4">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên/Mã Không gian</label>
+                <input type="text" placeholder="VD: Phòng họp 103"
+                    class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Hình ảnh minh họa</label>
+                <label
+                    class="mt-2 h-20 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase cursor-pointer hover:border-teal-500 transition">
+                    + Chọn ảnh
+                    <input type="file" accept="image/*" class="hidden">
+                </label>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Loại</label>
+                    <select class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800">
+                        <option>Phòng họp</option>
+                        <option>Chỗ ngồi tự do</option>
+                    </select>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giá niêm yết /
+                        Giờ</label>
+                    <input type="number" placeholder="250000"
+                        class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                </div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Trạng thái</label>
+                <select class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800">
+                    <option value="ready">Sẵn sàng</option>
+                    <option value="preparing">Đang chuẩn bị</option>
+                    <option value="occupied">Có khách</option>
+                    <option value="suspended">Tạm ngừng hoạt động</option>
+                </select>
+            </div>
+            <button onclick="closeModal('modal-add-space'); showToast('Đã thêm không gian mới!');"
+                class="w-full mt-4 bg-teal-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-teal-700 transition">
+                Lưu Không Gian
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/main.js"></script>
+<script src="/js/host-spaces.js"></script>

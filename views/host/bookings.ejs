@@ -1,0 +1,87 @@
+<div class="flex flex-col gap-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Quản lý đơn đặt chỗ</h2>
+            <p class="text-slate-500 text-sm font-medium">Theo dõi và vận hành đơn.</p>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+        <div class="flex flex-col xl:flex-row gap-4 justify-between items-center">
+            
+            <div class="flex gap-2 bg-slate-50 p-1 rounded-[1rem] border border-slate-100 overflow-x-auto max-w-full">
+                <div class="booking-filter-tab active cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-teal-500 bg-white shadow-sm text-teal-600" onclick="filterHostBookings('all', this)">Tất cả</div>
+                
+                <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" onclick="filterHostBookings('pending', this)">
+                    Chờ duyệt <span id="host-pending-count" class="ml-1 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-black hidden">0</span>
+                </div>
+                
+                <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" onclick="filterHostBookings('confirmed', this)">Đã xác nhận</div>
+                <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" onclick="filterHostBookings('in-use', this)">Đang dùng</div>
+                <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" onclick="filterHostBookings('completed', this)">Đã kết thúc</div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+                
+                <div class="relative group z-50 w-full sm:w-auto">
+                    <button class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-teal-500 hover:text-teal-600 transition h-[42px]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <span id="filter-display-text" class="text-sm font-bold text-slate-700 whitespace-nowrap">Tất cả thời gian</span>
+                    </button>
+
+                    <div class="absolute right-0 top-full pt-2 w-48 hidden group-hover:block origin-top-right z-50">
+                        <ul class="py-1 text-sm text-slate-700 bg-white border border-slate-100 shadow-xl rounded-xl overflow-hidden">
+                            <li>
+                                <button type="button" onclick="applyFunnelFilter('all')" class="block w-full text-left px-4 py-3 hover:bg-slate-50 hover:text-teal-600 font-bold transition">
+                                    Tất cả thời gian
+                                </button>
+                            </li>
+                            <li class="border-t border-slate-50 relative">
+                                <button type="button" onclick="triggerDatePicker()" class="block w-full text-left px-4 py-3 hover:bg-slate-50 hover:text-teal-600 font-bold transition">
+                                    Ngày cụ thể...
+                                </button>
+                                
+                                <input type="date" id="funnel-date-picker" onchange="applyFunnelFilter('specific')" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; border: none; padding: 0; margin: 0;">
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="relative w-full sm:w-72 flex items-center bg-slate-50 border border-slate-200 rounded-2xl p-1 focus-within:border-teal-500 transition-all h-[42px]">
+                    <input type="text" 
+                           id="booking-search-input" 
+                           placeholder="Tìm email khách, mã đơn..." 
+                           class="w-full pl-3 pr-12 py-1 bg-transparent border-none outline-none text-sm font-medium text-slate-700">
+                    <button type="button" 
+                            oninput="handleBookingSearch()" 
+                            class="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition shadow-md active:scale-95">
+                        🔍
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-black tracking-widest">
+                <tr>
+                    <th class="p-5">Mã đơn / Khách</th>
+                    <th class="p-5">Không gian</th>
+                    <th class="p-5">Thời gian</th>
+                    <th class="p-5">Thanh toán</th>
+                    <th class="p-5">Trạng thái</th>
+                    <th class="p-5 text-right">Hành động</th>
+                </tr>
+            </thead>
+            <tbody class="text-xs" id="host-booking-table-body"></tbody>
+        </table>
+        
+        <div class="p-10 text-center" id="booking-empty-state" style="display: none;">
+            <div class="text-4xl mb-4 opacity-20">📂</div>
+            <p class="text-slate-400 font-bold uppercase text-[10px]">Trống</p>
+        </div>
+    </div>
+</div>

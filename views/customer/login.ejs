@@ -1,0 +1,73 @@
+<div class="max-w-md mx-auto py-10 px-8 border bg-white rounded-[2rem] shadow-2xl transition-all duration-500">
+    
+    <div id="login-form-area" class="animate-fadeIn">
+        <h2 class="text-2xl font-black mb-2 text-slate-800 uppercase tracking-tight" id="login-title">Đăng nhập</h2>
+        <p class="text-slate-400 mb-8 text-sm font-medium italic" id="login-subtitle">Nhập thông tin tài khoản của bạn</p>
+
+        <div class="space-y-4">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email</label>
+                <input type="email" id="email" placeholder="name@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mật khẩu</label>
+                <input type="password" id="password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            </div>
+            
+            <div class="text-right">
+                <button type="button" onclick="toggleForgotPasswordForm(true)" class="text-xs font-bold text-teal-600 hover:underline">Quên mật khẩu?</button>
+            </div>
+            
+            <button onclick="handleLogin(event)" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition uppercase text-xs tracking-widest shadow-lg mt-4">
+                Đăng nhập ngay
+            </button>
+        </div>
+        <p class="text-muted" style="text-align:center; margin-top:16px; font-size:13px;">
+            Chưa có tài khoản? <a href="/register" class="text-primary font-bold text-teal-600 hover:underline">Đăng ký ngay</a>
+        </p>
+    </div>
+
+    <div id="forgot-form-area" class="hidden animate-fadeIn">
+        <h2 class="text-2xl font-black mb-2 text-slate-800 uppercase tracking-tight">Khôi phục mật khẩu</h2>
+        <p class="text-slate-400 mb-6 text-sm font-medium italic">Nhập email hệ thống để nhận mã số xác minh danh tính</p>
+
+        <div class="space-y-4">
+            <div id="otp-email-subzone" class="space-y-4">
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email khôi phục</label>
+                    <input type="email" id="forgot-email" placeholder="name@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                </div>
+                <button onclick="requestOtpCode(event)" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition uppercase text-xs tracking-widest shadow-lg">
+                    Gửi mã xác nhận
+                </button>
+            </div>
+
+            <div id="otp-verify-subzone" class="hidden space-y-4 pt-2">
+                <div class="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                    <label class="block text-[10px] font-black text-amber-600 uppercase mb-1">Nhập mã OTP (Xem tại Terminal VS Code)</label>
+                    <input type="text" id="forgot-otp" placeholder="VD: 123456" class="w-full bg-transparent border-none p-0 text-sm font-black focus:ring-0 outline-none text-slate-800 tracking-widest">
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mật khẩu mới</label>
+                    <input type="password" id="forgot-new-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Xác nhận mật khẩu mới</label>
+                    <input type="password" id="forgot-confirm-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                </div>
+                <button onclick="executeResetPassword(event)" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition uppercase text-xs tracking-widest shadow-lg">
+                    Cập nhật mật khẩu
+                </button>
+            </div>
+
+            <div class="text-center pt-2">
+                <button type="button" onclick="toggleForgotPasswordForm(false)" class="text-xs font-bold text-slate-400 hover:text-slate-600">
+                    ← Quay lại Đăng nhập
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="/js/login.js"></script>

@@ -1,0 +1,62 @@
+<h2 class="text-2xl font-black text-slate-800 mb-8 tracking-tighter uppercase">Hồ sơ Khách hàng</h2>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl">
+    <div class="lg:col-span-1">
+        <div class="bg-white p-8 rounded-[2rem] border text-center shadow-sm">
+            <div class="relative w-32 h-32 mx-auto mb-4">
+                <div class="w-full h-full rounded-full border-4 border-teal-50 bg-teal-100 flex items-center justify-center overflow-hidden shadow-inner">
+                    <img id="profile-avatar-preview" name = "avatar" src="https://ui-avatars.com/api/?name=User&size=200" class="w-full h-full object-cover">
+                </div>
+                <label class="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full cursor-pointer shadow-lg hover:bg-teal-700 transition scale-90">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        <path d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <input type="file" id="input-avatar" class="hidden" accept="image/*" onchange="previewProfileImage(this)">
+                </label>
+            </div>
+            <h3 id="profile-display-name" class="text-xl font-bold text-slate-800 mt-2">--</h3>
+            <p class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Khách hàng</p>
+        </div>
+    </div>
+
+    <div class="lg:col-span-2">
+        <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+            <h3 class="font-black text-lg mb-6 text-slate-800 flex items-center gap-2 uppercase tracking-tighter">
+                <span>📝</span> Thông tin chi tiết
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Họ và tên</label>
+                    <input type="text" id="input-fullname" placeholder="Nhập họ và tên..." class="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 outline-none text-slate-800">
+                </div>
+
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email đăng nhập</label>
+                    <input type="email" id="input-email" class="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 outline-none text-slate-500" disabled>
+                </div>
+
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số điện thoại liên hệ</label>
+                    <input type="text" id="input-phone" placeholder="Nhập số điện thoại..." class="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 outline-none text-slate-800">
+                </div>
+
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên ngân hàng</label>
+                    <input type="text" id="input-bank-name" placeholder="VD: Vietcombank, TPBank..." class="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 outline-none text-slate-800">
+                </div>
+
+                <div class="md:col-span-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số tài khoản ngân hàng</label>
+                    <input type="text" id="input-bank-number" placeholder="Nhập số tài khoản..." class="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 outline-none text-slate-800">
+                </div>
+
+            </div>
+            <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                <button onclick="saveMyProfile()" class="bg-teal-600 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-teal-700 transition">
+                    Lưu thay đổi
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

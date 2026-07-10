@@ -1,0 +1,228 @@
+<div class="flex flex-col gap-8">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Báo cáo doanh thu</h2>
+            <p class="text-slate-500 text-sm font-medium">Thống kê chi tiết dòng tiền theo thời gian cho chủ cơ sở của bạn</p>
+        </div>
+    </div>
+
+    <div id="report-notice" class="hidden mt-6 rounded-3xl border border-orange-200 bg-orange-50 px-6 py-4 text-sm font-medium text-orange-700"></div>
+
+    <script>
+    const reportNotice = document.getElementById('report-notice');
+
+    function showReportNotice(message, type = 'error') {
+      reportNotice.textContent = message;
+      reportNotice.classList.remove('hidden', 'border-green-200', 'bg-green-50', 'text-green-700', 'border-orange-200', 'bg-orange-50', 'text-orange-700');
+
+      if (type === 'success') {
+        reportNotice.classList.add('border-green-200', 'bg-green-50', 'text-green-700');
+      } else {
+        reportNotice.classList.add('border-orange-200', 'bg-orange-50', 'text-orange-700');
+      }
+    }
+
+    function clearReportNotice() {
+      reportNotice.textContent = '';
+      reportNotice.classList.add('hidden');
+    }
+
+    async function handleExport(exportUrl) {
+      clearReportNotice();
+      try {
+        const response = await fetch(exportUrl);
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          showReportNotice(data.error || 'Lỗi xuất file', 'error');
+          return;
+        }
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `workhub-host-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          showReportNotice('Xuất dữ liệu báo cáo thành công.', 'success');
+        } else {
+          showReportNotice('Lỗi xuất file. Vui lòng thử lại sau.', 'error');
+        }
+      } catch (error) {
+        console.error('Export error:', error);
+        showReportNotice('Lỗi xuất file. Vui lòng thử lại sau.', 'error');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const exportButton = document.getElementById('exportReportButton');
+      if (exportButton) {
+        exportButton.addEventListener('click', function() {
+          handleExport(this.dataset.exportUrl);
+        });
+      }
+    });
+    </script>
+
+    <form method="GET" action="/host/reports" class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-wrap gap-4 items-end">
+        <div class="flex-1 min-w-[200px] flex items-end">
+            <button type="button" id="exportReportButton" data-export-url="<%= exportUrl %>" class="w-full bg-slate-800 text-white px-8 py-3 rounded-xl font-black shadow-lg hover:bg-slate-900 transition uppercase text-xs tracking-widest">
+                Xuất Excel
+            </button>
+        </div>
+        <div class="flex-1 min-w-[150px]">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-2 pl-1">Từ ngày</label>
+            <input type="date" name="startDate" value="<%= filters.startDate %>" class="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-700">
+        </div>
+        <div class="flex-1 min-w-[150px]">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-2 pl-1">Đến ngày</label>
+            <input type="date" name="endDate" value="<%= filters.endDate %>" class="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-700">
+        </div>
+        <button type="submit" class="bg-teal-600 text-white px-8 py-3 rounded-xl font-black shadow-lg hover:bg-teal-700 transition uppercase text-xs tracking-widest">Lọc dữ liệu</button>
+    </form>
+
+    <script id="hostReportData" type="application/json"><%- JSON.stringify({ chartLabels: chartLabels || [], chartRevenueData: chartRevenueData || [] }) %></script>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-teal-500">
+            <p class="report-card-label text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Tổng giá trị giao dịch (GMV)</p>
+            <p class="report-card-value text-3xl font-black text-slate-800"><%= reportTotals.gmvText %>đ</p>
+            <p class="report-card-note text-[10px] text-teal-600 font-bold mt-2">Tổng doanh thu đã xác nhận từ thanh toán online</p>
+        </div>
+        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-amber-500">
+            <p class="report-card-label text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Tiền cọc đã thu</p>
+            <p class="report-card-value text-3xl font-black text-slate-800"><%= reportTotals.depositText %>đ</p>
+            <p class="report-card-note text-[10px] text-amber-600 font-bold mt-2">Số tiền khách đã thanh toán online</p>
+        </div>
+        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-emerald-500">
+            <p class="report-card-label text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Tổng nợ tại quầy</p>
+            <p class="report-card-value text-3xl font-black text-slate-800"><%= reportTotals.outstandingText %>đ</p>
+            <p class="report-card-note text-[10px] text-emerald-600 font-bold mt-2">Số tiền còn lại khách thanh toán khi check-in</p>
+        </div>
+        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-orange-500 bg-orange-50/30">
+            <p class="report-card-label text-[10px] text-orange-600 font-black uppercase tracking-widest mb-2">Doanh thu hủy</p>
+            <p class="report-card-value text-3xl font-black text-orange-700"><%= reportTotals.cancelledText %>đ</p>
+            <p class="report-card-note text-sm text-gray-500 mt-2">Doanh thu bị huỷ trong kỳ chọn</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-3 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+            <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Biến động doanh thu</h3>
+            <div class="h-[250px] bg-slate-50 rounded-2xl border border-slate-100 p-4">
+                <% if (Array.isArray(chartLabels) && chartLabels.length > 0) { %>
+                    <canvas id="revenueChart" class="w-full h-full"></canvas>
+                <% } else { %>
+                    <div class="h-full flex items-center justify-center">
+                        <span class="text-sm font-medium text-slate-400">Biểu đồ sẽ hiển thị khi có dữ liệu thực tế</span>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+        <div class="lg:col-span-2 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+            <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Tổng số booking</h3>
+            <div class="space-y-3 text-slate-700">
+                <div class="flex justify-between items-center"><span class="text-slate-400">Booking xác nhận</span><strong><%= reportTotals.totalBookings %></strong></div>
+                <div class="flex justify-between items-center"><span class="text-slate-400">Số không gian lọc</span><strong><%= reportTotals.totalSpaces %></strong></div>
+                <div class="flex justify-between items-center"><span class="text-slate-400">Chi nhánh chọn</span><strong><%= reportTotals.selectedBranchName %></strong></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+        <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Hiệu suất không gian</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
+                    <tr>
+                        <th class="p-4 rounded-tl-xl">Xếp hạng</th>
+                        <th class="p-4">Tên phòng/chỗ</th>
+                        <th class="p-4">Chi nhánh</th>
+                        <th class="p-4">Lượt đặt</th>
+                        <th class="p-4">Tỷ lệ lấp đầy</th>
+                        <th class="p-4 rounded-tr-xl">Tổng thu</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm font-bold text-slate-700">
+                    <% if (performanceRows.length === 0) { %>
+                        <tr>
+                            <td colspan="6" class="p-6 text-center text-slate-500">Chưa có dữ liệu báo cáo</td>
+                        </tr>
+                    <% } else { %>
+                        <% performanceRows.forEach(row => { %>
+                            <tr class="border-b border-slate-50 hover:bg-slate-50/80 transition">
+                                <td class="p-4"><span class="inline-flex w-8 h-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 text-xs font-black"><%= row.rank %></span></td>
+                                <td class="p-4 text-slate-800"><%= row.spaceName %></td>
+                                <td class="p-4 text-slate-700"><%= row.branchName %></td>
+                                <td class="p-4"><%= row.bookings %></td>
+                                <td class="p-4"><span class="text-emerald-600"><%= row.fillRate %>%</span></td>
+                                <td class="p-4 text-teal-700 font-black"><%= row.revenueText %>đ</td>
+                            </tr>
+                        <% }); %>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+  (function() {
+    const hostReportData = document.getElementById('hostReportData');
+    const parsedData = hostReportData ? JSON.parse(hostReportData.textContent || '{}') : { chartLabels: [], chartRevenueData: [] };
+    const labels = Array.isArray(parsedData.chartLabels) ? parsedData.chartLabels : [];
+    const revenueData = Array.isArray(parsedData.chartRevenueData) ? parsedData.chartRevenueData : [];
+
+    if (!labels.length || !revenueData.length) return;
+
+    const ctx = document.getElementById('revenueChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Doanh thu',
+          data: revenueData,
+          backgroundColor: 'rgba(34, 197, 94, 0.15)',
+          borderColor: 'rgba(34, 197, 94, 1)',
+          borderWidth: 2,
+          fill: true,
+          pointRadius: 3,
+          pointBackgroundColor: 'rgba(34, 197, 94, 1)',
+          tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#475569', font: { size: 12 } }
+          },
+          y: {
+            grid: { color: 'rgba(148, 163, 184, 0.15)' },
+            ticks: {
+              color: '#475569',
+              font: { size: 12 },
+              callback: function(value) {
+                return new Intl.NumberFormat('vi-VN').format(value) + 'đ';
+              }
+            }
+          }
+        }
+      }
+    });
+  })();
+</script>

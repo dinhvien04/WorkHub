@@ -1,0 +1,320 @@
+<div id="space-mgr-layer-1">
+  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-8">
+    <div>
+      <h2 class="text-3xl font-black text-slate-800 mb-2 uppercase tracking-tighter">
+        Quản lý không gian
+      </h2>
+      <p class="text-slate-500">
+        Chọn một cơ sở để bắt đầu quản lý hoặc thêm cơ sở mới
+      </p>
+    </div>
+    <button
+      type="button"
+      id="btn-start-add-facility"
+      onclick="startAddFacility()"
+      class="px-6 py-3 bg-teal-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition flex items-center gap-2 shrink-0"
+    >
+      <span class="text-lg leading-none">+</span> Thêm cơ sở
+    </button>
+  </div>
+  <div id="facility-list-grid" class="grid md:grid-cols-2 gap-6">
+    <p class="text-slate-400 text-sm col-span-2">Đang tải danh sách cơ sở...</p>
+  </div>
+</div>
+
+<%- include('add_facility_wizard') %>
+
+<div id="space-mgr-layer-2" class="hidden">
+  <button
+    type="button"
+    onclick="backToLayer1()"
+    class="text-slate-400 hover:text-teal-600 mb-6 flex items-center gap-2 font-bold text-sm"
+  >
+    ← Quay lại danh sách cơ sở
+  </button>
+
+  <div class="grid lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-1 space-y-6">
+      <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+        <h3 class="font-black text-xl mb-6 text-slate-800 border-b pb-2">
+          Thông tin cơ sở
+        </h3>
+
+        <div class="space-y-4 my-4">
+          <div>
+            <label class="block text-xs font-black text-slate-400 uppercase mb-2">Ảnh cơ sở hiện tại (Bấm ✕ để xóa):</label>
+            <div
+              id="branch-main-img-container"
+              class="flex flex-wrap gap-2 p-2 border border-dashed rounded-2xl min-h-[100px] items-center bg-slate-50"
+            ></div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-black text-slate-400 uppercase mb-2">Chọn thêm ảnh mới bổ sung:</label>
+            <label
+              class="h-14 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] uppercase cursor-pointer hover:border-teal-500 hover:text-teal-600 transition mb-2 bg-slate-50"
+            >
+              + TẢI ẢNH MỚI LÊN
+              <input
+                type="file"
+                id="branch-img-input"
+                name="image"
+                accept="image/*"
+                multiple
+                class="hidden"
+                onchange="previewBranchImagesFromInput(this)"
+              />
+            </label>
+          </div>
+
+          <div>
+            <div id="branch-selected-preview-container" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <div class="p-3 bg-slate-50 rounded-xl border">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên cơ sở</label>
+            <input
+              type="text"
+              data-fac-field="name"
+              class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none"
+            />
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Địa chỉ</label>
+            <input
+              type="text"
+              data-fac-field="address"
+              class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none"
+            />
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Ghi chú mô tả</label>
+            <textarea
+              data-fac-field="note"
+              class="w-full bg-transparent border-none p-0 text-sm font-medium focus:ring-0 outline-none h-20 resize-none"
+            ></textarea>
+          </div>
+
+          <button
+            type="button"
+            onclick="saveBranchInfo()"
+            class="w-full bg-teal-600 text-white py-3 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition"
+          >
+            Cập nhật cơ sở
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lg:col-span-2 space-y-6">
+      <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+        <div class="flex justify-between items-center mb-8">
+          <h3 class="font-black text-xl text-slate-800">
+            Danh sách Không gian
+          </h3>
+          <button
+            type="button"
+            onclick="openSpaceModal()"
+            class="px-5 py-2.5 bg-teal-600 text-white font-black text-xs uppercase rounded-xl hover:bg-teal-700 shadow transition relative z-10"
+          >
+            + Thêm mới
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
+              <tr>
+                <th class="p-4">Tên / Mã</th>
+                <th class="p-4">Loại</th>
+                <th class="p-4">Trạng thái</th>
+                <th class="p-4">Hành động</th>
+              </tr>
+            </thead>
+            <tbody class="text-xs font-bold" id="spaces-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="space-mgr-layer-3" class="hidden">
+  <button
+    type="button"
+    onclick="backToLayer2()"
+    class="text-slate-400 hover:text-teal-600 mb-6 flex items-center gap-2 font-bold text-sm"
+  >
+    ← Quay lại danh sách không gian
+  </button>
+  <div class="grid lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-1 space-y-6">
+      <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+        <h3 class="font-black text-xl mb-6 text-slate-800" id="detail-space-title">
+          Chi tiết không gian
+        </h3>
+        <div class="space-y-6">
+          <div>
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-2 pl-1">
+              Hình ảnh không gian
+            </p>
+            <div
+              id="space-detail-img-container"
+              class="flex flex-wrap gap-2 min-h-[50px] bg-slate-50 p-2 rounded-xl border border-slate-100 mb-2"
+            ></div>
+            <div id="space-detail-new-preview" class="flex flex-wrap gap-2"></div>
+            <label
+              class="mt-2 h-14 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] uppercase cursor-pointer hover:border-teal-500 hover:text-teal-600 transition bg-slate-50"
+            >
+              + THÊM NHIỀU ẢNH PHÒNG MỚI
+              <input
+                type="file"
+                id="space-img-input"
+                name="image"
+                accept="image/*"
+                multiple
+                class="hidden"
+                onchange="previewNewSpaceDetailImages(this)"
+              />
+            </label>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giá niêm yết (/giờ)</label>
+            <input
+              type="number"
+              id="detail-space-price"
+              class="w-full bg-transparent border-none p-0 text-lg font-black text-teal-600 focus:ring-0 outline-none"
+            />
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border">
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Trạng thái</label>
+            <select
+              id="detail-space-status"
+              class="w-full bg-transparent border-none p-0 text-sm font-black text-slate-700 outline-none focus:ring-0"
+            >
+              <option value="ready">Sẵn sàng</option>
+              <option value="suspended">Tạm ngừng hoạt động</option>
+              <option value="maintenance">Bảo trì</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onclick="saveSpaceDetail()"
+            class="w-full bg-teal-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-teal-700 transition"
+          >
+            Lưu chi tiết
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="lg:col-span-2">
+      <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm min-h-full">
+        <h3 class="font-black text-xl mb-6 text-slate-800 uppercase tracking-tighter">
+          📅 Lịch đã được đặt
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
+              <tr>
+                <th class="p-4">Khách hàng</th>
+                <th class="p-4">Bắt đầu</th>
+                <th class="p-4">Kết thúc</th>
+                <th class="p-4">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody class="text-[11px]" id="space-schedule-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  id="modal-add-space"
+  class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm items-center justify-center z-50 flex"
+>
+  <div class="bg-white w-full max-w-md p-6 rounded-[2rem] shadow-2xl border">
+    <div class="flex justify-between items-center mb-4 border-b pb-2">
+      <h3 class="font-black text-lg text-slate-800 uppercase tracking-tight">
+        Thêm Không Gian Mới
+      </h3>
+      <button
+        type="button"
+        onclick="closeSpaceModal()"
+        class="text-slate-400 hover:text-slate-600 text-2xl font-bold p-1"
+      >
+        &times;
+      </button>
+    </div>
+    <form onsubmit="submitNewSpace(event)" class="space-y-4">
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Mã không gian</label>
+        <input
+          type="text"
+          id="modal-space-code"
+          placeholder="VD: MEETING-01"
+          required
+          class="w-full bg-transparent border-none p-0 text-xs font-bold outline-none focus:ring-0"
+        />
+      </div>
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Tên không gian</label>
+        <input
+          type="text"
+          id="modal-space-name"
+          placeholder="VD: Phòng hội nghị Lớn"
+          required
+          class="w-full bg-transparent border-none p-0 text-xs font-bold outline-none focus:ring-0"
+        />
+      </div>
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Loại hình</label>
+        <select
+          id="modal-space-category"
+          class="w-full bg-transparent border-none p-0 text-xs font-bold outline-none focus:ring-0"
+        >
+          <option>Phòng họp</option>
+          <option>Chỗ ngồi tự do</option>
+        </select>
+      </div>
+      <div class="p-3 bg-slate-50 rounded-xl border">
+        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Giá thuê (/Giờ)</label>
+        <input
+          type="number"
+          id="modal-space-price"
+          placeholder="VD: 150000"
+          required
+          class="w-full bg-transparent border-none p-0 text-xs font-bold outline-none focus:ring-0"
+        />
+      </div>
+      <div>
+        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 pl-1">Hình ảnh không gian (Có thể chọn nhiều)</label>
+        <input
+          type="file"
+          id="modal-space-img-input"
+          name="image"
+          accept="image/*"
+          multiple
+          onchange="previewModalSpaceImage(this)"
+          class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-teal-50 file:text-teal-700"
+        />
+        <div id="modal-space-img-preview" class="mt-2 flex flex-wrap gap-1"></div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button
+          type="button"
+          onclick="closeSpaceModal()"
+          class="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase hover:bg-slate-200"
+        >
+          Hủy
+        </button>
+        <button
+          type="submit"
+          class="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-black text-xs uppercase hover:bg-teal-700 shadow-md"
+        >
+          Xác nhận tạo
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

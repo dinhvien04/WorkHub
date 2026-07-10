@@ -1,0 +1,70 @@
+<!-- File này chứa toàn bộ các thẻ nổi lên (Pop-up), Toast thông báo thành công và con tem chỉ báo trang. -->
+<div id="page-indicator">Trang: <span id="current-page-label">Trang Chủ</span></div>
+
+<div id="success-toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-8 py-3 rounded-full shadow-2xl z-[100] hidden">
+    <div class="flex items-center gap-3 font-bold">
+        <span id="toast-msg">Thành công!</span>
+    </div>
+</div>
+
+<div id="modal-qr" class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm transition-all">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Quét mã QR Check-in</h3>
+            <button onclick="closeModal('modal-qr')" class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-8 text-center bg-slate-800">
+            <div class="relative w-64 h-64 mx-auto mb-6 bg-slate-900 rounded-3xl border-4 border-dashed border-teal-500 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(20,184,166,0.3)]">
+                <div class="w-full h-1 bg-teal-400 absolute top-0 left-0 shadow-[0_0_15px_rgba(45,212,191,1)] animate-[scan_2s_ease-in-out_infinite]"></div>
+                <p class="text-slate-500 font-bold text-xs uppercase tracking-widest z-10">Đưa QR vào khung</p>
+            </div>
+            <button onclick="closeModal('modal-qr'); showToast('Check-in thành công cho mã đơn BK-9902!');" class="w-full bg-teal-500 text-slate-900 py-4 rounded-xl font-black shadow-lg hover:bg-teal-400 transition uppercase text-xs tracking-widest">
+                [Demo] Bấm để giả lập Quét
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-add-space" class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Thêm Không Gian Mới</h3>
+            <button onclick="closeModal('modal-add-space')" class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-8 space-y-4">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên/Mã Không gian</label>
+                <input type="text" placeholder="VD: Phòng họp 103" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Hình ảnh minh họa</label>
+                <label class="mt-2 h-20 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase cursor-pointer hover:border-teal-500 transition">
+                    + Chọn ảnh
+                    <input type="file" accept="image/*" class="hidden">
+                </label>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Loại</label>
+                    <select class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800"><option>Phòng họp</option><option>Chỗ ngồi tự do</option></select>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giá niêm yết / Giờ</label>
+                    <input type="number" placeholder="250000" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                </div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Trạng thái</label>
+                <select class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800">
+                    <option value="ready">Sẵn sàng</option>
+                    <option value="preparing">Đang chuẩn bị</option>
+                    <option value="occupied">Có khách</option>
+                    <option value="suspended">Tạm ngừng hoạt động</option>
+                </select>
+            </div>
+            <button onclick="closeModal('modal-add-space'); showToast('Đã thêm không gian mới!');" class="w-full mt-4 bg-teal-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-teal-700 transition">
+                Lưu Không Gian
+            </button>
+        </div>
+    </div>
+</div>

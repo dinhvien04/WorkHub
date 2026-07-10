@@ -1,0 +1,41 @@
+<div class="p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-3xl font-black text-slate-800 mb-1">Quản lý Người dùng</h1>
+            <p class="text-slate-500 text-sm">Xem, tìm kiếm và kiểm soát trạng thái hoạt động của thành viên hệ thống.</p>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <input type="text" id="search-user" placeholder="Tìm theo email hoặc tên..." 
+                   class="px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 w-64">
+            <select id="filter-role" class="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 bg-white">
+                <option value="all">Tất cả vai trò</option>
+                <option value="customer">Khách hàng</option>
+                <option value="host">Chủ cơ sở</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="border border-slate-100 rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+                        <th class="p-4 font-medium">Họ và tên</th>
+                        <th class="p-4 font-medium">Email</th>
+                        <th class="p-4 font-medium">Vai trò</th>
+                        <th class="p-4 font-medium">Trạng thái</th>
+                        <th class="p-4 font-medium text-right">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body" class="text-sm divide-y divide-slate-100">
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-slate-400">
+                            Đang tải danh sách người dùng...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
