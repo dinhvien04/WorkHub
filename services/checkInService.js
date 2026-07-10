@@ -80,27 +80,16 @@ async function checkInWithToken({ hostId, token, code }) {
     bookingId = payload.bid;
   } else if (code) {
     const suffix = String(code).replace(/^WH-/i, '').toLowerCase();
-    const booking = await Booking.findOne({
-      HostID: hostId,
-      Status: 'confirmed',
-      $expr: {
-        $eq: [{ $substrBytes: [{ $toString: '$_id' }, -6, 6] }, suffix],
-      },
-    });
-    // Fallback: scan recent confirmed bookings
-    if (!booking) {
-      const list = await Booking.find({ HostID: hostId, Status: 'confirmed' })
-        .sort({ StartTime: 1 })
-        .limit(100)
-        .select('_id');
-      const match = list.find(
-        (b) => String(b._id).slice(-6).toLowerCase() === suffix.toLowerCase()
-      );
-      if (!match) throw new NotFoundError('Không tìm thấy booking với mã này.');
-      bookingId = match._id;
-    } else {
-      bookingId = booking._id;
-    }
+    // Prefer in-process match (reliable across Mongo standalone / memory server)
+    const list = await Booking.find({ HostID: hostId, Status: 'confirmed' })
+      .sort({ StartTime: 1 })
+      .limit(200)
+      .select('_id');
+    const match = list.find(
+      (b) => String(b._id).slice(-6).toLowerCase() === suffix
+    );
+    if (!match) throw new NotFoundError('Không tìm thấy booking với mã này.');
+    bookingId = match._id;
   } else {
     throw new ValidationError('Cần token QR hoặc booking code.');
   }

@@ -1,10 +1,20 @@
 <div class="max-w-2xl mx-auto">
-  <div class="flex items-center justify-between mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
     <div>
       <h1 class="text-2xl font-black text-slate-800">Thông báo</h1>
-      <p class="text-sm text-slate-500">Booking, thanh toán và tin nhắn</p>
+      <p class="text-sm text-slate-500">Booking, thanh toán và tin nhắn · <span id="notif-unread-label" class="font-bold text-teal-700">0 chưa đọc</span></p>
     </div>
     <button type="button" id="notif-read-all" class="text-xs font-bold text-teal-700 px-3 py-2 rounded-xl border">Đánh dấu đã đọc</button>
   </div>
+
+  <div class="flex flex-wrap gap-2 mb-4" id="notif-filters" role="tablist" aria-label="Lọc thông báo">
+    <button type="button" data-filter="all" class="text-[10px] font-black uppercase px-3 py-1.5 rounded-full border ring-2 ring-teal-500">Tất cả</button>
+    <button type="button" data-filter="unread" class="text-[10px] font-black uppercase px-3 py-1.5 rounded-full border">Chưa đọc</button>
+    <button type="button" data-filter="booking" class="text-[10px] font-black uppercase px-3 py-1.5 rounded-full border">Booking</button>
+    <button type="button" data-filter="payment" class="text-[10px] font-black uppercase px-3 py-1.5 rounded-full border">Thanh toán</button>
+    <button type="button" data-filter="message" class="text-[10px] font-black uppercase px-3 py-1.5 rounded-full border">Tin nhắn</button>
+    <button type="button" data-filter="system" class="text-[10px] font-black uppercase px-3 py-1.5 rounded-full border">Hệ thống</button>
+  </div>
+
   <div id="notif-list" class="space-y-2" aria-live="polite"></div>
 </div>

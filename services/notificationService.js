@@ -44,9 +44,15 @@ async function notifyUser({
   }
 }
 
-async function listNotifications(userId, { page = 1, limit = 20, unreadOnly = false } = {}) {
+async function listNotifications(
+  userId,
+  { page = 1, limit = 20, unreadOnly = false, type = null } = {}
+) {
   const filter = { UserID: userId };
   if (unreadOnly) filter.IsRead = false;
+  if (type && ['system', 'booking', 'payment', 'host', 'admin', 'message'].includes(type)) {
+    filter.Type = type;
+  }
   const skip = (page - 1) * limit;
   const [items, total, unreadCount] = await Promise.all([
     Notification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
@@ -68,4 +74,19 @@ async function markAllRead(userId) {
   await Notification.updateMany({ UserID: userId, IsRead: false }, { $set: { IsRead: true } });
 }
 
-module.exports = { notifyUser, listNotifications, markRead, markAllRead };
+async function unreadCount(userId) {
+  return Notification.countDocuments({ UserID: userId, IsRead: false });
+}
+
+async function deleteNotification(userId, notificationId) {
+  return Notification.findOneAndDelete({ _id: notificationId, UserID: userId });
+}
+
+module.exports = {
+  notifyUser,
+  listNotifications,
+  markRead,
+  markAllRead,
+  unreadCount,
+  deleteNotification,
+};

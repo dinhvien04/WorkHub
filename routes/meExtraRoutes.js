@@ -15,8 +15,10 @@ router.delete('/favorites/:branchId', verifyToken, authorizeRole('customer'), ct
 router.post('/favorites/merge', verifyToken, authorizeRole('customer'), ctrl.mergeFavorites);
 
 router.get('/notifications', verifyToken, ctrl.listNotifications);
+router.get('/notifications/unread-count', verifyToken, ctrl.notificationUnreadCount);
 router.post('/notifications/read-all', verifyToken, ctrl.markAllNotificationsRead);
 router.patch('/notifications/:id/read', verifyToken, ctrl.markNotificationRead);
+router.delete('/notifications/:id', verifyToken, ctrl.deleteNotification);
 
 router.post('/coupons/preview', verifyToken, authorizeRole('customer'), ctrl.previewCoupon);
 

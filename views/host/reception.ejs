@@ -1,26 +1,42 @@
 <div class="max-w-5xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Reception — Hôm nay</h1>
-  <p class="text-sm text-slate-500 mb-4">Check-in / check-out nhanh · quét mã QR hoặc mã WH-xxxxxx</p>
-  <div class="bg-white rounded-2xl border p-4 mb-4 flex flex-wrap gap-2 items-end">
-    <div class="flex-1 min-w-[200px]">
-      <label for="rx-code" class="block text-[10px] font-black uppercase text-slate-400 mb-1">Mã QR token hoặc booking code</label>
-      <input id="rx-code" type="text" placeholder="WH-ABC123 hoặc token"
-        class="w-full border rounded-xl px-3 py-2 text-sm font-semibold" />
+  <div class="flex flex-wrap items-end justify-between gap-2 mb-2">
+    <div>
+      <h1 class="text-2xl font-black mb-1">Reception — Hôm nay</h1>
+      <p class="text-sm text-slate-500">Check-in / check-out · quét QR token hoặc mã <span class="font-mono">WH-xxxxxx</span></p>
     </div>
+    <div class="flex gap-2 items-center">
+      <span id="rx-count" class="text-xs font-bold text-slate-400"></span>
+      <button type="button" id="rx-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl border p-4 mb-4 flex flex-wrap gap-2 items-end">
+    <div class="flex-1 min-w-[220px]">
+      <label for="rx-code" class="block text-[10px] font-black uppercase text-slate-400 mb-1">Mã QR token hoặc booking code</label>
+      <input id="rx-code" type="text" placeholder="WH-ABC123 hoặc token base64…" autocomplete="off"
+        class="w-full border rounded-xl px-3 py-2 text-sm font-semibold font-mono" />
+    </div>
+    <button type="button" id="rx-paste"
+      class="border px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-slate-600">
+      Dán
+    </button>
     <button type="button" id="rx-scan-btn"
       class="bg-teal-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
       Quét / Check-in
     </button>
     <p id="rx-scan-msg" class="text-sm w-full" role="status"></p>
+    <p class="text-[10px] text-slate-400 w-full">Mẹo: khách mở Dashboard → Hiện QR; dán token vào đây hoặc nhập mã WH-.</p>
   </div>
+
   <div id="rx-error" class="error-state hidden mb-4"></div>
-  <div class="bg-white rounded-3xl border overflow-hidden">
-    <table class="w-full text-sm">
+  <div class="bg-white rounded-3xl border overflow-x-auto">
+    <table class="w-full text-sm min-w-[640px]">
       <thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
         <tr>
           <th class="p-3 text-left">Giờ</th>
           <th class="p-3 text-left">Phòng</th>
           <th class="p-3 text-left">Khách</th>
+          <th class="p-3 text-left">Mã</th>
           <th class="p-3 text-left">TT</th>
           <th class="p-3 text-right">Thao tác</th>
         </tr>

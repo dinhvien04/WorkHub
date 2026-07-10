@@ -39,6 +39,7 @@ const listNotifications = asyncHandler(async (req, res) => {
     page,
     limit,
     unreadOnly: req.query.unread === '1',
+    type: req.query.type || null,
   });
   res.json({
     notifications: data.items,
@@ -56,6 +57,17 @@ const markNotificationRead = asyncHandler(async (req, res) => {
 const markAllNotificationsRead = asyncHandler(async (req, res) => {
   await notificationService.markAllRead(req.user.userId);
   res.json({ message: 'Đã đánh dấu đọc tất cả.' });
+});
+
+const notificationUnreadCount = asyncHandler(async (req, res) => {
+  const count = await notificationService.unreadCount(req.user.userId);
+  res.json({ unreadCount: count });
+});
+
+const deleteNotification = asyncHandler(async (req, res) => {
+  const n = await notificationService.deleteNotification(req.user.userId, req.params.id);
+  if (!n) throw new NotFoundError('Không tìm thấy thông báo.');
+  res.json({ deleted: true });
 });
 
 const previewCoupon = asyncHandler(async (req, res) => {
@@ -194,6 +206,8 @@ module.exports = {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  notificationUnreadCount,
+  deleteNotification,
   previewCoupon,
   listMessages,
   sendMessage,

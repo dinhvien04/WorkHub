@@ -241,13 +241,46 @@ async function updateUIBasedOnAuth() {
     if (sidebarToggle) sidebarToggle.classList.remove('hidden');
 
     renderMenu(user.role);
+    refreshNotifBadge();
   } else {
     if (loginBtn) loginBtn.classList.remove('hidden');
     if (userInfo) userInfo.classList.add('hidden');
     if (sidebar) sidebar.classList.add('hidden-permanent');
     if (sidebarToggle) sidebarToggle.classList.add('hidden');
+    setNotifBadge(0);
   }
 }
+
+function setNotifBadge(count) {
+  const n = Math.max(0, Number(count) || 0);
+  const badge = document.getElementById('header-notif-badge');
+  const mob = document.getElementById('mob-notif-badge');
+  [badge, mob].forEach((el) => {
+    if (!el) return;
+    if (n > 0) {
+      el.textContent = n > 99 ? '99+' : String(n);
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  });
+}
+
+async function refreshNotifBadge() {
+  try {
+    if (!window.WorkHubAPI) return;
+    const res = await WorkHubAPI.api('/api/me/notifications/unread-count', {
+      redirectOn401: false,
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setNotifBadge(data.unreadCount || 0);
+  } catch {
+    /* ignore */
+  }
+}
+
+window.WorkHubNotifBadge = { set: setNotifBadge, refresh: refreshNotifBadge };
 
 function renderMenu(currentRole) {
   const c = document.getElementById('menu-items');
