@@ -591,6 +591,10 @@ const webauthnLoginVerify = asyncHandler(async (req, res) => {
     challenge: req.body.challenge,
     credentialId: req.body.credentialId || req.body.id,
     signature: req.body.signature || req.body.response?.signature || '',
+    clientDataJSON: req.body.clientDataJSON || req.body.response?.clientDataJSON,
+    authenticatorData: req.body.authenticatorData || req.body.response?.authenticatorData,
+    counter: req.body.counter,
+    host: req.get('host'),
   });
   if (user.TotpEnabled) {
     const pendingToken = jwt.sign(

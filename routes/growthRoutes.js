@@ -167,6 +167,9 @@ router.post(
   g.hostReplyReview
 );
 
+// Public host profile
+router.get('/public/hosts/:hostId', g.publicHostProfile);
+
 // Timeline + cancel policy preview
 router.get('/bookings/:bookingId/timeline', verifyToken, g.bookingTimeline);
 router.get('/bookings/:bookingId/cancel-preview', verifyToken, g.cancelPreview);

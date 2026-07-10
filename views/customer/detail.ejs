@@ -87,7 +87,13 @@
 
         <div id="reviews-section" class="mt-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
             <h3 class="font-bold text-xl mb-4 text-slate-800 uppercase tracking-tight">Đánh giá từ khách hàng</h3>
+            <div id="rating-breakdown" class="mb-6 max-w-md"></div>
             <div class="space-y-4" id="review-items-list"></div>
+            <% if (branch.HostID) { %>
+            <p class="mt-4 text-sm">
+              <a class="text-teal-700 underline font-medium" href="/hosts/<%= branch.HostID %>">Xem hồ sơ host →</a>
+            </p>
+            <% } %>
         </div>
 
     </div>

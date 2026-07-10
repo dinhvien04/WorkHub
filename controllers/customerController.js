@@ -654,34 +654,19 @@ async function getReview(req, res) {
   }
 }
 
-// (CỦA BẠN - GIỮ NGUYÊN BỞI VÌ NÓ XỬ LÝ LỖI ĐẶT TÊN BIẾN RẤT TỐT: fullName vs FullName)
+// Branch reviews + star rating breakdown (1–5)
 async function getBranchReviews(req, res) {
     try {
         const { branchId } = req.params;
         if (!branchId) return res.status(400).json({ error: 'Thiếu branchId.' });
 
-        const spaces = await Space.find({ BranchID: branchId }).select('_id').lean();
-        const spaceIds = spaces.map(s => s._id);
-
-        if (spaceIds.length === 0) return res.json({ reviews: [] });
-
-        const reviews = await Review.find({ SpaceID: { $in: spaceIds } })
-            .sort({ createdAt: -1 })
-            .populate('CustomerID', 'FullName fullName Avatar avatarUrl')
-            .lean();
-
-        const formatted = reviews.map(r => ({
-            _id: r._id,
-            spaceId: r.SpaceID,
-            customerId: r.CustomerID?._id,
-            customerName: r.CustomerID?.FullName || r.CustomerID?.fullName || '',
-            customerAvatar: r.CustomerID?.Avatar || r.CustomerID?.avatarUrl || '',
-            rating: r.Rating,
-            comment: r.Comment,
-            createdAt: r.createdAt
-        }));
-
-        return res.json({ reviews: formatted });
+        const limit = req.query.limit;
+        const skip = req.query.skip;
+        const payload = await require('../services/reviewStatsService').getBranchReviewsPayload(
+            branchId,
+            { limit, skip }
+        );
+        return res.json(payload);
     } catch (err) {
         return sendServerError(res, err);
     }

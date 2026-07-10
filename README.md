@@ -108,6 +108,10 @@ npm run seed:extras  # coupons + feature flags demo
 - FAQPage JSON-LD for CMS guides with `Q:`/`A:` lines
 - Listing map (OpenStreetMap embed) + gallery width/height for CLS
 - Passkey/WebAuthn register+login challenge flow (`/api/auth/webauthn/*`)
+- Optional `@simplewebauthn/server` assertion verify when installed (`WEBAUTHN_STRICT`)
+- Review rating breakdown (`GET /api/customers/branch/:id/reviews` → `breakdown`)
+- Public host profile page (`/hosts/:hostId`, `GET /api/public/hosts/:hostId`)
+- Skip-safe Playwright smoke: `npm run test:e2e`
 - Web Push subscribe API + SW `push` handler (VAPID optional)
 - Staff reception/check-in proxy (`/api/staff/host/*`)
 - Socket `join_booking` scoped rooms; critical self-hosted CSS utilities

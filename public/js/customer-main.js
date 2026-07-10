@@ -645,6 +645,10 @@ async function loadBranchReviews() {
             return;
         }
 
+        const breakdownEl = document.getElementById('rating-breakdown');
+        if (breakdownEl && DomSafe.renderRatingBreakdown && data.breakdown) {
+            DomSafe.renderRatingBreakdown(breakdownEl, data.breakdown);
+        }
         DomSafe.renderReviews(container, data.reviews || []);
     } catch (e) {
         console.error(e);

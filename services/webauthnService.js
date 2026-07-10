@@ -172,12 +172,73 @@ function assertClientDataChallenge(clientDataJSON, expectedChallenge) {
 }
 
 /**
+ * Optional full crypto verify via @simplewebauthn/server when installed.
+ * Returns: 'verified' | 'failed' | 'skipped'
+ */
+async function trySimpleWebAuthnVerify({
+  credential,
+  challenge,
+  credentialId,
+  clientDataJSON,
+  authenticatorData,
+  signature,
+  host,
+}) {
+  let verifyAuthenticationResponse;
+  try {
+    // Optional dependency — not in package.json by default
+    ({ verifyAuthenticationResponse } = require('@simplewebauthn/server'));
+  } catch {
+    return 'skipped';
+  }
+  if (!clientDataJSON || !authenticatorData || !signature || !credential.PublicKey) {
+    return 'skipped';
+  }
+  try {
+    const expectedOrigin =
+      process.env.WEBAUTHN_ORIGIN ||
+      process.env.PUBLIC_BASE_URL ||
+      `http://${host || 'localhost'}`;
+    const rpID = rpIdFromHost(host || 'localhost');
+    const verification = await verifyAuthenticationResponse({
+      response: {
+        id: String(credentialId),
+        rawId: String(credentialId),
+        type: 'public-key',
+        response: {
+          clientDataJSON: String(clientDataJSON),
+          authenticatorData: String(authenticatorData),
+          signature: String(signature),
+        },
+      },
+      expectedChallenge: challenge,
+      expectedOrigin,
+      expectedRPID: rpID,
+      credential: {
+        id: credential.CredentialId,
+        publicKey: Buffer.from(String(credential.PublicKey), 'base64url'),
+        counter: credential.Counter || 0,
+      },
+      requireUserVerification: false,
+    });
+    return verification && verification.verified ? 'verified' : 'failed';
+  } catch (err) {
+    if (process.env.WEBAUTHN_STRICT === '1') {
+      throw new UnauthorizedError(
+        `WebAuthn verify thất bại: ${err.message || 'invalid assertion'}`
+      );
+    }
+    return 'failed';
+  }
+}
+
+/**
  * Assertion verify:
  * - consume challenge (bound to user when issued at login options)
  * - credential must exist
  * - if clientDataJSON provided, challenge must match (real browser flow)
  * - signature required when WEBAUTHN_REQUIRE_SIGNATURE=1
- * Full COSE/public-key verify can use @simplewebauthn/server when added.
+ * - optional COSE verify via @simplewebauthn/server when installed
  */
 async function verifyLoginAssertion({
   challenge,
@@ -186,6 +247,7 @@ async function verifyLoginAssertion({
   clientDataJSON,
   authenticatorData,
   counter,
+  host,
 }) {
   if (!credentialId) throw new ValidationError('Thiếu credentialId.');
   if (process.env.WEBAUTHN_REQUIRE_SIGNATURE === '1' && !signature) {
@@ -202,6 +264,19 @@ async function verifyLoginAssertion({
   // Challenge was issued for a specific user — must match credential owner
   if (challengeDoc.UserID && String(challengeDoc.UserID) !== String(cred.UserID)) {
     throw new UnauthorizedError('Passkey không khớp tài khoản challenge.');
+  }
+
+  const cryptoResult = await trySimpleWebAuthnVerify({
+    credential: cred,
+    challenge,
+    credentialId,
+    clientDataJSON,
+    authenticatorData,
+    signature,
+    host,
+  });
+  if (cryptoResult === 'failed' && process.env.WEBAUTHN_STRICT === '1') {
+    throw new UnauthorizedError('Chữ ký WebAuthn không hợp lệ.');
   }
 
   // Counter must not go backwards (clone detection)
@@ -240,6 +315,7 @@ module.exports = {
   registerCredential,
   loginOptions,
   verifyLoginAssertion,
+  trySimpleWebAuthnVerify,
   listCredentials,
   revokeCredential,
   rpIdFromHost,

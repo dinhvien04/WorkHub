@@ -1,0 +1,76 @@
+<div class="max-w-5xl mx-auto px-4 py-8" data-host-id="<%= host.hostId %>">
+  <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 mb-8">
+    <div class="flex flex-col sm:flex-row gap-6 items-start">
+      <div class="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+        <% if (host.logo) { %>
+          <img src="<%= host.logo %>" alt="<%= host.companyName %>" width="80" height="80" class="w-full h-full object-cover" loading="eager" decoding="async" />
+        <% } else { %>
+          <span class="text-3xl" aria-hidden="true">🏢</span>
+        <% } %>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-1">
+          <h1 class="text-2xl font-black text-slate-800"><%= host.companyName %></h1>
+          <% if (host.isVerified) { %>
+            <span class="text-xs font-bold uppercase tracking-wide bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">Đã xác minh</span>
+          <% } %>
+        </div>
+        <p class="text-slate-500 text-sm mb-3">Host trên WorkHub · <%= host.displayName %></p>
+        <div class="flex flex-wrap gap-4 text-sm text-slate-600">
+          <span>⭐ <strong class="text-amber-600"><%= host.stats.ratingAverage %></strong>/5
+            (<%= host.stats.ratingTotal %> đánh giá)</span>
+          <span>📍 <%= host.stats.branchCount %> cơ sở</span>
+          <span>🪑 <%= host.stats.spaceCount %> không gian</span>
+          <% if (host.hotlineMasked) { %>
+            <span>📞 <%= host.hotlineMasked %></span>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <% if (host.stats.ratingTotal > 0) { %>
+    <div class="mt-6 pt-6 border-t border-slate-100" id="rating-breakdown">
+      <h2 class="font-bold text-slate-800 text-sm mb-3 uppercase tracking-tight">Phân bố đánh giá</h2>
+      <div class="space-y-1.5 max-w-md">
+        <% for (let s = 5; s >= 1; s--) {
+          const pct = (host.stats.ratingBreakdown && host.stats.ratingBreakdown.percentages && host.stats.ratingBreakdown.percentages[s]) || 0;
+          const cnt = (host.stats.ratingBreakdown && host.stats.ratingBreakdown.counts && host.stats.ratingBreakdown.counts[s]) || 0;
+        %>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="w-8 text-slate-500"><%= s %>★</span>
+          <div class="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-full bg-amber-400 rounded-full" style="width: <%= pct %>%"></div>
+          </div>
+          <span class="w-16 text-right text-slate-400"><%= cnt %> (<%= pct %>%)</span>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+  </div>
+
+  <h2 class="font-bold text-lg text-slate-800 mb-4">Cơ sở của host</h2>
+  <% if (!host.branches || host.branches.length === 0) { %>
+    <p class="text-slate-400 text-sm italic">Chưa có cơ sở công khai.</p>
+  <% } else { %>
+  <div class="grid md:grid-cols-2 gap-4">
+    <% host.branches.forEach(function(b) { %>
+    <a href="<%= b.detailPath %>" class="block bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-teal-300 hover:shadow-md transition group">
+      <% if (b.image) { %>
+      <img src="<%= b.image %>" alt="" width="640" height="200" class="w-full h-36 object-cover" loading="lazy" decoding="async" />
+      <% } else { %>
+      <div class="w-full h-36 bg-slate-100 flex items-center justify-center text-slate-300 text-3xl">🏢</div>
+      <% } %>
+      <div class="p-4">
+        <h3 class="font-bold text-slate-800 group-hover:text-teal-700"><%= b.name %></h3>
+        <p class="text-xs text-slate-500 mt-1 line-clamp-2"><%= b.address %></p>
+        <div class="flex gap-3 mt-2 text-xs text-slate-600">
+          <span class="text-amber-600 font-semibold">★ <%= b.ratingAvg || 0 %></span>
+          <% if (b.city) { %><span><%= b.city %></span><% } %>
+        </div>
+      </div>
+    </a>
+    <% }) %>
+  </div>
+  <% } %>
+</div>

@@ -46,6 +46,7 @@ async function main() {
     await check('/sitemap-images.xml'),
     await check('/metrics'),
     await check('/api/auth/google/status'),
+    await check('/api/featured'),
   ];
 
   let failed = 0;

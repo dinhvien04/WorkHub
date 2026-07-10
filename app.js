@@ -341,6 +341,38 @@ function createApp() {
       scripts: res.locals.scriptsFrom(['/js/consent.js']),
     })
   );
+  app.get('/hosts/:hostId', async (req, res, next) => {
+    try {
+      const data = await require('./services/publicHostService').getPublicHostProfile(
+        req.params.hostId
+      );
+      const jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: data.companyName,
+        url: `${req.protocol}://${req.get('host')}/hosts/${data.hostId}`,
+        logo: data.logo || undefined,
+        aggregateRating:
+          data.stats.ratingTotal > 0
+            ? {
+                '@type': 'AggregateRating',
+                ratingValue: data.stats.ratingAverage,
+                reviewCount: data.stats.ratingTotal,
+              }
+            : undefined,
+      };
+      res.render('customer/host-public', {
+        host: data,
+        pageTitle: `${data.companyName} — Host WorkHub`,
+        metaDescription: `Host ${data.companyName}: ${data.stats.branchCount} cơ sở, đánh giá ${data.stats.ratingAverage}/5.`,
+        canonicalPath: `/hosts/${data.hostId}`,
+        jsonLd,
+      });
+    } catch (e) {
+      if (e.statusCode === 404) return res.status(404).send('Không tìm thấy host');
+      return next(e);
+    }
+  });
   app.get('/dashboard', (req, res) =>
     res.render('customer/dashboard', {
       pageTitle: 'Tổng quan — WorkHub',

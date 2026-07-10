@@ -110,6 +110,42 @@
   }
 
   /**
+   * Star rating breakdown bars (1–5).
+   */
+  function renderRatingBreakdown(container, breakdown) {
+    if (!container) return;
+    clearElement(container);
+    if (!breakdown || !breakdown.total) {
+      container.appendChild(
+        createTextElement('div', 'text-slate-400 text-xs', 'Chưa có phân bố điểm.')
+      );
+      return;
+    }
+    const head = createTextElement(
+      'p',
+      'text-sm font-semibold text-slate-700 mb-2',
+      `★ ${breakdown.average}/5 · ${breakdown.total} đánh giá`
+    );
+    container.appendChild(head);
+    for (let s = 5; s >= 1; s--) {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2 text-xs mb-1';
+      row.appendChild(createTextElement('span', 'w-6 text-slate-500', `${s}★`));
+      const track = document.createElement('div');
+      track.className = 'flex-1 h-2 rounded-full bg-slate-100 overflow-hidden';
+      const fill = document.createElement('div');
+      fill.className = 'h-full bg-amber-400 rounded-full';
+      const pct = (breakdown.percentages && breakdown.percentages[s]) || 0;
+      fill.style.width = `${pct}%`;
+      track.appendChild(fill);
+      row.appendChild(track);
+      const cnt = (breakdown.counts && breakdown.counts[s]) || 0;
+      row.appendChild(createTextElement('span', 'w-14 text-right text-slate-400', `${cnt}`));
+      container.appendChild(row);
+    }
+  }
+
+  /**
    * Render reviews safely with textContent.
    */
   function renderReviews(container, reviews) {
@@ -137,6 +173,14 @@
       card.appendChild(
         createTextElement('p', 'text-sm text-slate-600 mt-1', r.comment || r.Comment || '')
       );
+      const reply = r.hostReply || r.HostReply;
+      if (reply) {
+        const box = document.createElement('div');
+        box.className = 'mt-2 pl-3 border-l-2 border-teal-200';
+        box.appendChild(createTextElement('p', 'text-xs font-semibold text-teal-700', 'Phản hồi host'));
+        box.appendChild(createTextElement('p', 'text-xs text-slate-600', reply));
+        card.appendChild(box);
+      }
       container.appendChild(card);
     });
   }
@@ -161,6 +205,7 @@
     safeImageUrl,
     renderSpaceList,
     renderReviews,
+    renderRatingBreakdown,
     renderUserText,
   };
 });

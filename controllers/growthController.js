@@ -648,6 +648,14 @@ const hostReplyReview = asyncHandler(async (req, res) => {
   res.json({ review });
 });
 
+// —— Public host profile (no secrets) ——
+const publicHostProfile = asyncHandler(async (req, res) => {
+  const data = await require('../services/publicHostService').getPublicHostProfile(
+    req.params.hostId
+  );
+  res.json({ host: data });
+});
+
 // —— Booking timeline + cancel preview ——
 const bookingTimeline = asyncHandler(async (req, res) => {
   const timeline = await require('../services/bookingTimelineService').getBookingTimeline({
@@ -981,6 +989,7 @@ module.exports = {
   reportReview,
   moderateReview,
   hostReplyReview,
+  publicHostProfile,
   bookingTimeline,
   cancelPreview,
   hostInbox,

@@ -20,7 +20,8 @@
     "build:css": "node scripts/purge-css.js",
     "build:css:full": "node scripts/minify-css.js",
     "smoke": "node scripts/smoke-e2e.js",
-    "load:smoke": "node scripts/load-smoke.js"
+    "load:smoke": "node scripts/load-smoke.js",
+    "test:e2e": "node scripts/playwright-e2e.js"
   },
   "keywords": [
     "coworking",
