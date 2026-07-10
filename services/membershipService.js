@@ -53,15 +53,29 @@ async function postCreditEntry({
     if (existing) return existing;
   }
 
-  const m = await Membership.findById(membershipId);
-  if (!m) throw new NotFoundError("Membership không tồn tại.");
-
-  const signed = direction === "credit" ? hrs : -hrs;
-  const next = Math.max(0, (m.CreditsRemaining || 0) + signed);
-
-  if (direction === "debit" && (m.CreditsRemaining || 0) < hrs) {
-    throw new ValidationError("Không đủ giờ membership.");
+  // Atomic conditional balance update first (prevents concurrent debit overspend)
+  const filter = { _id: membershipId };
+  let inc = 0;
+  if (direction === "credit") {
+    inc = hrs;
+  } else {
+    inc = -hrs;
+    filter.CreditsRemaining = { $gte: hrs };
   }
+
+  const updated = await Membership.findOneAndUpdate(
+    filter,
+    { $inc: { CreditsRemaining: inc } },
+    { new: true },
+  );
+  if (!updated) {
+    if (direction === "debit") {
+      throw new ValidationError("Không đủ giờ membership.");
+    }
+    throw new NotFoundError("Membership không tồn tại.");
+  }
+
+  const next = Math.max(0, updated.CreditsRemaining || 0);
 
   let entry;
   try {
@@ -79,15 +93,17 @@ async function postCreditEntry({
       Meta: meta,
     });
   } catch (err) {
+    // Compensate balance if ledger insert fails
+    await Membership.updateOne(
+      { _id: membershipId },
+      { $inc: { CreditsRemaining: -inc } },
+    );
     if (err.code === 11000 && idempotencyKey) {
       return MembershipCreditLedger.findOne({ IdempotencyKey: idempotencyKey });
     }
     throw err;
   }
 
-  // Denormalized balance — only path that mutates CreditsRemaining
-  m.CreditsRemaining = next;
-  await m.save();
   return entry;
 }
 

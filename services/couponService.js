@@ -77,8 +77,16 @@ async function validateCoupon({
  * Atomic redemption: conditional UsedCount + unique (Coupon, User, Booking).
  * Throws if limit exceeded — caller must not keep discount without redemption.
  */
-async function redeemCoupon({ couponId, userId, bookingId, discountAmount }) {
-  const coupon = await Coupon.findById(couponId);
+async function redeemCoupon({
+  couponId,
+  userId,
+  bookingId,
+  discountAmount,
+  session = null,
+}) {
+  const findQ = Coupon.findById(couponId);
+  if (session) findQ.session(session);
+  const coupon = await findQ;
   if (!coupon) throw new NotFoundError("Coupon không tồn tại.");
 
   // Conditional global usage limit
@@ -86,39 +94,66 @@ async function redeemCoupon({ couponId, userId, bookingId, discountAmount }) {
   if (coupon.UsageLimit != null) {
     filter.UsedCount = { $lt: coupon.UsageLimit };
   }
-  const updated = await Coupon.findOneAndUpdate(
+  const updateQ = Coupon.findOneAndUpdate(
     filter,
     { $inc: { UsedCount: 1 } },
     { new: true },
   );
+  if (session) updateQ.session(session);
+  const updated = await updateQ;
   if (!updated) {
     throw new ConflictError("Mã đã hết lượt sử dụng.");
   }
 
   // Per-user limit after claim
   if (coupon.PerUserLimit) {
-    const used = await CouponRedemption.countDocuments({
+    const countQ = CouponRedemption.countDocuments({
       CouponID: couponId,
       UserID: userId,
     });
+    if (session) countQ.session(session);
+    const used = await countQ;
     if (used >= coupon.PerUserLimit) {
-      // Roll back global count
-      await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
+      const rb = Coupon.updateOne(
+        { _id: couponId },
+        { $inc: { UsedCount: -1 } },
+      );
+      if (session) rb.session(session);
+      await rb;
       throw new ConflictError("Bạn đã dùng hết lượt mã này.");
     }
   }
 
   try {
-    await CouponRedemption.create({
-      CouponID: couponId,
-      UserID: userId,
-      BookingID: bookingId,
-      DiscountAmount: discountAmount,
-      IdempotencyKey: `redeem-${couponId}-${bookingId}`,
-    });
+    if (session) {
+      await CouponRedemption.create(
+        [
+          {
+            CouponID: couponId,
+            UserID: userId,
+            BookingID: bookingId,
+            DiscountAmount: discountAmount,
+            IdempotencyKey: `redeem-${couponId}-${bookingId}`,
+          },
+        ],
+        { session },
+      );
+    } else {
+      await CouponRedemption.create({
+        CouponID: couponId,
+        UserID: userId,
+        BookingID: bookingId,
+        DiscountAmount: discountAmount,
+        IdempotencyKey: `redeem-${couponId}-${bookingId}`,
+      });
+    }
   } catch (err) {
-    // Roll back usage on duplicate / failure
-    await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
+    const rb = Coupon.updateOne(
+      { _id: couponId },
+      { $inc: { UsedCount: -1 } },
+    );
+    if (session) rb.session(session);
+    await rb;
     if (err.code === 11000) {
       throw new ConflictError("Coupon đã được áp dụng cho booking này.");
     }

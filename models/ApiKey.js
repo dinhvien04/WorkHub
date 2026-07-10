@@ -28,6 +28,8 @@ const apiKeySchema = new mongoose.Schema(
     AllowedBranchIDs: [
       { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
     ],
+    /** true = all host branches; false + empty AllowedBranchIDs = deny all spaces */
+    AllBranches: { type: Boolean, default: true },
     KeyPrefix: { type: String, required: true, index: true },
     KeyHash: { type: String, required: true },
     Scopes: [{ type: String }],

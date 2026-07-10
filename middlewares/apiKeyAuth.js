@@ -27,8 +27,14 @@ async function requireApiKey(req, res, next) {
     if (key.ExpiresAt && key.ExpiresAt < new Date()) {
       return next(new ForbiddenError("API key expired."));
     }
-    key.LastUsedAt = new Date();
-    await key.save();
+    // Throttle LastUsedAt writes (once per 60s) — avoid write-per-request load
+    const last = key.LastUsedAt ? new Date(key.LastUsedAt).getTime() : 0;
+    if (Date.now() - last > 60_000) {
+      await ApiKey.updateOne(
+        { _id: key._id },
+        { $set: { LastUsedAt: new Date() } },
+      );
+    }
     req.apiKey = key;
     req.partnerUserId = key.OwnerUserID;
     return next();

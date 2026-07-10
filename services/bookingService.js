@@ -59,19 +59,22 @@ function assertTransition(from, to) {
 }
 
 /**
- * Floor-start slot builder: every overlapping range shares at least one slot.
- * Cursor = floor(start / step); while cursor < end push cursor.
+ * Exact-start slot builder: slots from aligned start, step by BOOKING_SLOT_MINUTES.
+ * Adjacent ranges (10:00–10:30, 10:30–11:00) do NOT share a slot.
+ * Requires start/end aligned to slot grid (validated in validateBookingWindow).
  */
 function buildSlotStarts(start, end, slotMinutes = env.BOOKING_SLOT_MINUTES) {
   const step = slotMinutes * 60 * 1000;
   const slots = [];
-  let cursor = new Date(Math.floor(start.getTime() / step) * step);
+  // Use exact start — do not floor (floor caused false conflicts for partial ranges)
+  let cursor = new Date(start.getTime());
+  if (cursor.getTime() % step !== 0) {
+    // Align forward only if misaligned (callers should reject; safety net)
+    cursor = new Date(Math.ceil(cursor.getTime() / step) * step);
+  }
   while (cursor < end) {
     slots.push(new Date(cursor));
     cursor = new Date(cursor.getTime() + step);
-  }
-  if (slots.length === 0) {
-    slots.push(new Date(Math.floor(start.getTime() / step) * step));
   }
   return slots;
 }
@@ -128,8 +131,13 @@ function validateBookingWindow(start, end) {
     );
   }
 
-  // Slot policy (floor-start): any start/end allowed; overlapping ranges share slots.
-  // Documented: BOOKING_SLOT_MINUTES granularity locks partial overlaps.
+  // Require alignment to BOOKING_SLOT_MINUTES so adjacent bookings do not false-conflict.
+  const step = env.BOOKING_SLOT_MINUTES * 60 * 1000;
+  if (start.getTime() % step !== 0 || end.getTime() % step !== 0) {
+    throw new ValidationError(
+      `Start/End phải chia hết cho ${env.BOOKING_SLOT_MINUTES} phút.`,
+    );
+  }
 }
 
 async function createBooking({
@@ -448,13 +456,13 @@ async function createBooking({
         throw slotErr;
       }
 
-      // Atomic inventory decrement (reject booking if race lost last unit)
+      // Atomic inventory decrement inside same session when transactions enabled
       if (inventoryReserves.length) {
         const AddOn = require("../models/AddOn");
         const reserved = [];
         try {
           for (const r of inventoryReserves) {
-            const ok = await AddOn.findOneAndUpdate(
+            const upd = AddOn.findOneAndUpdate(
               {
                 _id: r.addOnId,
                 Status: "active",
@@ -463,20 +471,21 @@ async function createBooking({
               { $inc: { Inventory: -r.qty } },
               { new: true },
             );
+            if (session) upd.session(session);
+            const ok = await upd;
             if (!ok) {
               throw new ConflictError(`Add-on "${r.name}" vừa hết tồn kho.`);
             }
             reserved.push(r);
           }
         } catch (invErr) {
-          // Compensate inventory already reserved
-          for (const r of reserved) {
-            await AddOn.updateOne(
-              { _id: r.addOnId },
-              { $inc: { Inventory: r.qty } },
-            );
-          }
           if (!session) {
+            for (const r of reserved) {
+              await AddOn.updateOne(
+                { _id: r.addOnId },
+                { $inc: { Inventory: r.qty } },
+              );
+            }
             await Booking.deleteOne({ _id: booking._id });
             await BookingSlot.deleteMany({ BookingID: booking._id });
           }
@@ -493,19 +502,19 @@ async function createBooking({
             userId: customerId,
             bookingId: booking._id,
             discountAmount,
+            session,
           });
         } catch (redeemErr) {
-          // Must not keep discounted booking without redemption
-          if (inventoryReserves.length) {
-            const AddOn = require("../models/AddOn");
-            for (const r of inventoryReserves) {
-              await AddOn.updateOne(
-                { _id: r.addOnId },
-                { $inc: { Inventory: r.qty } },
-              );
-            }
-          }
           if (!session) {
+            if (inventoryReserves.length) {
+              const AddOn = require("../models/AddOn");
+              for (const r of inventoryReserves) {
+                await AddOn.updateOne(
+                  { _id: r.addOnId },
+                  { $inc: { Inventory: r.qty } },
+                );
+              }
+            }
             await Booking.deleteOne({ _id: booking._id });
             await BookingSlot.deleteMany({ BookingID: booking._id });
           }
@@ -513,6 +522,8 @@ async function createBooking({
         }
       }
 
+      // Side effects (audit/email) only after successful mutate path;
+      // when session is open, commit happens after this callback returns.
       await logActivity(
         customerId,
         "CREATE_BOOKING",

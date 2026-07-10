@@ -94,6 +94,7 @@ router.get(
 
 // Sessions / security
 router.get('/sessions', verifyToken, g.listSessions);
+router.delete('/sessions/:id', verifyToken, g.revokeSession);
 router.post('/sessions/logout-all', verifyToken, g.logoutAll);
 
 // i18n — use central optionalAuth (status/tokenVersion checks)

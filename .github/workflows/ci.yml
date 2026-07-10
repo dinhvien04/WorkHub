@@ -8,7 +8,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -33,10 +44,11 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm test
+        run: npm run test:noforce
         env:
           NODE_ENV: test
           JWT_SECRET: test_jwt_secret_key_at_least_32_characters_long_for_workhub
+          MONGODB_URI: mongodb://127.0.0.1:27017/workhub_ci_test
           ENABLE_TRANSACTIONS: 'false'
 
       - name: Build CSS + hashed assets
@@ -47,31 +59,43 @@ jobs:
 
       - name: Audit production high+
         run: npm run audit:prod
-        continue-on-error: true
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
-        continue-on-error: true
 
-      - name: Start app smoke
+      - name: Start app + readiness
         run: |
+          set -e
           export NODE_ENV=test
           export JWT_SECRET=test_jwt_secret_key_at_least_32_characters_long_for_workhub
           export MONGODB_URI=mongodb://127.0.0.1:27017/workhub_ci
+          export ALLOW_MOCK_PAYMENT_PROVIDER=1
+          export ALLOW_MOCK_COMPLETE=1
+          export PAYMENT_PROVIDER=workhub_mock
           node server.js &
           echo $! > /tmp/workhub.pid
-          for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:3000/health/ready; then break; fi
+          ready=0
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:3000/health/ready; then
+              ready=1
+              break
+            fi
             sleep 1
           done
-        continue-on-error: true
+          if [ "$ready" != "1" ]; then
+            echo "Readiness probe failed"
+            kill $(cat /tmp/workhub.pid) 2>/dev/null || true
+            exit 1
+          fi
 
       - name: E2E Playwright
         run: PLAYWRIGHT_REQUIRE=1 BASE_URL=http://127.0.0.1:3000 npm run test:e2e
-        continue-on-error: true
         env:
           CI: 'true'
 
       - name: Stop app
         if: always()
         run: kill $(cat /tmp/workhub.pid) 2>/dev/null || true
+
+      - name: Docker build
+        run: docker build -t workhub:ci .

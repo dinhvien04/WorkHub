@@ -283,30 +283,44 @@ async function handleWebhook({
     normalized.id || parsed.id || payloadHash,
   ).slice(0, 200);
 
-  // Durable inbox — unique (Provider, ProviderEventID)
-  let inbox;
-  try {
-    inbox = await WebhookEvent.create({
-      Provider: provider,
-      ProviderEventID: providerEventId,
-      PayloadHash: payloadHash,
-      ProcessingStatus: "processing",
-      ReceivedAt: new Date(),
-    });
-  } catch (err) {
-    if (err.code === 11000) {
-      const existing = await WebhookEvent.findOne({
-        Provider: provider,
-        ProviderEventID: providerEventId,
-      });
-      if (existing?.ProcessingStatus === "processed") {
-        return { ok: true, duplicate: true };
+  // Durable inbox with atomic claim + lease
+  const workerId = `pid-${process.pid}-${Date.now()}`;
+  const leaseMs = 60_000;
+  let inbox = await claimWebhookEvent({
+    provider,
+    providerEventId,
+    payloadHash,
+    workerId,
+    leaseMs,
+  });
+  if (inbox === "duplicate") {
+    return { ok: true, duplicate: true };
+  }
+  if (inbox === "payload_mismatch") {
+    const err = new Error(
+      "Webhook event ID reused with different payload hash",
+    );
+    err.statusCode = 409;
+    err.code = "WEBHOOK_PAYLOAD_MISMATCH";
+    err.isOperational = true;
+    // Security signal
+    try {
+      const alert = require("./alertService");
+      if (alert?.securityAlert) {
+        await alert.securityAlert({
+          type: "webhook_payload_mismatch",
+          provider,
+          providerEventId,
+        });
       }
-      // Recover stuck processing
-      inbox = existing;
-    } else {
-      throw err;
+    } catch {
+      /* ignore */
     }
+    throw err;
+  }
+  if (!inbox) {
+    // Another worker holds lease
+    return { ok: true, duplicate: true, processing: true };
   }
 
   try {
@@ -325,13 +339,8 @@ async function handleWebhook({
     }
 
     if (session.Status === "succeeded") {
-      // Ensure payment + ledger exist (recover partial failure)
       await ensurePaymentAndLedger(session);
-      if (inbox) {
-        inbox.ProcessingStatus = "processed";
-        inbox.ProcessedAt = new Date();
-        await inbox.save();
-      }
+      await markWebhookProcessed(inbox._id);
       return { ok: true, duplicate: true, session };
     }
 
@@ -343,11 +352,7 @@ async function handleWebhook({
     if (!okTypes.has(normalized.type)) {
       session.Status = "failed";
       await session.save();
-      if (inbox) {
-        inbox.ProcessingStatus = "processed";
-        inbox.ProcessedAt = new Date();
-        await inbox.save();
-      }
+      await markWebhookProcessed(inbox._id);
       return { ok: true, session };
     }
 
@@ -365,6 +370,7 @@ async function handleWebhook({
     );
     if (!cas) {
       await ensurePaymentAndLedger(session);
+      await markWebhookProcessed(inbox._id);
       return { ok: true, duplicate: true, session };
     }
 
@@ -381,6 +387,9 @@ async function handleWebhook({
       await booking.save();
     }
 
+    // Mark inbox processed BEFORE side-effect notify (retry-safe)
+    await markWebhookProcessed(inbox._id);
+
     await notifyUser({
       userId: cas.HostID,
       title: "Thanh toán gateway thành công",
@@ -391,24 +400,115 @@ async function handleWebhook({
       link: "/host/payments",
     });
 
-    if (inbox) {
-      inbox.ProcessingStatus = "processed";
-      inbox.ProcessedAt = new Date();
-      await inbox.save();
-    }
-
     return { ok: true, session: cas, payment, duplicate: false };
   } catch (err) {
-    if (inbox) {
-      inbox.ProcessingStatus = "failed";
-      inbox.FailureReason = String(err.message || "error").slice(0, 500);
-      await inbox.save();
-    }
+    await WebhookEvent.findOneAndUpdate(
+      { _id: inbox._id },
+      {
+        $set: {
+          ProcessingStatus: "failed",
+          FailureReason: String(err.message || "error").slice(0, 500),
+          ProcessingLeaseUntil: null,
+        },
+        $inc: { Attempts: 1 },
+      },
+    );
     throw err;
   }
 }
 
+/**
+ * Atomic claim: insert or re-claim failed/expired lease.
+ * Same event ID + different payload hash → payload_mismatch.
+ */
+async function claimWebhookEvent({
+  provider,
+  providerEventId,
+  payloadHash,
+  workerId,
+  leaseMs,
+}) {
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + leaseMs);
+
+  try {
+    return await WebhookEvent.create({
+      Provider: provider,
+      ProviderEventID: providerEventId,
+      PayloadHash: payloadHash,
+      ProcessingStatus: "processing",
+      ProcessingLeaseUntil: leaseUntil,
+      ProcessingBy: workerId,
+      Attempts: 1,
+      ReceivedAt: now,
+    });
+  } catch (err) {
+    if (err.code !== 11000) throw err;
+  }
+
+  const existing = await WebhookEvent.findOne({
+    Provider: provider,
+    ProviderEventID: providerEventId,
+  });
+  if (!existing) return null;
+
+  if (
+    existing.PayloadHash &&
+    existing.PayloadHash !== payloadHash
+  ) {
+    return "payload_mismatch";
+  }
+
+  if (existing.ProcessingStatus === "processed") {
+    return "duplicate";
+  }
+
+  // Re-claim if failed or lease expired
+  const reclaim = await WebhookEvent.findOneAndUpdate(
+    {
+      _id: existing._id,
+      $or: [
+        { ProcessingStatus: "failed" },
+        { ProcessingStatus: "received" },
+        {
+          ProcessingStatus: "processing",
+          ProcessingLeaseUntil: { $lte: now },
+        },
+        {
+          ProcessingStatus: "processing",
+          ProcessingLeaseUntil: null,
+        },
+      ],
+    },
+    {
+      $set: {
+        ProcessingStatus: "processing",
+        ProcessingLeaseUntil: leaseUntil,
+        ProcessingBy: workerId,
+        PayloadHash: payloadHash,
+      },
+      $inc: { Attempts: 1 },
+    },
+    { new: true },
+  );
+  return reclaim || null;
+}
+
+async function markWebhookProcessed(id) {
+  await WebhookEvent.findOneAndUpdate(
+    { _id: id },
+    {
+      $set: {
+        ProcessingStatus: "processed",
+        ProcessedAt: new Date(),
+        ProcessingLeaseUntil: null,
+      },
+    },
+  );
+}
+
 async function ensurePaymentAndLedger(session) {
+  // Idempotent payment create
   let payment = await PaymentHistory.findOne({
     TransactionCode: `GW-${session.SessionId}`,
   });
@@ -416,23 +516,33 @@ async function ensurePaymentAndLedger(session) {
     const booking = await Booking.findById(session.BookingID)
       .select("TotalAmount")
       .lean();
-    payment = await PaymentHistory.create({
-      BookingID: session.BookingID,
-      CustomerID: session.CustomerID,
-      HostID: session.HostID,
-      TransactionCode: `GW-${session.SessionId}`,
-      Amount: session.Amount,
-      PaymentType:
-        session.Amount >= (booking?.TotalAmount || session.Amount)
-          ? "full_payment"
-          : "deposit",
-      PaymentMethod: "e_wallet",
-      Status: "successful",
-      PaidAt: new Date(),
-      VerifiedAt: new Date(),
-      IdempotencyKey: `gw-${session.SessionId}`,
-      RefundedAmount: 0,
-    });
+    try {
+      payment = await PaymentHistory.create({
+        BookingID: session.BookingID,
+        CustomerID: session.CustomerID,
+        HostID: session.HostID,
+        TransactionCode: `GW-${session.SessionId}`,
+        Amount: session.Amount,
+        PaymentType:
+          session.Amount >= (booking?.TotalAmount || session.Amount)
+            ? "full_payment"
+            : "deposit",
+        PaymentMethod: "e_wallet",
+        Status: "successful",
+        PaidAt: new Date(),
+        VerifiedAt: new Date(),
+        IdempotencyKey: `gw-${session.SessionId}`,
+        RefundedAmount: 0,
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        payment = await PaymentHistory.findOne({
+          TransactionCode: `GW-${session.SessionId}`,
+        });
+      } else {
+        throw err;
+      }
+    }
   }
 
   await ledgerService.postEntry({
@@ -444,7 +554,8 @@ async function ensurePaymentAndLedger(session) {
     amount: session.Amount,
     direction: "credit",
     description: `Gateway ${session.SessionId}`,
-    idempotencyKey: `ledger-gw-${session.SessionId}`,
+    // Stable key by session — retry-safe regardless of payment document id
+    idempotencyKey: `payment:gw-${session.SessionId}:credit`,
   });
 
   return { payment };

@@ -28,7 +28,8 @@ function isValidEmail(email) {
 
 function isValidPassword(password) {
   const p = String(password || '');
-  return p.length >= 6 && /[A-Za-z]/.test(p) && /\d/.test(p);
+  // Min 10 chars; allow passphrases (no forced complexity beyond length)
+  return p.length >= 10;
 }
 
 function authCookieOptions() {
@@ -41,12 +42,13 @@ function authCookieOptions() {
   };
 }
 
-function signToken(user) {
+function signToken(user, { sid } = {}) {
   const payload = {
     userId: user._id.toString(),
     role: user.Role,
     tokenVersion: user.tokenVersion || 0,
   };
+  if (sid) payload.sid = String(sid);
   return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
 }
 
@@ -59,7 +61,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
   if (!isValidEmail(email)) throw new ValidationError('Định dạng email không hợp lệ!');
   if (!isValidPassword(password)) {
-    throw new ValidationError('Mật khẩu phải >= 6 ký tự, bao gồm cả chữ và số!');
+    throw new ValidationError('Mật khẩu phải ít nhất 10 ký tự (hỗ trợ passphrase).');
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -226,21 +228,25 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 async function completeLogin(req, res, user) {
-  const token = signToken(user);
-  res.cookie(env.AUTH_COOKIE_NAME, token, authCookieOptions());
+  const crypto = require('crypto');
+  const UserSession = require('../models/Session');
+  const sid = crypto.randomBytes(24).toString('base64url');
+  const sidHash = crypto.createHash('sha256').update(sid).digest('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  try {
-    const UserSession = require('../models/Session');
-    await UserSession.create({
-      UserID: user._id,
-      TokenVersion: user.tokenVersion || 0,
-      UserAgent: String(req.get('user-agent') || '').slice(0, 300),
-      IP: String(req.ip || req.socket?.remoteAddress || '').slice(0, 64),
-      LastSeenAt: new Date(),
-    });
-  } catch {
-    /* non-blocking */
-  }
+  await UserSession.create({
+    UserID: user._id,
+    Sid: sid,
+    SidHash: sidHash,
+    TokenVersion: user.tokenVersion || 0,
+    UserAgent: String(req.get('user-agent') || '').slice(0, 300),
+    IP: String(req.ip || req.socket?.remoteAddress || '').slice(0, 64),
+    LastSeenAt: new Date(),
+    ExpiresAt: expiresAt,
+  });
+
+  const token = signToken(user, { sid });
+  res.cookie(env.AUTH_COOKIE_NAME, token, authCookieOptions());
 
   await logActivity(
     user._id,
@@ -485,7 +491,7 @@ const changePassword = asyncHandler(async (req, res) => {
     throw new ValidationError('Vui lòng nhập đầy đủ mật khẩu cũ và mật khẩu mới!');
   }
   if (!isValidPassword(newPassword)) {
-    throw new ValidationError('Mật khẩu mới phải >= 6 ký tự, bao gồm cả chữ và số!');
+    throw new ValidationError('Mật khẩu mới phải ít nhất 10 ký tự.');
   }
 
   const user = await User.findById(userId);
@@ -557,17 +563,17 @@ const forgotPassword = asyncHandler(async (req, res) => {
   try {
     await emailService.sendPasswordResetOtp({ to: normalizedEmail, otp });
   } catch (err) {
-    // Never log OTP. Generic client message; production fail is operational.
+    // Never enumerate accounts via provider failure status codes.
+    // Invalidate token so a failed enqueue cannot leave a usable secret.
     const logger = require('../utils/logger');
     logger.error('Password reset email delivery failed', err.message);
-    if (env.isProduction) {
-      return res.status(503).json({
-        message: 'Không thể xử lý yêu cầu lúc này. Vui lòng thử lại sau.',
-      });
-    }
-    // Dev still returns generic success (outbox path is primary)
+    await PasswordResetToken.updateMany(
+      { Email: normalizedEmail, UsedAt: null, TokenHash: tokenHash },
+      { $set: { UsedAt: new Date() } }
+    );
   }
 
+  // Identical response for nonexistent email, cooldown, and mail failure
   return res.status(200).json({ message: GENERIC_FORGOT_MSG });
 });
 
@@ -577,7 +583,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new ValidationError('Vui lòng điền đầy đủ tất cả các trường!');
   }
   if (!isValidPassword(newPassword)) {
-    throw new ValidationError('Mật khẩu mới phải >= 6 ký tự, bao gồm cả chữ và số!');
+    throw new ValidationError('Mật khẩu mới phải ít nhất 10 ký tự.');
   }
 
   const normalizedEmail = normalizeEmail(email);

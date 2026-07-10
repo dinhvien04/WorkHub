@@ -14,6 +14,9 @@ const webhookEventSchema = new mongoose.Schema(
       default: 'received',
       index: true,
     },
+    ProcessingLeaseUntil: { type: Date, default: null },
+    ProcessingBy: { type: String, default: '' },
+    Attempts: { type: Number, default: 0 },
     ProcessedAt: { type: Date, default: null },
     FailureReason: { type: String, default: '' },
   },
@@ -21,5 +24,6 @@ const webhookEventSchema = new mongoose.Schema(
 );
 
 webhookEventSchema.index({ Provider: 1, ProviderEventID: 1 }, { unique: true });
+webhookEventSchema.index({ ProcessingStatus: 1, ProcessingLeaseUntil: 1 });
 
 module.exports = mongoose.model('WebhookEvent', webhookEventSchema);

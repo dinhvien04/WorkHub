@@ -226,14 +226,45 @@ const createApiKey = asyncHandler(async (req, res) => {
   }
   if (!scopes.length) scopes = ['bookings:read'];
 
-  let branchIds = Array.isArray(req.body.allowedBranchIds) ? req.body.allowedBranchIds : [];
+  let branchIds = Array.isArray(req.body.allowedBranchIds)
+    ? req.body.allowedBranchIds.map(String)
+    : [];
+
   if (branchIds.length) {
     const Branch = require('../models/Branch');
     const owned = await Branch.find({
       _id: { $in: branchIds },
       HostID: hostOwnerId,
     }).select('_id');
+    const ownedIds = owned.map((b) => String(b._id));
+    // Reject entire request if any requested branch is unowned — never silently drop
+    const missing = branchIds.filter((id) => !ownedIds.includes(String(id)));
+    if (missing.length) {
+      throw new ValidationError(
+        'allowedBranchIds chứa branch không thuộc host — request bị từ chối.',
+      );
+    }
     branchIds = owned.map((b) => b._id);
+  }
+
+  // Explicit AllBranches: default true when no branch list; false + [] = deny all
+  let allBranches = true;
+  if (req.body.allBranches === false) {
+    allBranches = false;
+  } else if (branchIds.length > 0) {
+    allBranches = false;
+  }
+
+  // Admin must target a verified host when creating keys for others
+  if (req.user.role === 'admin' && req.body.hostOwnerId) {
+    const HostProfile = require('../models/Host_Profile');
+    const profile = await HostProfile.findOne({ UserID: hostOwnerId }).lean();
+    if (
+      !profile ||
+      !(profile.IsVerified === true || profile.VerificationStatus === 'approved')
+    ) {
+      throw new ValidationError('hostOwnerId phải là host đã xác minh.');
+    }
   }
 
   const { raw, prefix, hash } = ApiKey.generate();
@@ -245,7 +276,8 @@ const createApiKey = asyncHandler(async (req, res) => {
     Name: String(req.body.name || 'Partner key').slice(0, 100),
     OwnerUserID: req.user.userId,
     HostOwnerID: hostOwnerId,
-    AllowedBranchIDs: branchIds,
+    AllowedBranchIDs: allBranches ? [] : branchIds,
+    AllBranches: allBranches,
     KeyPrefix: prefix,
     KeyHash: hash,
     Scopes: scopes,
@@ -261,6 +293,7 @@ const createApiKey = asyncHandler(async (req, res) => {
       name: doc.Name,
       hostOwnerId: doc.HostOwnerID,
       allowedBranchIds: doc.AllowedBranchIDs,
+      allBranches: doc.AllBranches,
       expiresAt: doc.ExpiresAt,
     },
     secret: raw,
@@ -292,7 +325,14 @@ const partnerListSpaces = asyncHandler(async (req, res) => {
     Status: 'available',
     HostID: req.apiKey.HostOwnerID || req.apiKey.OwnerUserID,
   };
-  if (req.apiKey.AllowedBranchIDs?.length) {
+  // AllBranches=false + empty AllowedBranchIDs = deny all (never "all branches")
+  if (req.apiKey.AllBranches === false) {
+    const ids = req.apiKey.AllowedBranchIDs || [];
+    if (!ids.length) {
+      return res.json({ spaces: [] });
+    }
+    filter.BranchID = { $in: ids };
+  } else if (req.apiKey.AllowedBranchIDs?.length) {
     filter.BranchID = { $in: req.apiKey.AllowedBranchIDs };
   }
   const spaces = await Space.find(filter)
@@ -314,7 +354,16 @@ const partnerGetBooking = asyncHandler(async (req, res) => {
   if (!booking) throw new NotFoundError('Booking not found');
 
   // Branch scope when key is limited
-  if (req.apiKey.AllowedBranchIDs?.length) {
+  if (req.apiKey.AllBranches === false) {
+    const ids = (req.apiKey.AllowedBranchIDs || []).map(String);
+    if (!ids.length) throw new NotFoundError('Booking not found');
+    const Space = require('../models/Space');
+    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    const branchId = booking.BranchID || space?.BranchID;
+    if (!branchId || !ids.includes(String(branchId))) {
+      throw new NotFoundError('Booking not found');
+    }
+  } else if (req.apiKey.AllowedBranchIDs?.length) {
     const Space = require('../models/Space');
     const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
     const branchId = booking.BranchID || space?.BranchID;
@@ -345,10 +394,47 @@ const listSessions = asyncHandler(async (req, res) => {
     UserID: req.user.userId,
     RevokedAt: null,
   })
+    .select('Sid UserAgent IP LastSeenAt ExpiresAt createdAt')
     .sort({ LastSeenAt: -1 })
     .limit(20)
     .lean();
-  res.json({ sessions: items });
+  res.json({
+    sessions: items.map((s) => ({
+      id: s.Sid || String(s._id),
+      userAgent: s.UserAgent,
+      ip: s.IP,
+      lastSeenAt: s.LastSeenAt,
+      expiresAt: s.ExpiresAt,
+      createdAt: s.createdAt,
+      current: req.user.sid && s.Sid === req.user.sid,
+    })),
+  });
+});
+
+const revokeSession = asyncHandler(async (req, res) => {
+  const sid = String(req.params.id || '');
+  const mongoose = require('mongoose');
+  const base = { UserID: req.user.userId, RevokedAt: null };
+  // Prefer Sid (opaque); only match _id when value is a real ObjectId string
+  const filter =
+    mongoose.isValidObjectId(sid) && String(new mongoose.Types.ObjectId(sid)) === sid
+      ? { ...base, $or: [{ Sid: sid }, { _id: sid }] }
+      : { ...base, Sid: sid };
+  const doc = await UserSession.findOneAndUpdate(
+    filter,
+    { $set: { RevokedAt: new Date() } },
+    { new: true }
+  );
+  if (!doc) throw new NotFoundError('Session not found');
+  // If revoking current session, clear cookie
+  if (req.user.sid && doc.Sid === req.user.sid) {
+    res.clearCookie(require('../config/env').AUTH_COOKIE_NAME, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+  }
+  res.json({ message: 'Đã thu hồi phiên.', id: doc.Sid || String(doc._id) });
 });
 
 const logoutAll = asyncHandler(async (req, res) => {
@@ -1229,6 +1315,7 @@ module.exports = {
   partnerListSpaces,
   partnerGetBooking,
   listSessions,
+  revokeSession,
   logoutAll,
   i18nBundle,
   setLang,

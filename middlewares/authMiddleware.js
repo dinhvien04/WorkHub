@@ -49,6 +49,35 @@ async function attachUserFromToken(token) {
     );
   }
 
+  // Per-session revoke: when JWT carries sid, require active UserSession
+  let sid = decoded.sid || null;
+  if (sid) {
+    const UserSession = require("../models/Session");
+    const sess = await UserSession.findOne({
+      Sid: String(sid),
+      UserID: userId,
+      RevokedAt: null,
+    }).lean();
+    if (!sess) {
+      throw new UnauthorizedError(
+        "Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.",
+      );
+    }
+    if (sess.ExpiresAt && new Date(sess.ExpiresAt) < new Date()) {
+      throw new UnauthorizedError(
+        "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+      );
+    }
+    // Best-effort last-seen throttle
+    const last = sess.LastSeenAt ? new Date(sess.LastSeenAt).getTime() : 0;
+    if (Date.now() - last > 60_000) {
+      UserSession.updateOne(
+        { _id: sess._id },
+        { $set: { LastSeenAt: new Date() } },
+      ).catch(() => {});
+    }
+  }
+
   return {
     reqUser: {
       userId: user._id.toString(),
@@ -57,6 +86,7 @@ async function attachUserFromToken(token) {
       tokenVersion: dbVersion,
       email: user.Email,
       fullName: user.FullName,
+      sid: sid || null,
     },
     user,
   };

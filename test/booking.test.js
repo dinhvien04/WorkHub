@@ -92,14 +92,15 @@ describe('Booking rules', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  test('partial overlap blocked: 10:00-10:20 vs 10:05-10:35', async () => {
+  test('partial overlap blocked: 10:00-11:00 vs 10:30-11:30', async () => {
     const host = await createUser({ email: 'h5@test.com', role: 'host' });
     const c1 = await createUser({ email: 'c5a@test.com', role: 'customer' });
     const c2 = await createUser({ email: 'c5b@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
     const base = new Date(Date.now() + 3 * 24 * 3600_000);
-    const a = absoluteRange(base, 10, 0, 10, 20);
-    const b = absoluteRange(base, 10, 5, 10, 35);
+    // Aligned to BOOKING_SLOT_MINUTES (30); still partial-overlap
+    const a = absoluteRange(base, 10, 0, 11, 0);
+    const b = absoluteRange(base, 10, 30, 11, 30);
 
     await bookingService.createBooking({
       customerId: c1._id,
@@ -123,8 +124,9 @@ describe('Booking rules', () => {
     const c2 = await createUser({ email: 'c6b@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
     const base = new Date(Date.now() + 4 * 24 * 3600_000);
-    const outer = absoluteRange(base, 10, 10, 10, 40);
-    const inner = absoluteRange(base, 10, 20, 10, 30);
+    // Aligned outer 10:00-12:00, nested 10:30-11:00
+    const outer = absoluteRange(base, 10, 0, 12, 0);
+    const inner = absoluteRange(base, 10, 30, 11, 0);
 
     await bookingService.createBooking({
       customerId: c1._id,
