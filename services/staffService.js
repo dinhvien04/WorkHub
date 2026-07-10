@@ -90,30 +90,76 @@ async function listMyMemberships(userId) {
 
 /**
  * Resolve which host owner this actor operates as.
- * - Host role: self
- * - Staff: X-Host-Owner-Id header or single membership
+ * - Host role: self (all branches)
+ * - Staff: X-Host-Owner-Id header or single membership + BranchIDs scope
  */
 async function resolveActingHostOwnerId(userId, role, preferredOwnerId = null) {
   if (role === 'host') {
-    return { hostOwnerId: String(userId), staffRole: 'owner', via: 'host' };
+    return {
+      hostOwnerId: String(userId),
+      staffRole: 'owner',
+      via: 'host',
+      isOwner: true,
+      allowedBranchIds: null, // null = all branches
+      staffMemberId: null,
+    };
   }
   const memberships = await StaffMember.find({ UserID: userId, Status: 'active' }).lean();
   if (!memberships.length) {
     throw new ForbiddenError('Bạn không phải host hoặc staff.');
   }
+  let m;
   if (preferredOwnerId) {
-    const m = memberships.find((x) => String(x.HostOwnerID) === String(preferredOwnerId));
+    m = memberships.find((x) => String(x.HostOwnerID) === String(preferredOwnerId));
     if (!m) throw new ForbiddenError('Không có quyền staff trên host này.');
-    return { hostOwnerId: String(m.HostOwnerID), staffRole: m.Role, via: 'staff' };
+  } else if (memberships.length === 1) {
+    m = memberships[0];
+  } else {
+    throw new ValidationError('Chọn host: gửi header X-Host-Owner-Id.');
   }
-  if (memberships.length === 1) {
-    return {
-      hostOwnerId: String(memberships[0].HostOwnerID),
-      staffRole: memberships[0].Role,
-      via: 'staff',
-    };
+  const branchIds = Array.isArray(m.BranchIDs) ? m.BranchIDs.map(String) : [];
+  return {
+    hostOwnerId: String(m.HostOwnerID),
+    staffRole: m.Role,
+    via: 'staff',
+    isOwner: false,
+    // empty BranchIDs = all branches for that host (legacy invites)
+    allowedBranchIds: branchIds.length ? branchIds : null,
+    staffMemberId: String(m._id),
+  };
+}
+
+/**
+ * Assert staff may access a branch. Owners and empty allowlist pass.
+ */
+function assertBranchAccess(hostContext, branchId) {
+  if (!hostContext || hostContext.isOwner) return true;
+  if (!hostContext.allowedBranchIds) return true; // all branches
+  if (!branchId) {
+    throw new ForbiddenError('Thiếu branch scope cho thao tác staff.');
   }
-  throw new ValidationError('Chọn host: gửi header X-Host-Owner-Id.');
+  if (!hostContext.allowedBranchIds.includes(String(branchId))) {
+    throw new ForbiddenError('Không có quyền trên chi nhánh này.');
+  }
+  return true;
+}
+
+/**
+ * Filter bookings/spaces query by staff branch scope via Space.BranchID.
+ * Returns { spaceIds } restriction or null for no restriction.
+ */
+async function branchScopedSpaceFilter(hostContext) {
+  if (!hostContext || hostContext.isOwner || !hostContext.allowedBranchIds) {
+    return null;
+  }
+  const Space = require('../models/Space');
+  const spaces = await Space.find({
+    HostID: hostContext.hostOwnerId,
+    BranchID: { $in: hostContext.allowedBranchIds },
+  })
+    .select('_id')
+    .lean();
+  return { SpaceID: { $in: spaces.map((s) => s._id) } };
 }
 
 module.exports = {
@@ -123,5 +169,7 @@ module.exports = {
   revokeStaff,
   listMyMemberships,
   resolveActingHostOwnerId,
+  assertBranchAccess,
+  branchScopedSpaceFilter,
   ROLES,
 };

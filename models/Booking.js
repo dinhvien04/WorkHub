@@ -45,6 +45,7 @@ const bookingSchema = new mongoose.Schema({
           'cancelled',
           'rejected',
           'expired',
+          'no_show',
         ], 
         default: 'pending',
         index: true 
@@ -54,6 +55,10 @@ const bookingSchema = new mongoose.Schema({
     HoldExpiresAt: { type: Date, default: null, index: true },
     CouponCode: { type: String, default: '' },
     DiscountAmount: { type: Number, default: 0, min: 0 },
+    /** Random check-in human code hash (never store raw when possible) */
+    CheckInCodeHash: { type: String, default: null, index: true, sparse: true },
+    CheckInCodeExpiresAt: { type: Date, default: null },
+    SeriesID: { type: mongoose.Schema.Types.ObjectId, ref: 'RecurringSeries', default: null, index: true },
     // Immutable snapshot for history/receipts
     Snapshot: {
       BranchName: { type: String, default: '' },

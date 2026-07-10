@@ -231,9 +231,10 @@ async function createBooking({
 
   const baseAmount = total;
 
-  // Add-ons (server-priced)
+  // Add-ons (server-priced) — atomic inventory reserve later after booking create
   const addOnLines = [];
   let addOnsTotal = 0;
+  const inventoryReserves = []; // { addOnId, qty }
   if (Array.isArray(addOns) && addOns.length) {
     const AddOn = require('../models/AddOn');
     const hours = Math.max(0, (end - start) / 3600000);
@@ -262,6 +263,9 @@ async function createBooking({
         Quantity: qty,
         LineTotal: line,
       });
+      if (doc.Inventory != null) {
+        inventoryReserves.push({ addOnId: doc._id, qty, name: doc.Name });
+      }
       addOnsTotal += line;
     }
   }
@@ -408,6 +412,40 @@ async function createBooking({
       throw slotErr;
     }
 
+    // Atomic inventory decrement (reject booking if race lost last unit)
+    if (inventoryReserves.length) {
+      const AddOn = require('../models/AddOn');
+      const reserved = [];
+      try {
+        for (const r of inventoryReserves) {
+          const ok = await AddOn.findOneAndUpdate(
+            {
+              _id: r.addOnId,
+              Status: 'active',
+              Inventory: { $gte: r.qty },
+            },
+            { $inc: { Inventory: -r.qty } },
+            { new: true }
+          );
+          if (!ok) {
+            throw new ConflictError(`Add-on "${r.name}" vừa hết tồn kho.`);
+          }
+          reserved.push(r);
+        }
+      } catch (invErr) {
+        // Compensate inventory already reserved
+        for (const r of reserved) {
+          await AddOn.updateOne({ _id: r.addOnId }, { $inc: { Inventory: r.qty } });
+        }
+        if (!session) {
+          await Booking.deleteOne({ _id: booking._id });
+          await BookingSlot.deleteMany({ BookingID: booking._id });
+        }
+        throw invErr;
+      }
+      booking._inventoryReserves = reserved;
+    }
+
     if (appliedCoupon) {
       try {
         const couponService = require('./couponService');
@@ -417,8 +455,19 @@ async function createBooking({
           bookingId: booking._id,
           discountAmount,
         });
-      } catch {
-        /* non-fatal if redemption race */
+      } catch (redeemErr) {
+        // Must not keep discounted booking without redemption
+        if (inventoryReserves.length) {
+          const AddOn = require('../models/AddOn');
+          for (const r of inventoryReserves) {
+            await AddOn.updateOne({ _id: r.addOnId }, { $inc: { Inventory: r.qty } });
+          }
+        }
+        if (!session) {
+          await Booking.deleteOne({ _id: booking._id });
+          await BookingSlot.deleteMany({ BookingID: booking._id });
+        }
+        throw redeemErr;
       }
     }
 

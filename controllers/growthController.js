@@ -173,8 +173,12 @@ const listRecurring = asyncHandler(async (req, res) => {
 });
 
 const cancelRecurring = asyncHandler(async (req, res) => {
-  const series = await recurringService.cancelSeries(req.params.seriesId, req.user.userId);
-  res.json({ series, message: 'Đã hủy series.' });
+  const body = req.body || {};
+  const result = await recurringService.cancelSeries(req.params.seriesId, req.user.userId, {
+    mode: body.mode || req.query.mode || 'whole',
+    occurrenceBookingId: body.occurrenceBookingId || req.query.occurrenceBookingId || null,
+  });
+  res.json({ ...result, message: 'Đã hủy series/occurrence.' });
 });
 
 // —— Fraud score (preview) ——
@@ -548,6 +552,7 @@ const scanCheckIn = asyncHandler(async (req, res) => {
     hostId: req.user.userId,
     token: req.body.token,
     code: req.body.code,
+    hostContext: { isOwner: true, allowedBranchIds: null },
   });
   res.json({ booking, message: 'Check-in thành công.' });
 });
@@ -558,6 +563,7 @@ const markNoShow = asyncHandler(async (req, res) => {
     hostId: req.user.userId,
     bookingId: req.params.bookingId,
     reason: req.body.reason,
+    hostContext: { isOwner: true, allowedBranchIds: null },
   });
   res.json({ booking, message: 'Đã đánh dấu no-show.' });
 });
@@ -1052,17 +1058,25 @@ const staffReceptionToday = asyncHandler(async (req, res) => {
   const end = new Date();
   end.setHours(23, 59, 59, 999);
   const Booking = require('../models/Booking');
-  const bookings = await Booking.find({
+  const { branchScopedSpaceFilter } = require('../services/staffService');
+  const spaceFilter = await branchScopedSpaceFilter(req.hostContext);
+  const filter = {
     HostID: hostOwnerId,
     Status: { $in: ['confirmed', 'in-use', 'pending', 'payment_under_review'] },
     StartTime: { $lte: end },
     EndTime: { $gte: start },
-  })
+    ...(spaceFilter || {}),
+  };
+  const bookings = await Booking.find(filter)
     .populate('CustomerID', 'FullName Email')
-    .populate('SpaceID', 'Name SpaceCode')
+    .populate('SpaceID', 'Name SpaceCode BranchID')
     .sort({ StartTime: 1 })
     .lean();
-  res.json({ bookings, hostOwnerId });
+  res.json({
+    bookings,
+    hostOwnerId,
+    allowedBranchIds: req.hostContext?.allowedBranchIds || null,
+  });
 });
 
 const staffScanCheckIn = asyncHandler(async (req, res) => {
@@ -1072,12 +1086,20 @@ const staffScanCheckIn = asyncHandler(async (req, res) => {
     hostId: hostOwnerId,
     token: req.body.token,
     code: req.body.code,
+    hostContext: req.hostContext,
   });
   res.json({ booking, message: 'Check-in thành công.', hostOwnerId });
 });
 
 const staffHostCalendar = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
+  const { assertBranchAccess } = require('../services/staffService');
+  if (req.query.branchId) {
+    assertBranchAccess(req.hostContext, req.query.branchId);
+  } else if (req.hostContext && !req.hostContext.isOwner && req.hostContext.allowedBranchIds) {
+    // Force first allowed branch if staff is branch-scoped and no branch provided
+    req.query.branchId = req.hostContext.allowedBranchIds[0];
+  }
   const calendarService = require('../services/calendarService');
   const data = await calendarService.getHostCalendar({
     hostId: hostOwnerId,
@@ -1086,12 +1108,31 @@ const staffHostCalendar = asyncHandler(async (req, res) => {
     branchId: req.query.branchId || null,
     spaceId: req.query.spaceId || null,
   });
-  res.json({ ...data, hostOwnerId });
+  res.json({
+    ...data,
+    hostOwnerId,
+    allowedBranchIds: req.hostContext?.allowedBranchIds || null,
+  });
 });
 
 const staffConfirmBooking = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
   const bookingService = require('../services/bookingService');
+  const Booking = require('../models/Booking');
+  const bookingDoc = await Booking.findOne({
+    _id: req.params.bookingId,
+    HostID: hostOwnerId,
+  }).select('SpaceID');
+  if (!bookingDoc) {
+    const { NotFoundError } = require('../utils/errors');
+    throw new NotFoundError('Booking not found');
+  }
+  if (req.hostContext && !req.hostContext.isOwner && req.hostContext.allowedBranchIds) {
+    const Space = require('../models/Space');
+    const space = await Space.findById(bookingDoc.SpaceID).select('BranchID').lean();
+    const { assertBranchAccess } = require('../services/staffService');
+    assertBranchAccess(req.hostContext, space?.BranchID);
+  }
   const booking = await bookingService.confirmBooking(hostOwnerId, req.params.bookingId);
   res.json({ booking, message: 'Đã xác nhận booking.', hostOwnerId });
 });
@@ -1103,6 +1144,7 @@ const staffNoShow = asyncHandler(async (req, res) => {
     hostId: hostOwnerId,
     bookingId: req.params.bookingId,
     reason: req.body.reason,
+    hostContext: req.hostContext,
   });
   res.json({ booking, message: 'Đã đánh dấu no-show.', hostOwnerId });
 });

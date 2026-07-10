@@ -165,6 +165,14 @@ async function createSeries({
         endTime: oc.end,
         note: `Recurring series ${series._id}`,
       });
+      try {
+        await require('../models/Booking').updateOne(
+          { _id: booking._id },
+          { $set: { SeriesID: series._id } }
+        );
+      } catch {
+        /* field optional if migration lag */
+      }
       created.push(booking._id);
     } catch (err) {
       failed.push({ start: oc.start, error: err.message });
@@ -183,15 +191,69 @@ async function listSeries(userId) {
     .lean();
 }
 
-async function cancelSeries(seriesId, userId) {
+/**
+ * Cancel series modes:
+ * - whole (default): cancel series + all future non-terminal children, release slots
+ * - this_and_future: requires occurrenceBookingId
+ * - this: cancel single occurrence only
+ */
+async function cancelSeries(seriesId, userId, { mode = 'whole', occurrenceBookingId = null } = {}) {
   const series = await RecurringSeries.findById(seriesId);
   if (!series) throw new NotFoundError('Không tìm thấy series.');
   if (String(series.CustomerID) !== String(userId)) {
     throw new ForbiddenError('Không có quyền.');
   }
-  series.Status = 'cancelled';
-  await series.save();
-  return series;
+
+  const Booking = require('../models/Booking');
+  const BookingSlot = require('../models/BookingSlot');
+  const protectedStatuses = new Set(['completed', 'in-use', 'no_show']);
+  const now = new Date();
+  let cancelled = 0;
+  const ids = (series.BookingIDs || []).map(String);
+
+  let targetIds = ids;
+  if (mode === 'this' && occurrenceBookingId) {
+    targetIds = ids.filter((id) => id === String(occurrenceBookingId));
+  } else if (mode === 'this_and_future' && occurrenceBookingId) {
+    const occ = await Booking.findById(occurrenceBookingId).select('StartTime').lean();
+    if (!occ) throw new NotFoundError('Occurrence not found.');
+    const future = await Booking.find({
+      _id: { $in: series.BookingIDs },
+      StartTime: { $gte: occ.StartTime },
+    })
+      .select('_id')
+      .lean();
+    targetIds = future.map((b) => String(b._id));
+  }
+
+  for (const id of targetIds) {
+    const b = await Booking.findOne({
+      _id: id,
+      CustomerID: userId,
+    });
+    if (!b) continue;
+    if (protectedStatuses.has(b.Status)) continue;
+    if (['cancelled', 'expired', 'rejected'].includes(b.Status)) continue;
+    // Do not cancel past completed windows that already started if in-use handled above
+    b.Status = 'cancelled';
+    b.CancelledAt = now;
+    b.CancelledBy = userId;
+    b.CancelReason = `series_cancel:${mode}`;
+    await b.save();
+    await BookingSlot.deleteMany({ BookingID: b._id });
+    cancelled += 1;
+  }
+
+  if (mode === 'whole' || mode === 'this_and_future') {
+    series.Status = 'cancelled';
+    await series.save();
+  }
+
+  return {
+    series: series.toObject ? series.toObject() : series,
+    cancelledCount: cancelled,
+    mode,
+  };
 }
 
 module.exports = {

@@ -118,7 +118,24 @@ describe('Host reception scan by code', () => {
     });
     await bookingService.confirmBooking(host._id, booking._id);
 
-    const code = 'WH-' + String(booking._id).slice(-6).toUpperCase();
+    // Align window so check-in early/late policy allows (start ~now)
+    await require('../models/Booking').updateOne(
+      { _id: booking._id },
+      {
+        $set: {
+          StartTime: new Date(Date.now() - 5 * 60000),
+          EndTime: new Date(Date.now() + 55 * 60000),
+        },
+      }
+    );
+
+    const checkInService = require('../services/checkInService');
+    const minted = await checkInService.mintCheckInToken({
+      bookingId: booking._id,
+      actorId: host._id,
+      actorRole: 'host',
+    });
+    const code = minted.code;
     const { token } = agentWithAuth(app, host);
     const csrf = await getCsrfPair(app);
     const scan = await withCsrf(

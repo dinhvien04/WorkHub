@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "jest --runInBand --forceExit",
+    "test": "jest --runInBand --detectOpenHandles --forceExit",
+    "test:ci": "jest --runInBand --detectOpenHandles --forceExit",
     "test:watch": "jest --watch --runInBand",
     "lint": "eslint app.js server.js config middlewares services jobs utils routes controllers models test scripts public/js/api.js public/js/domSafe.js public/js/admin-main.js public/js/host-dashboard.js public/js/host-payments.js --max-warnings=50",
+    "lint:security-ui": "node scripts/check-inline-handlers.js",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "check": "npm run lint && npm test",

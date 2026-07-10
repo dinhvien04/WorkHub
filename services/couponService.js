@@ -2,7 +2,7 @@
 
 const Coupon = require('../models/Coupon');
 const CouponRedemption = require('../models/CouponRedemption');
-const { ValidationError, NotFoundError } = require('../utils/errors');
+const { ValidationError, NotFoundError, ConflictError } = require('../utils/errors');
 
 function computeDiscount(coupon, orderAmount) {
   let discount = 0;
@@ -20,7 +20,10 @@ function computeDiscount(coupon, orderAmount) {
 
 async function validateCoupon({ code, userId, orderAmount, branchId = null, hostId = null }) {
   if (!code) throw new ValidationError('Thiếu mã giảm giá.');
-  const coupon = await Coupon.findOne({ Code: String(code).trim().toUpperCase(), Status: 'active' });
+  const coupon = await Coupon.findOne({
+    Code: String(code).trim().toUpperCase(),
+    Status: 'active',
+  });
   if (!coupon) throw new NotFoundError('Mã giảm giá không hợp lệ.');
 
   const now = new Date();
@@ -40,7 +43,10 @@ async function validateCoupon({ code, userId, orderAmount, branchId = null, host
     if (!ok) throw new ValidationError('Mã không áp dụng cho cơ sở này.');
   }
   if (userId && coupon.PerUserLimit) {
-    const used = await CouponRedemption.countDocuments({ CouponID: coupon._id, UserID: userId });
+    const used = await CouponRedemption.countDocuments({
+      CouponID: coupon._id,
+      UserID: userId,
+    });
     if (used >= coupon.PerUserLimit) throw new ValidationError('Bạn đã dùng hết lượt mã này.');
   }
 
@@ -52,14 +58,53 @@ async function validateCoupon({ code, userId, orderAmount, branchId = null, host
   };
 }
 
+/**
+ * Atomic redemption: conditional UsedCount + unique (Coupon, User, Booking).
+ * Throws if limit exceeded — caller must not keep discount without redemption.
+ */
 async function redeemCoupon({ couponId, userId, bookingId, discountAmount }) {
-  await CouponRedemption.create({
-    CouponID: couponId,
-    UserID: userId,
-    BookingID: bookingId,
-    DiscountAmount: discountAmount,
-  });
-  await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: 1 } });
+  const coupon = await Coupon.findById(couponId);
+  if (!coupon) throw new NotFoundError('Coupon không tồn tại.');
+
+  // Conditional global usage limit
+  const filter = { _id: couponId, Status: 'active' };
+  if (coupon.UsageLimit != null) {
+    filter.UsedCount = { $lt: coupon.UsageLimit };
+  }
+  const updated = await Coupon.findOneAndUpdate(filter, { $inc: { UsedCount: 1 } }, { new: true });
+  if (!updated) {
+    throw new ConflictError('Mã đã hết lượt sử dụng.');
+  }
+
+  // Per-user limit after claim
+  if (coupon.PerUserLimit) {
+    const used = await CouponRedemption.countDocuments({
+      CouponID: couponId,
+      UserID: userId,
+    });
+    if (used >= coupon.PerUserLimit) {
+      // Roll back global count
+      await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
+      throw new ConflictError('Bạn đã dùng hết lượt mã này.');
+    }
+  }
+
+  try {
+    await CouponRedemption.create({
+      CouponID: couponId,
+      UserID: userId,
+      BookingID: bookingId,
+      DiscountAmount: discountAmount,
+      IdempotencyKey: `redeem-${couponId}-${bookingId}`,
+    });
+  } catch (err) {
+    // Roll back usage on duplicate / failure
+    await Coupon.updateOne({ _id: couponId }, { $inc: { UsedCount: -1 } });
+    if (err.code === 11000) {
+      throw new ConflictError('Coupon đã được áp dụng cho booking này.');
+    }
+    throw err;
+  }
 }
 
 module.exports = { validateCoupon, redeemCoupon, computeDiscount };

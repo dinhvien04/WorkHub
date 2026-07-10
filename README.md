@@ -39,11 +39,38 @@ Mở http://localhost:3000
 | `MONGODB_URI` | Có | Connection string MongoDB |
 | `PORT` | Không | Mặc định `3000` |
 | `NODE_ENV` | Không | `development` / `production` / `test` |
+| `PUBLIC_BASE_URL` | Production | `https://your.domain` (không path/query) |
+| `GATEWAY_WEBHOOK_SECRET` | Production | Khác `JWT_SECRET` |
+| `PAYMENT_PROVIDER` | Production | `stripe` hoặc `momo` (không mock) |
+| `METRICS_AUTH_TOKEN` | Production | Bảo vệ `/metrics`, `/health/details` |
+| `WEBAUTHN_ENABLED` | Không | Mặc định `false` |
 | `CLOUDINARY_*` | Production | Upload ảnh |
 | `BOOKING_SLOT_MINUTES` | Không | Slot khóa lịch (mặc định 30) |
 | `TRUST_PROXY` | Production | `true` khi sau reverse proxy |
 
-Ứng dụng **fail-fast** nếu thiếu `JWT_SECRET` hoặc `MONGODB_URI`. Không có fallback secret.
+Ứng dụng **fail-fast** nếu thiếu `JWT_SECRET` / `MONGODB_URI`, và trong production nếu mock payment / webhook secret = JWT / `PUBLIC_BASE_URL` không HTTPS.
+
+## Production deploy
+
+```bash
+npm ci
+npm test
+npm run build:css
+npm run lint:security-ui
+# Docker
+docker build -t workhub .
+# Web process
+NODE_ENV=production node server.js
+# Worker (hold expiry) — separate process/cron
+npm run jobs:expire-holds
+# Finance reconcile (read-only)
+npm run reconcile:finance -- --dry-run
+```
+
+Webhook URL: `POST /api/gateway/webhook` (raw JSON body + signature).  
+Health: `/health/live`, `/health/ready` (public). `/metrics` requires `METRICS_AUTH_TOKEN`.
+
+See `WorkHub_Production_Fix_Prompt.md` §18 and `docs/SECURITY_AUDIT_PROD.md`.
 
 ## Scripts
 
@@ -52,7 +79,11 @@ npm run dev      # nodemon
 npm start        # production
 npm test         # jest + mongodb-memory-server
 npm run lint     # eslint
+npm run lint:security-ui  # no inline handlers in critical JS
 npm run check    # lint + test
+npm run audit:prod
+npm run reconcile:finance -- --dry-run
+npm run jobs:expire-holds
 npm run seed:extras  # coupons + feature flags demo
 ```
 
