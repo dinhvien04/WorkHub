@@ -25,10 +25,14 @@ const backgroundJobSchema = new mongoose.Schema(
     OwnerUserID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
     RunAfter: { type: Date, default: Date.now, index: true },
     CompletedAt: { type: Date, default: null },
+    LeaseUntil: { type: Date, default: null, index: true },
+    LeaseOwner: { type: String, default: '' },
+    HeartbeatAt: { type: Date, default: null },
   },
   { collection: 'background_jobs', timestamps: true }
 );
 
 backgroundJobSchema.index({ Status: 1, RunAfter: 1, createdAt: 1 });
+backgroundJobSchema.index({ Status: 1, LeaseUntil: 1 });
 
 module.exports = mongoose.model('BackgroundJob', backgroundJobSchema);

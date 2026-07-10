@@ -114,6 +114,31 @@ function validateEnv() {
       );
     }
 
+    // Domain-separated secrets — required and non-overlapping in production
+    const domainSecrets = {
+      SESSION_SECRET: process.env.SESSION_SECRET,
+      CSRF_SECRET: process.env.CSRF_SECRET,
+      CHECKIN_TOKEN_SECRET: process.env.CHECKIN_TOKEN_SECRET,
+      OAUTH_STATE_SECRET: process.env.OAUTH_STATE_SECRET,
+      ICAL_FEED_SECRET: process.env.ICAL_FEED_SECRET,
+    };
+    for (const [name, val] of Object.entries(domainSecrets)) {
+      if (!val || String(val).length < 32) {
+        throw new Error(
+          `${name} must be set (≥32 chars) and distinct in production.`,
+        );
+      }
+      if (val === process.env.JWT_SECRET) {
+        throw new Error(`${name} must not equal JWT_SECRET in production.`);
+      }
+    }
+    const vals = Object.values(domainSecrets);
+    if (new Set(vals).size !== vals.length) {
+      throw new Error(
+        "Critical secrets SESSION/CSRF/CHECKIN/OAUTH/ICAL must be unique pairwise.",
+      );
+    }
+
     // Public base URL
     const base = process.env.PUBLIC_BASE_URL || "";
     if (!base.startsWith("https://")) {
@@ -154,6 +179,15 @@ const env = {
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
   SESSION_SECRET: process.env.SESSION_SECRET || process.env.JWT_SECRET,
+  CSRF_SECRET:
+    process.env.CSRF_SECRET ||
+    process.env.SESSION_SECRET ||
+    process.env.JWT_SECRET,
+  CHECKIN_TOKEN_SECRET:
+    process.env.CHECKIN_TOKEN_SECRET || process.env.JWT_SECRET,
+  OAUTH_STATE_SECRET:
+    process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET,
+  ICAL_FEED_SECRET: process.env.ICAL_FEED_SECRET || process.env.JWT_SECRET,
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",

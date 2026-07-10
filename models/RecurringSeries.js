@@ -16,6 +16,8 @@ const recurringSeriesSchema = new mongoose.Schema(
     OccurrenceCount: { type: Number, default: null },
     Status: { type: String, enum: ['active', 'paused', 'cancelled'], default: 'active' },
     BookingIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
+    IdempotencyKey: { type: String, sparse: true, unique: true },
+    Timezone: { type: String, default: 'Asia/Ho_Chi_Minh' },
   },
   { collection: 'recurring_series', timestamps: true }
 );

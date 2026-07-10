@@ -66,7 +66,13 @@ const hostProfileSchema = new mongoose.Schema({
         type: String,
         trim: true,
         required: true // Ràng buộc bắt buộc
-    }
+    },
+
+    // External calendar feed — random token (hashed), rotatable/revocable
+    IcalTokenHash: { type: String, default: null, index: true, sparse: true },
+    IcalTokenPrefix: { type: String, default: '' },
+    IcalTokenExpiresAt: { type: Date, default: null },
+    IcalTokenRevokedAt: { type: Date, default: null },
 
 }, {
     collection: 'host_profiles',

@@ -77,8 +77,35 @@ async function listJobsForUser(userId, { limit = 20 } = {}) {
 /**
  * Claim and process next queued job (atomic).
  */
+async function recoverStuckJobs({ leaseMs = 5 * 60 * 1000 } = {}) {
+  const now = new Date();
+  const r = await BackgroundJob.updateMany(
+    {
+      Status: "running",
+      $or: [
+        { LeaseUntil: { $lte: now } },
+        { LeaseUntil: null, updatedAt: { $lte: new Date(now - leaseMs) } },
+      ],
+    },
+    {
+      $set: {
+        Status: "queued",
+        LeaseUntil: null,
+        LeaseOwner: "",
+        Error: "lease_expired_requeued",
+      },
+    },
+  );
+  return r.modifiedCount || 0;
+}
+
 async function processNextJob() {
   const now = new Date();
+  // Recover stuck runners before claim
+  await recoverStuckJobs();
+
+  const leaseUntil = new Date(now.getTime() + 5 * 60 * 1000);
+  const owner = `worker-${process.pid}-${now.getTime()}`;
   const job = await BackgroundJob.findOneAndUpdate(
     {
       Status: "queued",
@@ -86,7 +113,12 @@ async function processNextJob() {
       Attempts: { $lt: 10 },
     },
     {
-      $set: { Status: "running" },
+      $set: {
+        Status: "running",
+        LeaseUntil: leaseUntil,
+        LeaseOwner: owner,
+        HeartbeatAt: now,
+      },
       $inc: { Attempts: 1 },
     },
     { sort: { RunAfter: 1, createdAt: 1 }, returnDocument: "after" },
@@ -107,6 +139,8 @@ async function processNextJob() {
     job.Result = result || { ok: true };
     job.CompletedAt = new Date();
     job.Error = "";
+    job.LeaseUntil = null;
+    job.LeaseOwner = "";
     await job.save();
     try {
       require("../utils/metrics").incJobsProcessed();
@@ -117,6 +151,8 @@ async function processNextJob() {
   } catch (err) {
     job.Status = "failed";
     job.Error = err.message || "failed";
+    job.LeaseUntil = null;
+    job.LeaseOwner = "";
     await job.save();
     return job;
   }
@@ -280,4 +316,5 @@ module.exports = {
   processNextJob,
   processBatch,
   registerHandler,
+  recoverStuckJobs,
 };

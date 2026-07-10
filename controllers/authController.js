@@ -615,6 +615,17 @@ const resetPassword = asyncHandler(async (req, res) => {
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
 
+  // Invalidate all sessions on password reset
+  try {
+    const UserSession = require('../models/Session');
+    await UserSession.updateMany(
+      { UserID: user._id, RevokedAt: null },
+      { $set: { RevokedAt: new Date() } }
+    );
+  } catch {
+    /* non-fatal */
+  }
+
   record.UsedAt = new Date();
   await record.save();
 

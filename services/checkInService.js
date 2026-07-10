@@ -14,10 +14,14 @@ const EARLY_MINUTES = Number(process.env.CHECKIN_EARLY_MINUTES) || 30;
 const LATE_MINUTES = Number(process.env.CHECKIN_LATE_MINUTES) || 60;
 const NOSHOW_GRACE_MINUTES = Number(process.env.NOSHOW_GRACE_MINUTES) || 15;
 
+function checkInSecret() {
+  return env.CHECKIN_TOKEN_SECRET || env.JWT_SECRET;
+}
+
 function signPayload(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto
-    .createHmac("sha256", env.JWT_SECRET)
+    .createHmac("sha256", checkInSecret())
     .update(body)
     .digest("base64url");
   return `${body}.${sig}`;
@@ -27,7 +31,7 @@ function verifyToken(token) {
   if (!token || !String(token).includes(".")) return null;
   const [body, sig] = String(token).split(".");
   const expected = crypto
-    .createHmac("sha256", env.JWT_SECRET)
+    .createHmac("sha256", checkInSecret())
     .update(body)
     .digest("base64url");
   try {
@@ -47,15 +51,16 @@ function verifyToken(token) {
 }
 
 function hashCode(code) {
+  // Domain-separated hash so check-in codes are not portable across secrets
   return crypto
-    .createHash("sha256")
+    .createHmac("sha256", checkInSecret())
     .update(String(code).toUpperCase())
     .digest("hex");
 }
 
 function randomHumanCode() {
-  // 10 chars base32-ish ≈ > 50 bits entropy
-  return `WH-${crypto.randomBytes(6).toString("hex").toUpperCase().slice(0, 10)}`;
+  // 16 hex chars (64 bits) + prefix — exceeds 50-bit target
+  return `WH-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
 }
 
 function assertCheckInWindow(booking, now = new Date()) {

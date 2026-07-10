@@ -247,8 +247,56 @@ function verifyForProvider(provider, rawBody, signature, _event) {
     }
   }
 
-  // MoMo simple HMAC of raw body
+  // MoMo: prefer official construct when stripe package present for stripe;
+  // MoMo IPN canonical: partnerCode+orderId+requestId+amount+orderInfo+orderType+transId+resultCode+message+payType+responseTime+extraData
   if (provider === "momo" || provider === "momo_mock") {
+    try {
+      const parsed = JSON.parse(raw);
+      // Require core MoMo identifiers when present in payload
+      if (parsed.partnerCode && process.env.MOMO_PARTNER_CODE) {
+        if (String(parsed.partnerCode) !== String(process.env.MOMO_PARTNER_CODE)) {
+          return false;
+        }
+      }
+      if (
+        parsed.partnerCode != null &&
+        parsed.orderId != null &&
+        parsed.requestId != null
+      ) {
+        const accessKey = process.env.MOMO_ACCESS_KEY || "";
+        const rawSig =
+          `accessKey=${accessKey}` +
+          `&amount=${parsed.amount ?? ""}` +
+          `&extraData=${parsed.extraData ?? ""}` +
+          `&message=${parsed.message ?? ""}` +
+          `&orderId=${parsed.orderId ?? ""}` +
+          `&orderInfo=${parsed.orderInfo ?? ""}` +
+          `&orderType=${parsed.orderType ?? ""}` +
+          `&partnerCode=${parsed.partnerCode ?? ""}` +
+          `&payType=${parsed.payType ?? ""}` +
+          `&requestId=${parsed.requestId ?? ""}` +
+          `&responseTime=${parsed.responseTime ?? ""}` +
+          `&resultCode=${parsed.resultCode ?? ""}` +
+          `&transId=${parsed.transId ?? ""}`;
+        const expected = crypto
+          .createHmac("sha256", secret)
+          .update(rawSig)
+          .digest("hex");
+        const provided = String(
+          signature || parsed.signature || "",
+        ).toLowerCase();
+        try {
+          return crypto.timingSafeEqual(
+            Buffer.from(provided),
+            Buffer.from(expected),
+          );
+        } catch {
+          return false;
+        }
+      }
+    } catch {
+      /* fall through to raw body HMAC for mocks */
+    }
     const expected = crypto
       .createHmac("sha256", secret)
       .update(raw)
@@ -260,6 +308,29 @@ function verifyForProvider(provider, rawBody, signature, _event) {
       );
     } catch {
       return false;
+    }
+  }
+
+  // Stripe live: try official SDK constructEvent when stripe package is installed
+  if (provider === "stripe" && process.env.STRIPE_WEBHOOK_SECRET) {
+    try {
+      let Stripe;
+      try {
+        Stripe = require("stripe");
+      } catch {
+        Stripe = null;
+      }
+      if (Stripe) {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_x");
+        stripe.webhooks.constructEvent(
+          raw,
+          signature,
+          process.env.STRIPE_WEBHOOK_SECRET,
+        );
+        return true;
+      }
+    } catch {
+      // fall through — t=,v1= path already handled above
     }
   }
 

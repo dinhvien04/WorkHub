@@ -106,8 +106,22 @@ router.put('/i18n/lang', optionalAuth, g.setLang);
 // RUM beacon (public, no auth — no PII accepted)
 router.post('/rum', g.rumBeacon);
 
-// External calendar feed
+// External calendar feed (random token; rotate/revoke via host API)
 router.get('/feeds/host/:hostId/calendar.ics', g.hostIcalFeed);
+router.post(
+  '/host/ical/token',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.rotateIcalToken
+);
+router.delete(
+  '/host/ical/token',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.revokeIcalToken
+);
 
 // Admin ops
 router.get('/admin/dead-letters', verifyToken, requireAdmin, g.listDeadLetters);

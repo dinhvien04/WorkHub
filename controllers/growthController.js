@@ -474,28 +474,111 @@ const setLang = asyncHandler(async (req, res) => {
   res.json({ lang, messages: require('../services/i18n').dictionaries[lang] });
 });
 
-// —— Host external calendar feed (token-less signed by host id hash for demo) ——
+// —— Host external calendar feed (random rotatable token; never JWT-derived) ——
+function hashIcalToken(raw) {
+  const secret = require('../config/env').ICAL_FEED_SECRET || require('../config/env').JWT_SECRET;
+  return crypto.createHmac('sha256', secret).update(String(raw)).digest('hex');
+}
+
+const rotateIcalToken = asyncHandler(async (req, res) => {
+  const HostProfile = require('../models/Host_Profile');
+  const raw = `ical_${crypto.randomBytes(24).toString('base64url')}`;
+  const hash = hashIcalToken(raw);
+  const expiresAt = new Date(Date.now() + 365 * 86400000);
+  const profile = await HostProfile.findOneAndUpdate(
+    { UserID: req.user.userId },
+    {
+      $set: {
+        IcalTokenHash: hash,
+        IcalTokenPrefix: raw.slice(0, 12),
+        IcalTokenExpiresAt: expiresAt,
+        IcalTokenRevokedAt: null,
+      },
+    },
+    { new: true }
+  );
+  if (!profile) throw new NotFoundError('Host profile not found');
+  const base = require('../config/env').PUBLIC_BASE_URL || '';
+  const path = `/api/feeds/host/${req.user.userId}/calendar.ics?token=${encodeURIComponent(raw)}`;
+  res.json({
+    token: raw,
+    prefix: profile.IcalTokenPrefix,
+    expiresAt,
+    feedUrl: base ? `${base}${path}` : path,
+    warning: 'Store token securely; shown once. Rotate to revoke previous.',
+  });
+});
+
+const revokeIcalToken = asyncHandler(async (req, res) => {
+  const HostProfile = require('../models/Host_Profile');
+  const profile = await HostProfile.findOneAndUpdate(
+    { UserID: req.user.userId },
+    {
+      $set: {
+        IcalTokenHash: null,
+        IcalTokenPrefix: '',
+        IcalTokenRevokedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
+  if (!profile) throw new NotFoundError('Host profile not found');
+  res.json({ message: 'iCal feed token revoked.' });
+});
+
 const hostIcalFeed = asyncHandler(async (req, res) => {
   const hostId = req.params.hostId;
   const token = req.query.token;
-  const expected = crypto.createHash('sha256').update(`${hostId}:${require('../config/env').JWT_SECRET}`).digest('hex').slice(0, 16);
-  if (token !== expected) {
+  if (!token) return res.status(401).send('Invalid feed token');
+
+  const HostProfile = require('../models/Host_Profile');
+  const profile = await HostProfile.findOne({ UserID: hostId }).lean();
+  if (!profile || !profile.IcalTokenHash || profile.IcalTokenRevokedAt) {
     return res.status(401).send('Invalid feed token');
   }
+  if (profile.IcalTokenExpiresAt && new Date(profile.IcalTokenExpiresAt) < new Date()) {
+    return res.status(401).send('Invalid feed token');
+  }
+  const expected = hashIcalToken(token);
+  try {
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(String(profile.IcalTokenHash))
+      )
+    ) {
+      return res.status(401).send('Invalid feed token');
+    }
+  } catch {
+    return res.status(401).send('Invalid feed token');
+  }
+
   const from = new Date();
   const to = new Date(Date.now() + 30 * 86400000);
   const data = await calendarService.getHostCalendar({ hostId, from, to });
+  // No customer PII in feed — space title + times only
   const blocks = (data.events || []).map((ev) => {
     const fake = {
       _id: ev.id,
       StartTime: ev.start,
       EndTime: ev.end,
-      Snapshot: { SpaceName: ev.title, Address: '' },
+      Snapshot: { SpaceName: ev.title || 'Booking', Address: '' },
     };
-    return calendarService.bookingToIcs(fake).replace(/BEGIN:VCALENDAR[\s\S]*?BEGIN:VEVENT/, 'BEGIN:VEVENT').replace(/END:VCALENDAR\s*$/, '');
+    return calendarService
+      .bookingToIcs(fake)
+      .replace(/BEGIN:VCALENDAR[\s\S]*?BEGIN:VEVENT/, 'BEGIN:VEVENT')
+      .replace(/END:VCALENDAR\s*$/, '');
   });
-  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WorkHub//EN', ...blocks, 'END:VCALENDAR', ''].join('\r\n');
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//WorkHub//EN',
+    ...blocks,
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
   res.send(ics);
 });
 
@@ -1320,6 +1403,8 @@ module.exports = {
   i18nBundle,
   setLang,
   hostIcalFeed,
+  rotateIcalToken,
+  revokeIcalToken,
   listDeadLetters,
   discardDeadLetter,
   replayDeadLetter,

@@ -10,8 +10,12 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
  * Signed CSRF token: random payload + HMAC(session secret).
  * Cookie holds the token; header must match exactly (double-submit + signature).
  */
+function csrfSecret() {
+  return env.CSRF_SECRET || env.SESSION_SECRET || env.JWT_SECRET;
+}
+
 function signToken(raw) {
-  const secret = env.SESSION_SECRET || env.JWT_SECRET;
+  const secret = csrfSecret();
   const sig = crypto.createHmac("sha256", secret).update(raw).digest("hex");
   return `${raw}.${sig}`;
 }
@@ -20,7 +24,7 @@ function verifySignedToken(token) {
   if (!token || typeof token !== "string" || !token.includes(".")) return false;
   const [raw, sig] = token.split(".");
   if (!raw || !sig) return false;
-  const secret = env.SESSION_SECRET || env.JWT_SECRET;
+  const secret = csrfSecret();
   const expected = crypto
     .createHmac("sha256", secret)
     .update(raw)

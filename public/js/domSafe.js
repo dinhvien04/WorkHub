@@ -39,9 +39,29 @@
    */
   function safeImageUrl(value, allowedHosts) {
     if (!value || typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    // Block dangerous schemes and protocol-relative URLs
+    if (
+      /^javascript:/i.test(trimmed) ||
+      /^data:/i.test(trimmed) ||
+      /^vbscript:/i.test(trimmed) ||
+      trimmed.startsWith('//')
+    ) {
+      return '';
+    }
+    // Same-origin path and blob: local preview only
+    if (trimmed.startsWith('/uploads/') || trimmed.startsWith('/')) {
+      if (trimmed.startsWith('//')) return '';
+      return trimmed.split('?')[0].startsWith('/') ? trimmed : '';
+    }
+    if (trimmed.startsWith('blob:')) {
+      return trimmed;
+    }
     try {
-      const u = new URL(value, typeof location !== 'undefined' ? location.origin : 'https://localhost');
+      const u = new URL(trimmed, typeof location !== 'undefined' ? location.origin : 'https://localhost');
       if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+      // Reject data: SVG and nested javascript via URL parser edge cases
+      if (u.username || u.password) return '';
       if (Array.isArray(allowedHosts) && allowedHosts.length) {
         if (!allowedHosts.some((h) => u.hostname === h || u.hostname.endsWith('.' + h))) {
           return '';

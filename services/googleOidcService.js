@@ -42,13 +42,17 @@ function redirectUri(req) {
   return `${proto}://${host}/api/auth/google/callback`;
 }
 
+function oauthStateSecret() {
+  return env.OAUTH_STATE_SECRET || env.JWT_SECRET;
+}
+
 function signStatePayload(payload) {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: "10m" });
+  return jwt.sign(payload, oauthStateSecret(), { expiresIn: "10m" });
 }
 
 function verifyStatePayload(token) {
   try {
-    return jwt.verify(token, env.JWT_SECRET);
+    return jwt.verify(token, oauthStateSecret());
   } catch {
     return null;
   }
