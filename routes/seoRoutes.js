@@ -295,86 +295,32 @@ async function renderListing(req, res, next, { city, district, slug }) {
       });
     }
 
-    const spaces = await Space.find({ BranchID: branch._id, Status: 'available' })
-      .sort({ Category: 1, Name: 1 })
-      .lean();
+    const listingDetailService = require('../services/listingDetailService');
+    const vm = await listingDetailService.buildDetailViewModel(branch, { req });
 
-    const title = branch.MetaTitle || `${branch.Name} — WorkHub`;
-    const desc =
-      branch.MetaDescription ||
-      `${branch.Name} · ${branch.Address || ''} · Đặt chỗ co-working trên WorkHub`.slice(0, 160);
+    // Canonical SEO path may differ from request if slugs were just ensured
+    if (vm.seoPath && req.path !== vm.seoPath) {
+      return res.redirect(301, vm.seoPath);
+    }
 
-    const base = `${req.protocol}://${req.get('host')}`;
-    const minPrice = spaces.length
-      ? Math.min(...spaces.map((s) => s.PricePerHour || 0).filter(Boolean))
-      : undefined;
-
-    const localBusiness = {
-      '@context': 'https://schema.org',
-      '@type': 'LocalBusiness',
-      name: branch.Name,
-      description: desc,
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: branch.Address || '',
-        addressLocality: branch.District || branch.City || '',
-        addressRegion: branch.City || '',
-        addressCountry: 'VN',
-      },
-      image: (branch.Images && branch.Images[0]) || undefined,
-      telephone: branch.Phone || undefined,
-      url: `${base}${req.path}`,
-      priceRange: minPrice ? `Từ ${minPrice.toLocaleString('vi-VN')}đ/giờ` : undefined,
-      geo:
-        branch.Latitude != null && branch.Longitude != null
-          ? {
-              '@type': 'GeoCoordinates',
-              latitude: branch.Latitude,
-              longitude: branch.Longitude,
-            }
-          : undefined,
-      openingHours: branch.OpeningTime && branch.ClosingTime
-        ? `Mo-Su ${branch.OpeningTime}-${branch.ClosingTime}`
-        : undefined,
-      aggregateRating:
-        branch.RatingAvg > 0 && branch.RatingCount > 0
-          ? {
-              '@type': 'AggregateRating',
-              ratingValue: branch.RatingAvg,
-              reviewCount: branch.RatingCount,
-            }
-          : undefined,
-    };
-
-    const breadcrumb = {
-      '@context': 'https://schema.org',
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Trang chủ', item: `${base}/` },
-        {
-          '@type': 'ListItem',
-          position: 2,
-          name: branch.City || 'Thành phố',
-          item: `${base}/khong-gian/${branch.CitySlug || city || 'viet-nam'}`,
-        },
-        {
-          '@type': 'ListItem',
-          position: 3,
-          name: branch.Name,
-          item: `${base}${req.path}`,
-        },
-      ],
-    };
-
+    res.locals.pageTitle = vm.pageTitle;
+    res.locals.metaDescription = vm.metaDescription;
+    res.locals.canonicalPath = vm.canonicalPath;
+    res.locals.jsonLd = vm.jsonLd;
+    res.locals.ogImage = vm.ogImage;
     return res.render('customer/detail', {
-      branch,
-      spaces,
-      pageTitle: title,
-      metaDescription: desc,
-      canonicalPath: req.path,
-      jsonLd: [localBusiness, breadcrumb],
+      branch: vm.branch,
+      spaces: vm.spaces,
+      gallery: vm.gallery,
+      faq: vm.faq,
+      minPrice: vm.minPrice,
+      pageTitle: vm.pageTitle,
+      metaDescription: vm.metaDescription,
+      canonicalPath: vm.canonicalPath,
+      jsonLd: vm.jsonLd,
+      ogImage: vm.ogImage,
       scripts: res.locals.scriptsFrom
-        ? res.locals.scriptsFrom(['/js/customer-main.js'])
+        ? res.locals.scriptsFrom(['/js/customer-main.js', '/js/gallery-lightbox.js'])
         : '',
     });
   } catch (e) {

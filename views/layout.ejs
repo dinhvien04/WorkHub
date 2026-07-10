@@ -9,6 +9,15 @@
     <meta property="og:title" content="<%= typeof pageTitle !== 'undefined' ? pageTitle : 'WorkHub' %>">
     <meta property="og:description" content="<%= typeof metaDescription !== 'undefined' ? metaDescription : 'Đặt chỗ co-working trên WorkHub' %>">
     <meta property="og:type" content="website">
+    <% if (typeof ogImage !== 'undefined' && ogImage) { %>
+    <meta property="og:image" content="<%= ogImage %>">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="<%= ogImage %>">
+    <% } else { %>
+    <meta name="twitter:card" content="summary">
+    <% } %>
+    <meta name="twitter:title" content="<%= typeof pageTitle !== 'undefined' ? pageTitle : 'WorkHub' %>">
+    <meta name="twitter:description" content="<%= typeof metaDescription !== 'undefined' ? metaDescription : 'Đặt chỗ co-working trên WorkHub' %>">
     <meta name="theme-color" content="#0d9488">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">

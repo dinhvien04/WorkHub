@@ -100,19 +100,33 @@ async function detailPage(req, res) {
         const branch = await Branch.findById(branchId).lean();
         if (!branch) return res.status(404).send("Không tìm thấy chi nhánh");
 
-        const spaces = await Space.find({
-            BranchID: branchId,
-            Status: 'available'
-        }).sort({ Category: 1, Name: 1 }).lean();
+        const listingDetailService = require('../services/listingDetailService');
+        const vm = await listingDetailService.buildDetailViewModel(branch, { req });
 
+        // Prefer SEO slug URL when available
+        if (vm.seoPath && !vm.seoPath.startsWith('/detail')) {
+          return res.redirect(301, vm.seoPath);
+        }
+
+        res.locals.pageTitle = vm.pageTitle;
+        res.locals.metaDescription = vm.metaDescription;
+        res.locals.canonicalPath = vm.canonicalPath;
+        res.locals.jsonLd = vm.jsonLd;
+        res.locals.ogImage = vm.ogImage;
         res.render('customer/detail', {
-            branch,
-            spaces,
-            pageTitle: `${branch.Name} — WorkHub`,
-            metaDescription: (branch.Description || branch.Address || branch.Name || '').slice(0, 160),
+            branch: vm.branch,
+            spaces: vm.spaces,
+            gallery: vm.gallery,
+            faq: vm.faq,
+            minPrice: vm.minPrice,
+            pageTitle: vm.pageTitle,
+            metaDescription: vm.metaDescription,
+            canonicalPath: vm.canonicalPath,
+            jsonLd: vm.jsonLd,
+            ogImage: vm.ogImage,
             scripts: res.locals.scriptsFrom
-              ? res.locals.scriptsFrom(['/js/customer-main.js'])
-              : '<script src="/js/customer-main.js"></script>',
+              ? res.locals.scriptsFrom(['/js/customer-main.js', '/js/gallery-lightbox.js'])
+              : '<script src="/js/customer-main.js"></script><script src="/js/gallery-lightbox.js"></script>',
         });
     } catch (error) {
         return sendServerError(res, error);

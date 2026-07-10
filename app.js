@@ -171,30 +171,8 @@ function createApp() {
     res.send(metrics.renderPrometheus());
   });
 
-  app.use(seoRoutes);
-
-  app.use('/api/auth', authRoutes);
-  app.use('/api/customers', customerApiRoutes);
-  app.use('/api/me', meExtraRoutes);
-  app.use('/api/hosts', hostRoutes);
-  app.use('/api/admin', adminRoutes);
-  app.use('/api', platformRoutes);
-  app.use('/api', growthRoutes);
-
-  // Webhook needs raw-ish body for signature — express.json already parsed;
-  // gatewayService signs JSON.stringify of object (stable enough for mock).
-
-  // Best-effort: expire holds on hot path for small deployments
-  app.use(async (req, res, next) => {
-    if (req.method === 'GET' || Math.random() > 0.05) return next();
-    try {
-      await expireStaleHolds();
-    } catch {
-      /* ignore */
-    }
-    return next();
-  });
-
+  // Views + layouts MUST be registered before any route that res.render()s HTML
+  // (seoRoutes, page routes). Previously seoRoutes ran without layout → no <head>/JSON-LD.
   app.use(expressLayouts);
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
@@ -228,6 +206,30 @@ function createApp() {
       return (list || []).map((s) => res.locals.scriptSrc(s)).join('');
     };
     next();
+  });
+
+  app.use(seoRoutes);
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/customers', customerApiRoutes);
+  app.use('/api/me', meExtraRoutes);
+  app.use('/api/hosts', hostRoutes);
+  app.use('/api/admin', adminRoutes);
+  app.use('/api', platformRoutes);
+  app.use('/api', growthRoutes);
+
+  // Webhook needs raw-ish body for signature — express.json already parsed;
+  // gatewayService signs JSON.stringify of object (stable enough for mock).
+
+  // Best-effort: expire holds on hot path for small deployments
+  app.use(async (req, res, next) => {
+    if (req.method === 'GET' || Math.random() > 0.05) return next();
+    try {
+      await expireStaleHolds();
+    } catch {
+      /* ignore */
+    }
+    return next();
   });
 
   app.get('/login', (req, res) => res.render('customer/login', { pageTitle: 'Đăng nhập — WorkHub' }));

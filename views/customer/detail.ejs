@@ -5,31 +5,77 @@
   // Lấy ID của Chủ cơ sở (Host) trực tiếp từ dữ liệu branch
   const HOST_ID = "<%= branch.HostID || branch.hostID || '' %>";
 </script>
+<%
+  const _gallery = (typeof gallery !== 'undefined' && gallery && gallery.length)
+    ? gallery
+    : (branch.Images || []).map(function(u, i) {
+        return { fallback: u, autoSrcset: '', avifSrcset: '', webpSrcset: '', sizes: '', alt: branch.Name + ' — ảnh ' + (i+1), url: u };
+      });
+  const _galleryUrls = _gallery.map(function(g) { return g.url || g.fallback; }).filter(Boolean).join('|');
+  const _minPrice = typeof minPrice !== 'undefined' ? minPrice : null;
+  const _faq = typeof faq !== 'undefined' ? faq : [];
+%>
 <div class="flex flex-col lg:flex-row gap-8" data-branch-id="<%= branch._id %>">
     <div class="flex-1">
 
-        <div class="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 mb-6 overflow-hidden">
-            <img
-                src="<%= branch.Images && branch.Images.length > 0 ? branch.Images[0] : 'https://via.placeholder.com/1200x600' %>"
-                class="w-full h-72 object-cover rounded-2xl"
-                width="1200"
-                height="600"
-                loading="eager"
-                decoding="async"
-                alt="<%= branch.Name %>">
-            <% if (branch.Images && branch.Images.length > 1) { %>
-            <div class="flex gap-2 mt-2 overflow-x-auto pb-1">
-              <% branch.Images.slice(1, 6).forEach(function(img) { %>
-                <img src="<%= img %>" alt="" width="120" height="80" loading="lazy" decoding="async"
-                  class="w-28 h-20 object-cover rounded-xl border flex-shrink-0" />
+        <div class="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 mb-6 overflow-hidden"
+             data-gallery
+             data-gallery-urls="<%= _galleryUrls %>">
+            <% if (_gallery.length) {
+              const hero = _gallery[0];
+            %>
+            <button type="button" class="gallery-hero block w-full text-left p-0 border-0 bg-transparent"
+                    data-gallery-index="0" aria-label="Xem ảnh lớn 1">
+              <picture>
+                <% if (hero.avifSrcset) { %><source type="image/avif" srcset="<%= hero.avifSrcset %>" sizes="<%= hero.sizes %>"><% } %>
+                <% if (hero.webpSrcset) { %><source type="image/webp" srcset="<%= hero.webpSrcset %>" sizes="<%= hero.sizes %>"><% } %>
+                <img
+                  src="<%= hero.fallback || hero.url %>"
+                  <% if (hero.autoSrcset) { %>srcset="<%= hero.autoSrcset %>" sizes="<%= hero.sizes %>"<% } %>
+                  class="w-full h-72 object-cover rounded-2xl"
+                  width="1200"
+                  height="600"
+                  loading="eager"
+                  decoding="async"
+                  fetchpriority="high"
+                  alt="<%= hero.alt || branch.Name %>">
+              </picture>
+            </button>
+            <% if (_gallery.length > 1) { %>
+            <div class="flex gap-2 mt-2 overflow-x-auto pb-1" role="list">
+              <% _gallery.slice(1, 8).forEach(function(g, idx) { %>
+                <button type="button" class="gallery-thumb flex-shrink-0 p-0 border-0 bg-transparent rounded-xl"
+                        data-gallery-index="<%= idx + 1 %>" aria-label="Xem ảnh lớn <%= idx + 2 %>" role="listitem">
+                  <picture>
+                    <% if (g.webpSrcset) { %><source type="image/webp" srcset="<%= g.webpSrcset %>" sizes="112px"><% } %>
+                    <img src="<%= g.fallback || g.url %>"
+                      <% if (g.autoSrcset) { %>srcset="<%= g.autoSrcset %>" sizes="112px"<% } %>
+                      alt="<%= g.alt || '' %>" width="120" height="80" loading="lazy" decoding="async"
+                      class="w-28 h-20 object-cover rounded-xl border" />
+                  </picture>
+                </button>
               <% }) %>
             </div>
             <% } %>
+            <% } else { %>
+            <img src="https://via.placeholder.com/1200x600" class="w-full h-72 object-cover rounded-2xl"
+                 width="1200" height="600" alt="<%= branch.Name %>" loading="eager">
+            <% } %>
         </div>
 
-        <h1 class="text-2xl font-black text-slate-800 mb-2">
-            <%= branch.Name %>
-        </h1>
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+          <h1 class="text-2xl font-black text-slate-800">
+              <%= branch.Name %>
+          </h1>
+          <% if (_minPrice) { %>
+            <p class="text-sm font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+              Từ <%= Number(_minPrice).toLocaleString('vi-VN') %>đ/giờ
+            </p>
+          <% } %>
+        </div>
+        <% if (branch.City || branch.District) { %>
+          <p class="text-xs text-slate-400 mb-2"><%= [branch.District, branch.City].filter(Boolean).join(' · ') %></p>
+        <% } %>
 
         <p class="text-slate-500 text-sm leading-relaxed mb-4">
             <%= branch.Description %>
@@ -45,7 +91,7 @@
 
                 <div>
                     <span class="font-bold text-slate-700">🕒 Giờ hoạt động</span>
-                    <p class="text-slate-600 mt-1"><%= branch.OpeningTime %> - <%= branch.ClosingTime %></p>
+                    <p class="text-slate-600 mt-1"><%= branch.OpeningTime %> - <%= branch.ClosingTime %><% if (branch.Timezone) { %> <span class="text-slate-400">(<%= branch.Timezone %>)</span><% } %></p>
                 </div>
 
                 <div>
@@ -85,8 +131,25 @@
         </div>
         <% } %>
 
+        <% if (_faq && _faq.length) { %>
+        <div id="branch-faq" class="mt-8 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
+          <h2 class="font-bold text-xl mb-4 text-slate-800 uppercase tracking-tight">Câu hỏi thường gặp</h2>
+          <div class="space-y-3">
+            <% _faq.forEach(function(item, i) { %>
+            <details class="group border border-slate-100 rounded-xl p-4 open:bg-slate-50" <%= i === 0 ? 'open' : '' %>>
+              <summary class="font-semibold text-sm text-slate-800 cursor-pointer list-none flex justify-between gap-2">
+                <span><%= item.question %></span>
+                <span class="text-slate-400 group-open:rotate-180 transition">▾</span>
+              </summary>
+              <p class="text-sm text-slate-600 mt-2 leading-relaxed"><%= item.answer %></p>
+            </details>
+            <% }) %>
+          </div>
+        </div>
+        <% } %>
+
         <div id="reviews-section" class="mt-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-            <h3 class="font-bold text-xl mb-4 text-slate-800 uppercase tracking-tight">Đánh giá từ khách hàng</h3>
+            <h2 class="font-bold text-xl mb-4 text-slate-800 uppercase tracking-tight">Đánh giá từ khách hàng</h2>
             <div id="rating-breakdown" class="mb-6 max-w-md"></div>
             <div class="space-y-4" id="review-items-list"></div>
             <% if (branch.HostID) { %>
