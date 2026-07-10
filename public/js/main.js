@@ -5,6 +5,7 @@ const menus = {
   guest: [],
   customer: [
     { id: 'home', label: 'Trang chủ', icon: '🏠' },
+    { id: 'dashboard', label: 'Tổng quan', icon: '📊' },
     { id: 'booking_wizard', label: 'Đặt chỗ', icon: '✨' },
     { id: 'history', label: 'Lịch sử đặt', icon: '📅' },
     { id: 'favorites', label: 'Yêu thích', icon: '❤️' },
@@ -46,6 +47,7 @@ const menus = {
 function navigateTo(id) {
   const routes = {
     home: '/',
+    dashboard: '/dashboard',
     search: '/search',
     detail: '/detail',
     payment: '/payment',

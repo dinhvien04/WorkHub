@@ -110,6 +110,9 @@ router.post(
 router.get('/me/notification-prefs', verifyToken, g.getNotifyPrefs);
 router.put('/me/notification-prefs', verifyToken, g.updateNotifyPrefs);
 
+// Customer dashboard
+router.get('/me/dashboard', verifyToken, authorizeRole('customer'), g.customerDashboard);
+
 // Admin system + SEO redirects
 router.get('/admin/system-health', verifyToken, requireAdmin, g.systemHealth);
 router.get('/admin/seo/redirects', verifyToken, requireAdmin, g.listSeoRedirects);

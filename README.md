@@ -119,10 +119,15 @@ npm run seed:extras  # coupons + feature flags demo
 - Optional Redis rate-limit store (`REDIS_URL` + ioredis/redis)
 - Production CSS mode: no Tailwind CDN by default (`USE_TAILWIND_CDN=0|1`)
 - Search facets API; host gallery reorder; admin conversion funnel metrics
+- Distributed booking lock (memory / Redis); request timing headers
+- Customer dashboard (`/dashboard`, `/api/me/dashboard`)
+- CSS minify: `npm run build:css` → `public/css/app.min.css`
+- Instant-book badge on listing detail
 
 ```bash
 npm run backup
 npm run sbom
+npm run build:css
 ```
 
 ## Roles

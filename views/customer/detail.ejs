@@ -94,7 +94,17 @@
 
     <div class="w-full lg:w-80">
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 sticky top-24">
-            <h3 class="font-black text-xl mb-4 border-b pb-2 text-teal-800 uppercase tracking-tighter">Đặt chỗ</h3>
+            <h3 class="font-black text-xl mb-2 border-b pb-2 text-teal-800 uppercase tracking-tighter">Đặt chỗ</h3>
+            <% 
+              const _instantSpaces = (typeof spaces !== 'undefined' && spaces)
+                ? spaces.filter(function(s) { return s.InstantBook; })
+                : [];
+            %>
+            <% if (_instantSpaces.length) { %>
+              <p class="wh-badge mb-3">⚡ Instant book — xác nhận ngay</p>
+            <% } else { %>
+              <p class="text-[10px] font-bold uppercase text-slate-400 mb-3">Yêu cầu / chờ host xác nhận</p>
+            <% } %>
             
             <div class="space-y-4 mb-4">
                 <div>

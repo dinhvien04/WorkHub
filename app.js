@@ -12,6 +12,7 @@ const expressLayouts = require('express-ejs-layouts');
 
 const env = require('./config/env');
 const requestId = require('./middlewares/requestId');
+const requestTiming = require('./middlewares/requestTiming');
 const { ensureCsrfCookie, csrfProtection } = require('./middlewares/csrfMiddleware');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { requireHostPage, requireAdminPage } = require('./middlewares/authMiddleware');
@@ -38,6 +39,7 @@ function createApp() {
   }
 
   app.use(requestId);
+  app.use(requestTiming);
 
   // Per-request CSP nonce (no 'unsafe-inline' for scripts)
   app.use((req, res, next) => {
@@ -310,6 +312,12 @@ function createApp() {
     res.render('customer/consent', {
       pageTitle: 'Quyền riêng tư — WorkHub',
       scripts: res.locals.scriptsFrom(['/js/consent.js']),
+    })
+  );
+  app.get('/dashboard', (req, res) =>
+    res.render('customer/dashboard', {
+      pageTitle: 'Tổng quan — WorkHub',
+      scripts: res.locals.scriptsFrom(['/js/dashboard.js']),
     })
   );
   app.get('/payment/gateway/:sessionId', (req, res) =>

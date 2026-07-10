@@ -294,7 +294,10 @@ async function createBooking({
     Timezone: branch?.Timezone || 'Asia/Ho_Chi_Minh',
   };
 
-  return withOptionalTransaction(async (session) => {
+  const { withLock } = require('../utils/distributedLock');
+  // Serialize concurrent booking attempts on the same space (Redis lock if available)
+  return withLock(`booking:space:${spaceId}`, () =>
+    withOptionalTransaction(async (session) => {
     // Expire stale holds for this space first
     await Booking.updateMany(
       {
@@ -428,7 +431,8 @@ async function createBooking({
     }
 
     return booking;
-  });
+  })
+  );
 }
 
 async function confirmBooking(hostId, bookingId) {

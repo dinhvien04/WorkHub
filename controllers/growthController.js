@@ -389,19 +389,42 @@ const systemHealth = asyncHandler(async (req, res) => {
   const mongoose = require('mongoose');
   const pkg = require('../package.json');
   const mem = process.memoryUsage();
+  let redis = { configured: Boolean(process.env.REDIS_URL), ok: false, mode: 'none' };
+  if (process.env.REDIS_URL) {
+    try {
+      const { getRateLimitStore } = require('../utils/rateLimitStore');
+      await getRateLimitStore(1000);
+      redis = { configured: true, ok: true, mode: 'redis_or_memory_fallback' };
+    } catch (e) {
+      redis = { configured: true, ok: false, error: e.message };
+    }
+  } else {
+    redis = { configured: false, ok: true, mode: 'memory' };
+  }
   res.json({
     status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
     version: pkg.version,
     node: process.version,
     uptimeSec: Math.round(process.uptime()),
     db: { readyState: mongoose.connection.readyState },
+    redis,
     memory: {
       rss: mem.rss,
       heapUsed: mem.heapUsed,
     },
     env: process.env.NODE_ENV || 'development',
+    useTailwindCdn: process.env.USE_TAILWIND_CDN,
+    paymentProvider: process.env.PAYMENT_PROVIDER || 'workhub_mock',
     timestamp: new Date().toISOString(),
   });
+});
+
+// —— Customer dashboard ——
+const customerDashboard = asyncHandler(async (req, res) => {
+  const data = await require('../services/customerDashboardService').getCustomerDashboard(
+    req.user.userId
+  );
+  res.json(data);
 });
 
 // —— SEO redirect admin ——
@@ -849,6 +872,7 @@ module.exports = {
   getNotifyPrefs,
   updateNotifyPrefs,
   systemHealth,
+  customerDashboard,
   upsertSeoRedirect,
   listSeoRedirects,
   alternativeSlots,
