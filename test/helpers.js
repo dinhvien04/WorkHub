@@ -48,12 +48,23 @@ function getApp() {
 /**
  * Fetch CSRF cookie + header value for state-changing requests.
  */
-async function getCsrfPair(app) {
-  const res = await request(app).get('/api/auth/csrf');
-  const csrfToken = res.body.csrfToken;
+/**
+ * @param {import('express').Application} app
+ * @param {string} [authCookie] optional `authToken=...` so CSRF binds to verified SID
+ */
+async function getCsrfPair(app, authCookie = '') {
+  let req = request(app).get('/api/auth/csrf');
+  if (authCookie) {
+    req = req.set(
+      'Cookie',
+      authCookie.includes('=') ? authCookie : `authToken=${authCookie}`
+    );
+  }
+  const res = await req;
+  const csrfTokenBody = res.body.csrfToken;
   // Prefer single csrf cookie matching body (last Set-Cookie wins in browsers)
   const setCookie = res.headers['set-cookie'] || [];
-  let cookieVal = csrfToken;
+  let cookieVal = csrfTokenBody;
   let preSession = '';
   for (const c of setCookie) {
     const m = c.match(/^csrfToken=([^;]+)/);

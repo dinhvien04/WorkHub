@@ -43,6 +43,9 @@ describe('Prometheus metrics + health details', () => {
       startTime: start,
       endTime: end,
     });
+    // Metrics are enqueued in outbox — drain worker so counter updates
+    const outboxService = require('../services/outboxService');
+    await outboxService.processPending({ limit: 20, workerId: 'test-metrics-worker' });
 
     expect(metrics.snapshot().bookingsCreated).toBeGreaterThanOrEqual(before + 1);
 

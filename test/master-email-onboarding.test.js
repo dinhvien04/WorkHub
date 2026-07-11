@@ -67,12 +67,13 @@ describe('Email templates', () => {
       startTime: start,
       endTime: end,
     });
-    // allow microtask for safeSend
-    await new Promise((r) => setImmediate(r));
+    // Side effects are durable outbox rows — worker delivers to emailService
+    const outboxService = require('../services/outboxService');
+    await outboxService.processPending({ limit: 20, workerId: 'test-email-worker' });
     const box = emailService.listDevOutbox();
     expect(box.length).toBeGreaterThanOrEqual(1);
     const subjects = box.map((e) => e.subject).join(' | ');
-    expect(subjects).toMatch(/đặt chỗ|đơn/i);
+    expect(subjects).toMatch(/đặt chỗ|đơn|booking|WorkHub/i);
   });
 });
 

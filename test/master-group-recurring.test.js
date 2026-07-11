@@ -55,11 +55,12 @@ describe('Recurring preview + series', () => {
     expect(preview.occurrences[0].startTime).toBeTruthy();
 
     const { token } = agentWithAuth(app, customer);
-    const csrf = await getCsrfPair(app);
+    const authCookie = `authToken=${token}`;
+    const csrf = await getCsrfPair(app, authCookie);
     const prevApi = await withCsrf(
       request(app).post('/api/bookings/recurring/preview'),
       csrf,
-      `authToken=${token}`
+      authCookie
     ).send({
       spaceId: space._id,
       frequency: 'weekly',
@@ -75,16 +76,18 @@ describe('Recurring preview + series', () => {
     const create = await withCsrf(
       request(app).post('/api/bookings/recurring'),
       csrf,
-      `authToken=${token}`
-    ).send({
-      spaceId: space._id,
-      frequency: 'weekly',
-      daysOfWeek: [start.getDay()],
-      startTimeOfDay: '10:00',
-      durationMinutes: 60,
-      seriesStart: start.toISOString(),
-      occurrenceCount: 2,
-    });
+      authCookie
+    )
+      .set('Idempotency-Key', `recurring-api-${customer._id}-${Date.now()}`)
+      .send({
+        spaceId: space._id,
+        frequency: 'weekly',
+        daysOfWeek: [start.getDay()],
+        startTimeOfDay: '10:00',
+        durationMinutes: 60,
+        seriesStart: start.toISOString(),
+        occurrenceCount: 2,
+      });
     expect(create.status).toBe(201);
     expect(create.body.createdCount).toBeGreaterThanOrEqual(1);
 
