@@ -2,15 +2,16 @@
 
 const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const multer = require("multer");
 const env = require("../config/env");
+const { CloudinaryStorage } = require("../utils/cloudinaryStorage");
 
 if (env.CLOUDINARY_CLOUD_NAME) {
   cloudinary.config({
     cloud_name: env.CLOUDINARY_CLOUD_NAME,
     api_key: env.CLOUDINARY_API_KEY,
     api_secret: env.CLOUDINARY_API_SECRET,
+    secure: true,
   });
 }
 
@@ -41,18 +42,18 @@ function fileFilter(req, file, cb) {
     return cb(null, true);
   }
 
-  // avatar / logo / branch-space images: no PDF, no SVG
   if (!IMAGE_MIMES.has(mime)) {
     return cb(new Error("Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP."));
   }
   return cb(null, true);
 }
 
+// First-party Cloudinary 2.x storage (no multer-storage-cloudinary peer dep)
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
     const folderName = folderFor(file.fieldname);
-    const publicId = `${crypto.randomUUID()}`;
+    const publicId = crypto.randomUUID();
     const formats =
       file.fieldname === "verificationDocument"
         ? ["jpg", "png", "jpeg", "webp", "pdf"]
@@ -67,7 +68,6 @@ const storage = new CloudinaryStorage({
   },
 });
 
-// Memory storage fallback for tests without Cloudinary
 const memoryStorage = multer.memoryStorage();
 
 const useCloud = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY);
@@ -75,7 +75,7 @@ const useCloud = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY);
 const uploadCloud = multer({
   storage: useCloud ? storage : memoryStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
+    fileSize: 5 * 1024 * 1024,
     files: 10,
   },
   fileFilter,
@@ -88,7 +88,6 @@ const {
 } = require("../utils/magicBytes");
 const { scanUploadedFiles } = require("../services/uploadScanService");
 
-// Compose: multer + magic bytes + content scan when buffer present
 function withMagicBytes(multerMw) {
   return [multerMw, validateUploadMagicBytes(), scanUploadedFiles()];
 }
@@ -104,3 +103,5 @@ module.exports.singleWithMagic = (field) =>
   withMagicBytes(uploadCloud.single(field));
 module.exports.arrayWithMagic = (field, max) =>
   withMagicBytes(uploadCloud.array(field, max));
+module.exports.CloudinaryStorage = CloudinaryStorage;
+module.exports.useCloud = useCloud;

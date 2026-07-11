@@ -81,80 +81,163 @@ const registerUser = asyncHandler(async (req, res) => {
   if (existingUser) throw new ValidationError('Email này đã được đăng ký!');
 
   const passwordHash = await bcrypt.hash(String(password), 10);
-
-  // Host inactive until admin verifies; customers inactive until email verified
   const initialStatus = 'inactive';
-  const emailVerified = false;
+  const EmailVerificationToken = require('../models/EmailVerificationToken');
+  const { withTransaction } = require('../utils/mongoTransaction');
+  const outboxService = require('../services/outboxService');
+  const { cleanupUploadedFile } = require('../utils/cloudinaryStorage');
 
-  const user = await User.create({
-    Email: normalizedEmail,
-    PasswordHash: passwordHash,
-    FullName: String(fullName).trim(),
-    Role: normalizedRole,
-    Status: initialStatus,
-    EmailVerified: emailVerified,
-    EmailVerifiedAt: null,
-    AuthProvider: 'local',
-    tokenVersion: 0,
-  });
+  // Verification docs stay private — store path/public id only, never return raw
+  const verificationDoc =
+    req.file?.path || req.file?.filename || req.file?.public_id || 'uploaded';
 
-  if (normalizedRole === 'host') {
-    await HostProfile.create({
-      UserID: user._id,
-      CompanyName: String(companyName).trim(),
-      TaxCode: String(taxCode).trim(),
-      VerificationDocument: req.file?.path || req.file?.filename || 'uploaded',
-      Logo: '',
-      Hotline: String(contactPhone).trim(),
-      IsVerified: false,
-      BankName: String(bankName).trim(),
-      BankNumber: String(bankNumber).trim(),
-    });
-  } else {
-    await CustomerProfile.create({
-      UserID: user._id,
-      Avatar: '',
-      Phone: String(contactPhone).trim(),
-      Description: '',
-      JobTitle: '',
-      Company: '',
-      BankName: String(bankName || '').trim(),
-      BankNumber: String(bankNumber || '').trim(),
-    });
-  }
-
-  // Issue email verification token for local customers (not hosts — admin flow)
   let devToken;
-  if (normalizedRole === 'customer') {
-    const EmailVerificationToken = require('../models/EmailVerificationToken');
-    const raw = crypto.randomBytes(32).toString('hex');
-    const TokenHash = crypto.createHash('sha256').update(raw).digest('hex');
-    await EmailVerificationToken.deleteMany({ UserID: user._id, UsedAt: null });
-    await EmailVerificationToken.create({
-      UserID: user._id,
-      TokenHash,
-      ExpiresAt: new Date(Date.now() + 24 * 3600000),
+  let user;
+
+  try {
+    const result = await withTransaction(async (session) => {
+      let createdUser;
+      try {
+        if (session) {
+          [createdUser] = await User.create(
+            [
+              {
+                Email: normalizedEmail,
+                PasswordHash: passwordHash,
+                FullName: String(fullName).trim(),
+                Role: normalizedRole,
+                Status: initialStatus,
+                EmailVerified: false,
+                EmailVerifiedAt: null,
+                AuthProvider: 'local',
+                tokenVersion: 0,
+              },
+            ],
+            { session }
+          );
+        } else {
+          createdUser = await User.create({
+            Email: normalizedEmail,
+            PasswordHash: passwordHash,
+            FullName: String(fullName).trim(),
+            Role: normalizedRole,
+            Status: initialStatus,
+            EmailVerified: false,
+            EmailVerifiedAt: null,
+            AuthProvider: 'local',
+            tokenVersion: 0,
+          });
+        }
+      } catch (err) {
+        if (err.code === 11000) {
+          throw new ValidationError('Email này đã được đăng ký!');
+        }
+        throw err;
+      }
+
+      if (normalizedRole === 'host') {
+        const hostDoc = {
+          UserID: createdUser._id,
+          CompanyName: String(companyName).trim(),
+          TaxCode: String(taxCode).trim(),
+          VerificationDocument: verificationDoc,
+          Logo: '',
+          Hotline: String(contactPhone).trim(),
+          IsVerified: false,
+          BankName: String(bankName).trim(),
+          BankNumber: String(bankNumber).trim(),
+        };
+        if (session) await HostProfile.create([hostDoc], { session });
+        else await HostProfile.create(hostDoc);
+      } else {
+        const custDoc = {
+          UserID: createdUser._id,
+          Avatar: '',
+          Phone: String(contactPhone).trim(),
+          Description: '',
+          JobTitle: '',
+          Company: '',
+          BankName: String(bankName || '').trim(),
+          BankNumber: String(bankNumber || '').trim(),
+        };
+        if (session) await CustomerProfile.create([custDoc], { session });
+        else await CustomerProfile.create(custDoc);
+      }
+
+      let rawVerify = null;
+      if (normalizedRole === 'customer') {
+        rawVerify = crypto.randomBytes(32).toString('hex');
+        const TokenHash = crypto.createHash('sha256').update(rawVerify).digest('hex');
+        const delQ = EmailVerificationToken.deleteMany({
+          UserID: createdUser._id,
+          UsedAt: null,
+        });
+        if (session) delQ.session(session);
+        await delQ;
+        const tokenDoc = {
+          UserID: createdUser._id,
+          TokenHash,
+          ExpiresAt: new Date(Date.now() + 24 * 3600000),
+        };
+        if (session) await EmailVerificationToken.create([tokenDoc], { session });
+        else await EmailVerificationToken.create(tokenDoc);
+
+        await outboxService.enqueue(
+          {
+            type: 'email',
+            entityType: 'User',
+            entityId: createdUser._id,
+            recipientId: createdUser._id,
+            payload: {
+              to: createdUser.Email,
+              subject: 'Xác minh email WorkHub',
+              text: `Mã xác minh email WorkHub: ${rawVerify}\nHết hạn sau 24 giờ.`,
+            },
+            idempotencyKey: `register:${createdUser._id}:verify-email`,
+          },
+          { session }
+        );
+      }
+
+      await outboxService.enqueueAudit(
+        {
+          userId: createdUser._id,
+          action: 'REGISTER_USER',
+          entityType: 'USER',
+          entityId: createdUser._id,
+          message: `Tài khoản ${createdUser.FullName} vừa đăng ký mới trên hệ thống`,
+          level: 'success',
+        },
+        {
+          session,
+          idempotencyKey: `register:${createdUser._id}:audit`,
+        }
+      );
+
+      return { user: createdUser, rawVerify };
     });
-    try {
-      await emailService.sendGeneric({
-        to: user.Email,
-        subject: 'Xác minh email WorkHub',
-        text: `Mã xác minh email WorkHub: ${raw}\nHết hạn sau 24 giờ.`,
-      });
-    } catch {
-      /* email optional in dev */
+
+    user = result.user;
+    if (result.rawVerify && !env.isProduction) devToken = result.rawVerify;
+  } catch (err) {
+    // Cleanup temporary upload if DB transaction failed
+    if (req.file) {
+      try {
+        const upload = require('../middlewares/upload');
+        await cleanupUploadedFile(upload.cloudinary, req.file);
+      } catch {
+        /* ignore */
+      }
     }
-    if (!env.isProduction) devToken = raw;
+    throw err;
   }
 
-  await logActivity(
-    user._id,
-    'REGISTER_USER',
-    'USER',
-    user._id,
-    `Tài khoản ${user.FullName} vừa đăng ký mới trên hệ thống`,
-    'success'
-  );
+  // Drain outbox after commit
+  try {
+    await outboxService.processPending({ limit: 5 });
+  } catch {
+    /* worker will retry */
+  }
 
   const payload = {
     message:
