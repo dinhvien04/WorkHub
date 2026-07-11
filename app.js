@@ -52,27 +52,41 @@ function createApp() {
     next();
   });
 
+  // Production CSP is minimal (self + nonce). Dev may allow Tailwind CDN when USE_TAILWIND_CDN=1.
+  const useTailwindCdn =
+    process.env.USE_TAILWIND_CDN === '1' && !env.isProduction;
+  const scriptSrc = [
+    "'self'",
+    (req, res) => `'nonce-${res.locals.cspNonce}'`,
+  ];
+  const styleSrc = [
+    "'self'",
+    'https://fonts.googleapis.com',
+  ];
+  if (useTailwindCdn) {
+    scriptSrc.push(
+      'https://cdn.tailwindcss.com',
+      'https://cdn.jsdelivr.net',
+      'https://cdnjs.cloudflare.com'
+    );
+    styleSrc.push(
+      "'unsafe-inline'",
+      'https://cdn.jsdelivr.net',
+      'https://cdnjs.cloudflare.com'
+    );
+  } else {
+    // Self-hosted CSS may need limited inline for critical layout vars
+    styleSrc.push("'unsafe-inline'");
+  }
+
   app.use(
     helmet({
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
           'default-src': ["'self'"],
-          'script-src': [
-            "'self'",
-            (req, res) => `'nonce-${res.locals.cspNonce}'`,
-            'https://cdn.tailwindcss.com',
-            'https://cdn.jsdelivr.net',
-            'https://cdnjs.cloudflare.com',
-          ],
-          // Tailwind CDN injects styles; keep limited inline styles for CSS-in-JS CDN
-          'style-src': [
-            "'self'",
-            "'unsafe-inline'",
-            'https://fonts.googleapis.com',
-            'https://cdn.jsdelivr.net',
-            'https://cdnjs.cloudflare.com',
-          ],
+          'script-src': scriptSrc,
+          'style-src': styleSrc,
           'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
           'img-src': ["'self'", 'data:', 'https:', 'blob:'],
           'connect-src': ["'self'", 'ws:', 'wss:'],
@@ -80,7 +94,6 @@ function createApp() {
           'base-uri': ["'self'"],
           'form-action': ["'self'"],
           'frame-ancestors': ["'none'"],
-          // OSM embed on listing detail
           'frame-src': ["'self'", 'https://www.openstreetmap.org'],
           'child-src': ["'self'", 'https://www.openstreetmap.org'],
         },

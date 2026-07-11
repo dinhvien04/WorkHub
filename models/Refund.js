@@ -18,5 +18,6 @@ const refundSchema = new mongoose.Schema({
   ProcessedAt: { type: Date, default: null },
   FailureReason: { type: String, default: '' },
   IdempotencyKey: { type: String, sparse: true, unique: true },
+  Meta: { type: mongoose.Schema.Types.Mixed, default: {} },
 }, { collection: 'refunds', timestamps: true });
 module.exports = mongoose.model('Refund', refundSchema);

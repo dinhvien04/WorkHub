@@ -17,6 +17,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "format:check": "prettier --check \"config/**/*.js\" \"services/**/*.js\" \"middlewares/**/*.js\" \"scripts/**/*.js\" \"test/master-production-*.test.js\"",
+    "test:transactions": "cross-env ENABLE_TRANSACTIONS=true jest --runInBand --detectOpenHandles --testTimeout=120000 test/finance-transactions.test.js test/webhook-transactions.test.js test/booking-transactions.test.js test/membership-transactions.test.js",
     "check": "npm run lint:security-ui && npm run lint && npm test",
     "migrate:fields": "node scripts/migrateCanonicalFields.js --dry-run",
     "seed:extras": "node scripts/seedDemoExtras.js",
@@ -47,8 +48,9 @@
   "license": "ISC",
   "type": "commonjs",
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19.0 <21 || >=22.13.0"
   },
+  "packageManager": "npm@10.9.2",
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",
     "bcryptjs": "^3.0.3",
@@ -69,6 +71,7 @@
     "pino": "^10.1.0",
     "pino-pretty": "^13.1.2",
     "socket.io": "^4.8.3",
+    "stripe": "^17.7.0",
     "uuid": "^13.0.0",
     "zod": "^4.1.12"
   },

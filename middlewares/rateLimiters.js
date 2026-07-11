@@ -89,6 +89,62 @@ const searchLimiter = makeLimiter({
   prefix: "search",
 });
 
+const rumLimiter = makeLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: "Quá nhiều RUM beacon.",
+  prefix: "rum",
+});
+
+const rsvpLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: "Quá nhiều RSVP. Thử lại sau.",
+  prefix: "rsvp",
+});
+
+const reviewReportLimiter = makeLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: "Quá nhiều báo cáo review.",
+  prefix: "review-report",
+});
+
+const webauthnLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  message: "Quá nhiều yêu cầu WebAuthn.",
+  prefix: "webauthn",
+});
+
+const emailVerifyLimiter = makeLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: "Quá nhiều yêu cầu xác minh email.",
+  prefix: "email-verify",
+});
+
+const checkInLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: "Quá nhiều lần quét check-in.",
+  prefix: "checkin",
+});
+
+const icalLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: "Quá nhiều yêu cầu iCal.",
+  prefix: "ical",
+});
+
+const staffInviteAcceptLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: "Quá nhiều lần accept staff invite.",
+  prefix: "staff-accept",
+});
+
 module.exports = {
   loginLimiter,
   registerLimiter,
@@ -96,4 +152,12 @@ module.exports = {
   bookingLimiter,
   paymentLimiter,
   searchLimiter,
+  rumLimiter,
+  rsvpLimiter,
+  reviewReportLimiter,
+  webauthnLimiter,
+  emailVerifyLimiter,
+  checkInLimiter,
+  icalLimiter,
+  staffInviteAcceptLimiter,
 };

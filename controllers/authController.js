@@ -227,20 +227,32 @@ const loginUser = asyncHandler(async (req, res) => {
   return completeLogin(req, res, user);
 });
 
-async function completeLogin(req, res, user) {
+/**
+ * Canonical authenticated session for every login method.
+ * JWT carries raw SID; DB stores only SidHash + PublicSessionID.
+ */
+async function createAuthenticatedSession(req, res, user, {
+  authMethod = 'password',
+  redirect = null,
+  json = true,
+} = {}) {
   const crypto = require('crypto');
   const UserSession = require('../models/Session');
   const sid = crypto.randomBytes(24).toString('base64url');
   const sidHash = crypto.createHash('sha256').update(sid).digest('hex');
+  const publicSessionId = crypto.randomBytes(16).toString('base64url');
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   await UserSession.create({
     UserID: user._id,
-    Sid: sid,
+    PublicSessionID: publicSessionId,
     SidHash: sidHash,
+    // Never store raw SID
+    Sid: '',
     TokenVersion: user.tokenVersion || 0,
     UserAgent: String(req.get('user-agent') || '').slice(0, 300),
     IP: String(req.ip || req.socket?.remoteAddress || '').slice(0, 64),
+    AuthMethod: authMethod,
     LastSeenAt: new Date(),
     ExpiresAt: expiresAt,
   });
@@ -253,10 +265,14 @@ async function completeLogin(req, res, user) {
     'LOGIN',
     'User',
     user._id,
-    `Tài khoản ${user.FullName || user.Email} vừa đăng nhập hệ thống`,
+    `Tài khoản ${user.FullName || user.Email} vừa đăng nhập (${authMethod})`,
     'info'
   );
 
+  if (redirect) {
+    return res.redirect(redirect);
+  }
+  if (!json) return { token, publicSessionId, sid };
   return res.status(200).json({
     message: 'Đăng nhập thành công.',
     requires2fa: false,
@@ -268,6 +284,14 @@ async function completeLogin(req, res, user) {
       status: user.Status,
       totpEnabled: !!user.TotpEnabled,
     },
+  });
+}
+
+async function completeLogin(req, res, user, opts = {}) {
+  return createAuthenticatedSession(req, res, user, {
+    authMethod: opts.authMethod || 'password',
+    redirect: opts.redirect || null,
+    json: opts.json !== false,
   });
 }
 
@@ -312,7 +336,7 @@ const verify2faLogin = asyncHandler(async (req, res) => {
     sameSite: 'lax',
     path: '/',
   });
-  return completeLogin(req, res, user);
+  return completeLogin(req, res, user, { authMethod: '2fa' });
 });
 
 const setup2fa = asyncHandler(async (req, res) => {
@@ -715,7 +739,7 @@ const webauthnLoginVerify = asyncHandler(async (req, res) => {
       pendingToken,
     });
   }
-  return completeLogin(req, res, user);
+  return completeLogin(req, res, user, { authMethod: 'webauthn' });
 });
 
 const webauthnList = asyncHandler(async (req, res) => {
@@ -771,22 +795,12 @@ const googleCallback = asyncHandler(async (req, res) => {
     });
     return res.redirect('/login?requires2fa=1');
   }
-  // Set cookie and redirect home
-  const token = signToken(user);
-  res.cookie(env.AUTH_COOKIE_NAME, token, authCookieOptions());
-  try {
-    const UserSession = require('../models/Session');
-    await UserSession.create({
-      UserID: user._id,
-      TokenVersion: user.tokenVersion || 0,
-      UserAgent: String(req.get('user-agent') || '').slice(0, 300),
-      IP: String(req.ip || '').slice(0, 64),
-      LastSeenAt: new Date(),
-    });
-  } catch {
-    /* ignore */
-  }
-  return res.redirect('/');
+  // Canonical SID-bound session for Google (same as password/webauthn)
+  return createAuthenticatedSession(req, res, user, {
+    authMethod: 'google',
+    redirect: '/',
+    json: false,
+  });
 });
 
 const googleMock = asyncHandler(async (req, res) => {
@@ -795,7 +809,7 @@ const googleMock = asyncHandler(async (req, res) => {
     email: req.body.email,
     name: req.body.name,
   });
-  return completeLogin(req, res, user);
+  return completeLogin(req, res, user, { authMethod: 'google' });
 });
 
 const googleStatus = asyncHandler(async (req, res) => {
@@ -815,6 +829,8 @@ module.exports = {
   forgotPassword,
   resetPassword,
   signToken,
+  createAuthenticatedSession,
+  completeLogin,
   authCookieOptions,
   verify2faLogin,
   setup2fa,

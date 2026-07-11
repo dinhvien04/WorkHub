@@ -28,7 +28,12 @@ async function withTransaction(work, opts = {}) {
 
   const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    // Explicit transaction options for replica-set (incl. memory replset CI)
+    session.startTransaction({
+      readConcern: { level: "snapshot" },
+      writeConcern: { w: "majority" },
+      maxCommitTimeMS: 60_000,
+    });
     const result = await work(session);
     await session.commitTransaction();
     return result;
@@ -37,6 +42,23 @@ async function withTransaction(work, opts = {}) {
       await session.abortTransaction();
     } catch {
       /* ignore abort errors */
+    }
+    // Retry a few times on transient lock / catalog / write conflict
+    const msg = String(err.message || "");
+    const retries = opts._retries || 0;
+    if (
+      retries < 3 &&
+      (err.code === 112 ||
+        err.code === 251 ||
+        err.codeName === "WriteConflict" ||
+        err.codeName === "NoSuchTransaction" ||
+        msg.includes("Unable to acquire") ||
+        msg.includes("catalog changes") ||
+        msg.includes("TransientTransactionError") ||
+        msg.includes("Please retry"))
+    ) {
+      await new Promise((r) => setTimeout(r, 50 * (retries + 1)));
+      return withTransaction(work, { ...opts, _retries: retries + 1 });
     }
     throw err;
   } finally {

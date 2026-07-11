@@ -189,15 +189,21 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
 
         await runHook("afterPayoutCreate");
 
+        // Reserve is a balance transfer (available→reserved), NOT a final external debit.
         await ledgerService.postEntry(
           {
             hostId,
-            type: "payout",
+            type: "adjustment",
             amount: amt,
             direction: "debit",
             description: `Payout reserve ${payout._id}`,
             idempotencyKey: `payout:${payout._id}:reserve`,
-            meta: { payoutId: payout._id, status: "requested" },
+            meta: {
+              payoutId: payout._id,
+              status: "requested",
+              kind: "payout_reserve",
+              skipProjection: true,
+            },
           },
           { session },
         );
@@ -283,7 +289,11 @@ async function processPayout({
           direction: "credit",
           description: `Payout failed restore ${payout._id}`,
           idempotencyKey: `payout:${payout._id}:restore`,
-          meta: { payoutId: payout._id, skipProjection: true },
+          meta: {
+            payoutId: payout._id,
+            kind: "payout_restore",
+            skipProjection: true,
+          },
         },
         { session },
       );
@@ -291,7 +301,13 @@ async function processPayout({
     });
   }
 
-  // Approve → paid requires reserved funds
+  // Approve → paid requires reserved funds + transfer reference evidence
+  if (!transferReference || !String(transferReference).trim()) {
+    throw new ValidationError(
+      "TransferReference (bằng chứng chuyển khoản) là bắt buộc khi mark paid.",
+    );
+  }
+
   const paid = await withTransaction(async (session) => {
     await runHook("beforePaid");
 
@@ -303,9 +319,7 @@ async function processPayout({
           Status: "paid",
           ProcessedAt: new Date(),
           ProcessedBy: adminId || null,
-          TransferReference: transferReference
-            ? String(transferReference).slice(0, 200)
-            : undefined,
+          TransferReference: String(transferReference).slice(0, 200),
         },
       },
       { new: true },
@@ -350,6 +364,7 @@ async function processPayout({
       );
     }
 
+    // Exactly ONE final payout debit after confirmed settlement (reserved→paid_out)
     await ledgerService.postEntry(
       {
         hostId: payout.HostID,
@@ -361,7 +376,9 @@ async function processPayout({
         meta: {
           payoutId: payout._id,
           status: "paid",
+          kind: "payout_settle",
           adminId: adminId || null,
+          transferReference: String(transferReference).slice(0, 200),
           skipProjection: true,
         },
       },
@@ -369,17 +386,33 @@ async function processPayout({
     );
 
     return casPaid;
-  });
+  }, { required: env.isProduction });
 
-  // Side effects after commit
-  await notifyUser({
-    userId: payout.HostID,
-    title: "Payout đã chuyển",
-    body: `${payout.Amount.toLocaleString("vi-VN")}đ`,
-    type: "payment",
-    entityType: "Payout",
-    entityId: payout._id,
-  });
+  // Side effects after commit via outbox
+  try {
+    const outboxService = require("./outboxService");
+    await outboxService.enqueueNotification(
+      {
+        userId: payout.HostID,
+        title: "Payout đã chuyển",
+        body: `${payout.Amount.toLocaleString("vi-VN")}đ`,
+        type: "payment",
+        entityType: "Payout",
+        entityId: payout._id,
+      },
+      { idempotencyKey: `payout:${payout._id}:notify-paid` },
+    );
+    await outboxService.processPending({ limit: 3 });
+  } catch {
+    await notifyUser({
+      userId: payout.HostID,
+      title: "Payout đã chuyển",
+      body: `${payout.Amount.toLocaleString("vi-VN")}đ`,
+      type: "payment",
+      entityType: "Payout",
+      entityId: payout._id,
+    });
+  }
   return paid;
 }
 

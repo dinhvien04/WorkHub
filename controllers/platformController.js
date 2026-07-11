@@ -17,8 +17,11 @@ const PricingRule = require('../models/PricingRule');
 const SupportTicket = require('../models/SupportTicket');
 const Incident = require('../models/Incident');
 const Space = require('../models/Space');
+const Branch = require('../models/Branch');
+const Booking = require('../models/Booking');
 const paymentService = require('../services/paymentService');
 const { MembershipPlan } = require('../models/Membership');
+const { NotFoundError, ValidationError, ForbiddenError } = require('../utils/errors');
 
 // —— Search ——
 const search = asyncHandler(async (req, res) => {
@@ -238,9 +241,21 @@ const listAddOns = asyncHandler(async (req, res) => {
 });
 
 const createAddOn = asyncHandler(async (req, res) => {
+  let branchId = req.body.branchId || null;
+  if (branchId) {
+    const branch = await Branch.findOne({
+      _id: branchId,
+      HostID: req.user.userId,
+    }).select('_id');
+    if (!branch) {
+      throw new NotFoundError('Branch không thuộc host hiện tại.');
+    }
+    branchId = branch._id;
+  }
+  // Host-global add-ons are explicit when branchId is omitted
   const doc = await AddOn.create({
     HostID: req.user.userId,
-    BranchID: req.body.branchId || null,
+    BranchID: branchId,
     Name: req.body.name,
     Description: req.body.description || '',
     Price: Number(req.body.price) || 0,
@@ -279,13 +294,36 @@ const deleteBlackout = asyncHandler(async (req, res) => {
 });
 
 const createPricingRule = asyncHandler(async (req, res) => {
-  // Default draft so host can preview before publish
   const status =
     req.body.status === 'active' || req.body.publish === true ? 'active' : 'draft';
+  let branchId = req.body.branchId || null;
+  let spaceId = req.body.spaceId || null;
+
+  if (branchId) {
+    const branch = await Branch.findOne({
+      _id: branchId,
+      HostID: req.user.userId,
+    }).select('_id');
+    if (!branch) throw new NotFoundError('Branch không thuộc host hiện tại.');
+    branchId = branch._id;
+  }
+  if (spaceId) {
+    const space = await Space.findOne({
+      _id: spaceId,
+      HostID: req.user.userId,
+    }).select('_id BranchID');
+    if (!space) throw new NotFoundError('Space không thuộc host hiện tại.');
+    if (branchId && String(space.BranchID) !== String(branchId)) {
+      throw new ValidationError('Space không thuộc Branch đã chọn.');
+    }
+    if (!branchId) branchId = space.BranchID;
+    spaceId = space._id;
+  }
+
   const doc = await PricingRule.create({
     HostID: req.user.userId,
-    BranchID: req.body.branchId || null,
-    SpaceID: req.body.spaceId || null,
+    BranchID: branchId,
+    SpaceID: spaceId,
     Name: req.body.name,
     Type: req.body.type,
     Multiplier: Number(req.body.multiplier) || 1,
@@ -318,9 +356,21 @@ const listPricingRules = asyncHandler(async (req, res) => {
 // —— Support ——
 const createTicket = asyncHandler(async (req, res) => {
   const body = schemas.parse(schemas.supportTicket, req.body);
+  let bookingId = body.bookingId || null;
+  if (bookingId) {
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      CustomerID: req.user.userId,
+    }).select('_id');
+    if (!booking) {
+      // 404 — do not leak other customers' booking existence
+      throw new NotFoundError('Booking không tồn tại.');
+    }
+    bookingId = booking._id;
+  }
   const t = await SupportTicket.create({
     UserID: req.user.userId,
-    BookingID: body.bookingId || null,
+    BookingID: bookingId,
     Subject: body.subject,
     Body: body.body,
   });
@@ -335,8 +385,27 @@ const listTickets = asyncHandler(async (req, res) => {
 
 // —— Incidents ——
 const createIncident = asyncHandler(async (req, res) => {
+  if (!req.body.bookingId) {
+    throw new ValidationError('bookingId là bắt buộc.');
+  }
+  const booking = await Booking.findOne({
+    _id: req.body.bookingId,
+    HostID: req.user.userId,
+  }).select('_id HostID SpaceID');
+  if (!booking) {
+    throw new NotFoundError('Booking không thuộc host hiện tại.');
+  }
+  // Staff branch scope when acting under host context
+  if (req.hostContext?.isStaff && req.hostContext.allowedBranchIds) {
+    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    const branchId = space?.BranchID ? String(space.BranchID) : null;
+    const allowed = (req.hostContext.allowedBranchIds || []).map(String);
+    if (branchId && allowed.length && !allowed.includes(branchId)) {
+      throw new ForbiddenError('Staff không có quyền trên branch của booking này.');
+    }
+  }
   const doc = await Incident.create({
-    BookingID: req.body.bookingId,
+    BookingID: booking._id,
     HostID: req.user.userId,
     ReportedBy: req.user.userId,
     Type: req.body.type || 'other',

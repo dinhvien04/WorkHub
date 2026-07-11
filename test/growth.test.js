@@ -167,7 +167,11 @@ describe('Partner API key', () => {
       request(app).post('/api/partner/keys'),
       csrf,
       `authToken=${token}`
-    ).send({ name: 'test', scopes: ['spaces:read', 'bookings:read'] });
+    ).send({
+      name: 'test',
+      scopes: ['spaces:read', 'bookings:read'],
+      allBranches: true,
+    });
     expect(create.status).toBe(201);
     const secret = create.body.secret;
     expect(secret).toMatch(/^wh_/);

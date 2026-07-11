@@ -1,6 +1,5 @@
 "use strict";
 
-const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
 const BookingSlot = require("../models/BookingSlot");
 const Space = require("../models/Space");
@@ -80,30 +79,12 @@ function buildSlotStarts(start, end, slotMinutes = env.BOOKING_SLOT_MINUTES) {
 }
 
 /**
- * Run work once. Never re-invoke on transaction failure.
+ * Run work once via shared withTransaction helper (retry-aware).
  * ENABLE_TRANSACTIONS=false => non-transaction path only.
  */
 async function withOptionalTransaction(work) {
-  if (!env.ENABLE_TRANSACTIONS) {
-    return work(null);
-  }
-
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const result = await work(session);
-    await session.commitTransaction();
-    return result;
-  } catch (err) {
-    try {
-      await session.abortTransaction();
-    } catch {
-      /* ignore */
-    }
-    throw err;
-  } finally {
-    session.endSession();
-  }
+  const { withTransaction } = require("../utils/mongoTransaction");
+  return withTransaction(work, { required: false });
 }
 
 function validateBookingWindow(start, end) {
@@ -170,65 +151,82 @@ async function createBooking({
     throw new ValidationError("Không gian hiện không khả dụng để đặt.");
   }
 
-  // Platform kill switch (feature flag)
-  try {
+  // Platform kill switch (feature flag) — DB failures must not fail open
+  {
     const featureFlagService = require("./featureFlagService");
-    const bookingOff = await featureFlagService.isEnabled(
-      "kill_switch_bookings",
-      {
+    let bookingOff = false;
+    try {
+      bookingOff = await featureFlagService.isEnabled("kill_switch_bookings", {
         userId: customerId,
         role: "customer",
-      },
-    );
+      });
+    } catch (err) {
+      if (err.statusCode) throw err;
+      const e = new Error("Không kiểm tra được feature flag. Thử lại sau.");
+      e.statusCode = 503;
+      e.isOperational = true;
+      throw e;
+    }
     if (bookingOff) {
       throw new ValidationError(
         "Hệ thống tạm dừng nhận booking mới (kill switch). Vui lòng thử lại sau.",
       );
     }
-  } catch (err) {
-    if (err.statusCode) throw err;
   }
 
-  // Blackout / maintenance windows
-  try {
+  // Blackout / maintenance windows — DB failures must not fail open
+  {
     const Blackout = require("../models/Blackout");
-    const blocked = await Blackout.findOne({
-      SpaceID: space._id,
-      StartTime: { $lt: end },
-      EndTime: { $gt: start },
-    }).lean();
+    let blocked;
+    try {
+      blocked = await Blackout.findOne({
+        SpaceID: space._id,
+        StartTime: { $lt: end },
+        EndTime: { $gt: start },
+      }).lean();
+    } catch (err) {
+      if (err.statusCode) throw err;
+      const e = new Error("Không kiểm tra được blackout. Thử lại sau.");
+      e.statusCode = 503;
+      e.isOperational = true;
+      throw e;
+    }
     if (blocked) {
       throw new ValidationError(
         `Không gian đang bảo trì/blackout: ${blocked.Reason || "maintenance"}.`,
       );
     }
-  } catch (err) {
-    if (err.statusCode) throw err;
   }
 
-  // Fraud pre-check (rule-based)
-  try {
+  // Fraud pre-check — service/DB failures must not fail open
+  {
     const User = require("../models/User");
     const fraudService = require("./fraudService");
-    const user = await User.findById(customerId).select("createdAt").lean();
-    const recentBookingCount = await Booking.countDocuments({
-      CustomerID: customerId,
-      createdAt: { $gte: new Date(Date.now() - 3600000) },
-    });
-    const hoursPreview = (end - start) / 3600000;
-    const amountPreview = Math.round(hoursPreview * (space.PricePerHour || 0));
-    const fraud = fraudService.scoreBookingAttempt({
-      userCreatedAt: user?.createdAt,
-      amount: amountPreview,
-      recentBookingCount,
-    });
-    if (fraud.action === "block") {
-      throw new ValidationError(
-        "Yêu cầu đặt chỗ bị chặn bởi hệ thống an toàn. Liên hệ hỗ trợ.",
-      );
+    try {
+      const user = await User.findById(customerId).select("createdAt").lean();
+      const recentBookingCount = await Booking.countDocuments({
+        CustomerID: customerId,
+        createdAt: { $gte: new Date(Date.now() - 3600000) },
+      });
+      const hoursPreview = (end - start) / 3600000;
+      const amountPreview = Math.round(hoursPreview * (space.PricePerHour || 0));
+      const fraud = fraudService.scoreBookingAttempt({
+        userCreatedAt: user?.createdAt,
+        amount: amountPreview,
+        recentBookingCount,
+      });
+      if (fraud.action === "block") {
+        throw new ValidationError(
+          "Yêu cầu đặt chỗ bị chặn bởi hệ thống an toàn. Liên hệ hỗ trợ.",
+        );
+      }
+    } catch (err) {
+      if (err.statusCode) throw err;
+      const e = new Error("Không kiểm tra được fraud score. Thử lại sau.");
+      e.statusCode = 503;
+      e.isOperational = true;
+      throw e;
     }
-  } catch (err) {
-    if (err.statusCode) throw err;
   }
 
   const slotStarts = buildSlotStarts(start, end);
@@ -239,26 +237,40 @@ async function createBooking({
     throw new ValidationError("Số lượng slot vượt giới hạn.");
   }
 
-  // Server-side pricing rules (peak/weekend/long-stay …)
+  // Server-side pricing rules — only safe "no rule" may fall back; DB errors fail closed
   let appliedPricingRules = [];
   let total;
   let depositFromQuote = null;
-  try {
+  {
     const pricingService = require("./pricingService");
-    const quote = await pricingService.quotePrice({
-      hostId: space.HostID,
-      spaceId: space._id,
-      branchId: space.BranchID?._id || space.BranchID,
-      start,
-      end,
-      basePricePerHour: space.PricePerHour || 0,
-    });
-    total = quote.totalAmount;
-    depositFromQuote = quote.depositAmount;
-    appliedPricingRules = quote.appliedRules || [];
-  } catch {
-    const hours = (end - start) / (1000 * 60 * 60);
-    total = Math.round(hours * (space.PricePerHour || 0));
+    try {
+      const quote = await pricingService.quotePrice({
+        hostId: space.HostID,
+        spaceId: space._id,
+        branchId: space.BranchID?._id || space.BranchID,
+        start,
+        end,
+        basePricePerHour: space.PricePerHour || 0,
+      });
+      total = quote.totalAmount;
+      depositFromQuote = quote.depositAmount;
+      appliedPricingRules = quote.appliedRules || [];
+    } catch (err) {
+      // Safe no-rule fallback only when pricing explicitly signals empty
+      if (err && (err.code === "NO_PRICING_RULES" || err.safeFallback === true)) {
+        const hours = (end - start) / (1000 * 60 * 60);
+        total = Math.round(hours * (space.PricePerHour || 0));
+      } else if (err && err.statusCode && err.statusCode < 500) {
+        throw err;
+      } else {
+        const e = new Error(
+          "Không tính được giá booking (pricing service). Thử lại sau.",
+        );
+        e.statusCode = 503;
+        e.isOperational = true;
+        throw e;
+      }
+    }
   }
   let discountAmount = 0;
   let appliedCoupon = null;
@@ -356,25 +368,29 @@ async function createBooking({
   // Serialize concurrent booking attempts on the same space (Redis lock if available)
   return withLock(`booking:space:${spaceId}`, () =>
     withOptionalTransaction(async (session) => {
-      // Expire stale holds for this space first
-      await Booking.updateMany(
-        {
-          SpaceID: spaceId,
-          Status: "hold",
-          HoldExpiresAt: { $lt: new Date() },
-        },
-        { $set: { Status: "expired" } },
-      );
-      if (!session) {
-        const expired = await Booking.find({
-          SpaceID: spaceId,
-          Status: "expired",
-        }).select("_id");
-        if (expired.length) {
-          await BookingSlot.deleteMany({
-            BookingID: { $in: expired.map((e) => e._id) },
-          });
-        }
+      // Stale cleanup: only transition expired holds for this space, then
+      // delete slots for bookings we just expired (same session when txn on).
+      // Prefer scheduled expiry worker as canonical; this is a narrow assist.
+      const now = new Date();
+      const expireFilter = {
+        SpaceID: spaceId,
+        Status: { $in: ["hold", "pending", "awaiting_payment"] },
+        HoldExpiresAt: { $lt: now, $ne: null },
+      };
+      let expireQ = Booking.find(expireFilter).select("_id");
+      if (session) expireQ = expireQ.session(session);
+      const toExpire = await expireQ;
+      if (toExpire.length) {
+        const ids = toExpire.map((e) => e._id);
+        const upd = Booking.updateMany(
+          { _id: { $in: ids }, ...expireFilter },
+          { $set: { Status: "expired" } },
+        );
+        if (session) upd.session(session);
+        await upd;
+        const del = BookingSlot.deleteMany({ BookingID: { $in: ids } });
+        if (session) del.session(session);
+        await del;
       }
 
       // Buffer before + cleanup after: both new and existing bookings expand by same space policy.
@@ -522,25 +538,34 @@ async function createBooking({
         }
       }
 
-      // Side effects (audit/email) only after successful mutate path;
-      // when session is open, commit happens after this callback returns.
-      await logActivity(
-        customerId,
-        "CREATE_BOOKING",
-        "Booking",
-        booking._id,
-        `Khách hàng tạo đơn đặt chỗ trị giá ${total.toLocaleString("vi-VN")}đ`,
-        "info",
+      // Side effects via outbox only (processed after commit)
+      const outboxService = require("./outboxService");
+      await outboxService.enqueueAudit(
+        {
+          userId: customerId,
+          action: "CREATE_BOOKING",
+          entityType: "Booking",
+          entityId: booking._id,
+          message: `Khách hàng tạo đơn đặt chỗ trị giá ${total.toLocaleString("vi-VN")}đ`,
+          level: "info",
+        },
+        {
+          session,
+          idempotencyKey: `booking:${booking._id}:audit-created`,
+        },
       );
-      try {
-        require("../utils/metrics").incBookingsCreated();
-      } catch {
-        /* ignore */
-      }
-
-      try {
-        const { notifyUser } = require("./notificationService");
-        await notifyUser({
+      await outboxService.enqueue(
+        {
+          type: "metrics",
+          entityType: "Booking",
+          entityId: booking._id,
+          payload: { fn: "incBookingsCreated" },
+          idempotencyKey: `booking:${booking._id}:metrics-created`,
+        },
+        { session },
+      );
+      await outboxService.enqueueNotification(
+        {
           userId: space.HostID,
           title: "Booking mới",
           body: `${snapshot.SpaceName} · ${total.toLocaleString("vi-VN")}đ`,
@@ -548,50 +573,68 @@ async function createBooking({
           entityType: "Booking",
           entityId: booking._id,
           link: "/host/bookings",
-        });
-      } catch {
-        /* ignore */
-      }
+        },
+        {
+          session,
+          idempotencyKey: `booking:${booking._id}:notify-host`,
+        },
+      );
 
-      // Transactional emails (best-effort)
-      try {
-        const User = require("../models/User");
-        const emailService = require("./emailService");
-        const [customer, host] = await Promise.all([
-          User.findById(customerId).select("Email FullName NotifyEmail").lean(),
-          User.findById(space.HostID)
-            .select("Email FullName NotifyEmail")
-            .lean(),
-        ]);
-        if (customer?.Email && customer.NotifyEmail !== false) {
-          emailService.safeSendTemplate("booking_created", {
-            to: customer.Email,
-            customerName: customer.FullName,
+      // Queue emails (resolved recipient addresses after commit by worker;
+      // store ids so deliver can load fresh emails)
+      await outboxService.enqueueEmailTemplate(
+        {
+          template: "booking_created",
+          to: null,
+          data: {
+            customerId,
             spaceName: snapshot.SpaceName,
             startTime: booking.StartTime,
             endTime: booking.EndTime,
             totalAmount: booking.TotalAmount,
             bookingId: booking._id,
-          });
-        }
-        if (host?.Email && host.NotifyEmail !== false) {
-          emailService.safeSendTemplate("host_new_booking", {
-            to: host.Email,
-            hostName: host.FullName,
+          },
+          entityType: "Booking",
+          entityId: booking._id,
+        },
+        {
+          session,
+          idempotencyKey: `booking:${booking._id}:email-customer`,
+        },
+      );
+      await outboxService.enqueueEmailTemplate(
+        {
+          template: "host_new_booking",
+          to: null,
+          data: {
+            hostId: space.HostID,
             spaceName: snapshot.SpaceName,
             startTime: booking.StartTime,
             endTime: booking.EndTime,
             totalAmount: booking.TotalAmount,
             bookingId: booking._id,
-          });
-        }
-      } catch {
-        /* ignore */
-      }
+          },
+          entityType: "Booking",
+          entityId: booking._id,
+        },
+        {
+          session,
+          idempotencyKey: `booking:${booking._id}:email-host`,
+        },
+      );
 
       return booking;
     }),
-  );
+  ).then(async (booking) => {
+    // Drain outbox after commit (best-effort; job worker also processes)
+    try {
+      const outboxService = require("./outboxService");
+      await outboxService.processPending({ limit: 10 });
+    } catch {
+      /* ignore */
+    }
+    return booking;
+  });
 }
 
 async function confirmBooking(hostId, bookingId) {

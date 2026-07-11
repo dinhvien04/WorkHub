@@ -23,8 +23,8 @@ async function getActiveMembership(userId) {
 }
 
 /**
- * Append-only credit post. Updates Membership.CreditsRemaining only after ledger insert.
- * Never call Membership.update on CreditsRemaining outside this function.
+ * Append-only credit post — balance update + ledger insert in one transaction.
+ * Requires idempotency key for financial mutations when provided by callers.
  */
 async function postCreditEntry({
   membershipId,
@@ -50,61 +50,103 @@ async function postCreditEntry({
     const existing = await MembershipCreditLedger.findOne({
       IdempotencyKey: idempotencyKey,
     });
-    if (existing) return existing;
+    if (existing) {
+      // Same key different hours → conflict
+      if (Math.abs(Number(existing.Hours) || 0) !== hrs) {
+        throw new ConflictError(
+          "Idempotency-Key đã dùng với số giờ khác.",
+        );
+      }
+      return existing;
+    }
   }
 
-  // Atomic conditional balance update first (prevents concurrent debit overspend)
-  const filter = { _id: membershipId };
-  let inc = 0;
-  if (direction === "credit") {
-    inc = hrs;
-  } else {
-    inc = -hrs;
-    filter.CreditsRemaining = { $gte: hrs };
-  }
+  const { withTransaction } = require("../utils/mongoTransaction");
+  const env = require("../config/env");
 
-  const updated = await Membership.findOneAndUpdate(
-    filter,
-    { $inc: { CreditsRemaining: inc } },
-    { new: true },
+  return withTransaction(
+    async (session) => {
+      if (idempotencyKey) {
+        const againQ = MembershipCreditLedger.findOne({
+          IdempotencyKey: idempotencyKey,
+        });
+        if (session) againQ.session(session);
+        const existing = await againQ;
+        if (existing) return existing;
+      }
+
+      const filter = { _id: membershipId };
+      let inc = 0;
+      if (direction === "credit") {
+        inc = hrs;
+      } else {
+        inc = -hrs;
+        filter.CreditsRemaining = { $gte: hrs };
+      }
+
+      const updQ = Membership.findOneAndUpdate(
+        filter,
+        { $inc: { CreditsRemaining: inc } },
+        { new: true },
+      );
+      if (session) updQ.session(session);
+      const updated = await updQ;
+      if (!updated) {
+        if (direction === "debit") {
+          throw new ValidationError("Không đủ giờ membership.");
+        }
+        throw new NotFoundError("Membership không tồn tại.");
+      }
+
+      const next = Math.max(0, updated.CreditsRemaining || 0);
+      try {
+        if (session) {
+          const [entry] = await MembershipCreditLedger.create(
+            [
+              {
+                MembershipID: membershipId,
+                UserID: userId,
+                Type: type,
+                Hours: hrs,
+                Direction: direction,
+                BalanceAfter: next,
+                ExpiresAt: expiresAt,
+                BookingID: bookingId || null,
+                IdempotencyKey: idempotencyKey || undefined,
+                Description: description,
+                Meta: meta,
+              },
+            ],
+            { session },
+          );
+          return entry;
+        }
+        return await MembershipCreditLedger.create({
+          MembershipID: membershipId,
+          UserID: userId,
+          Type: type,
+          Hours: hrs,
+          Direction: direction,
+          BalanceAfter: next,
+          ExpiresAt: expiresAt,
+          BookingID: bookingId || null,
+          IdempotencyKey: idempotencyKey || undefined,
+          Description: description,
+          Meta: meta,
+        });
+      } catch (err) {
+        if (err.code === 11000 && idempotencyKey) {
+          const againQ = MembershipCreditLedger.findOne({
+            IdempotencyKey: idempotencyKey,
+          });
+          if (session) againQ.session(session);
+          return againQ;
+        }
+        throw err;
+      }
+    },
+    { required: env.isProduction },
   );
-  if (!updated) {
-    if (direction === "debit") {
-      throw new ValidationError("Không đủ giờ membership.");
-    }
-    throw new NotFoundError("Membership không tồn tại.");
-  }
-
-  const next = Math.max(0, updated.CreditsRemaining || 0);
-
-  let entry;
-  try {
-    entry = await MembershipCreditLedger.create({
-      MembershipID: membershipId,
-      UserID: userId,
-      Type: type,
-      Hours: hrs,
-      Direction: direction,
-      BalanceAfter: next,
-      ExpiresAt: expiresAt,
-      BookingID: bookingId || null,
-      IdempotencyKey: idempotencyKey || undefined,
-      Description: description,
-      Meta: meta,
-    });
-  } catch (err) {
-    // Compensate balance if ledger insert fails
-    await Membership.updateOne(
-      { _id: membershipId },
-      { $inc: { CreditsRemaining: -inc } },
-    );
-    if (err.code === 11000 && idempotencyKey) {
-      return MembershipCreditLedger.findOne({ IdempotencyKey: idempotencyKey });
-    }
-    throw err;
-  }
-
-  return entry;
 }
 
 async function subscribe({ userId, planCode }) {

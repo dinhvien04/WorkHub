@@ -41,6 +41,7 @@ const reviewSchema = new mongoose.Schema({
     },
     ReportCount: { type: Number, default: 0, min: 0 },
     ReportReasons: [{ type: String, maxlength: 500 }],
+    ReportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     HostReply: { type: String, default: '', maxlength: 2000 },
     HostRepliedAt: { type: Date, default: null },
     ModeratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

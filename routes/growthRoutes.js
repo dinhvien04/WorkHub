@@ -8,6 +8,13 @@ const {
   requireVerifiedHost,
 } = require('../middlewares/authMiddleware');
 const { requireApiKey, requireScope } = require('../middlewares/apiKeyAuth');
+const {
+  rumLimiter,
+  rsvpLimiter,
+  reviewReportLimiter,
+  icalLimiter,
+  checkInLimiter,
+} = require('../middlewares/rateLimiters');
 const g = require('../controllers/growthController');
 
 const router = express.Router();
@@ -62,8 +69,8 @@ router.get(
   authorizeRole('customer', 'host'),
   g.listGroupInvites
 );
-router.get('/rsvp/:token', g.getGroupInvitePublic);
-router.post('/rsvp/:token', g.rsvpGroupInvite);
+router.get('/rsvp/:token', rsvpLimiter, g.getGroupInvitePublic);
+router.post('/rsvp/:token', rsvpLimiter, g.rsvpGroupInvite);
 
 // Fraud
 router.post('/fraud/preview', verifyToken, g.fraudPreview);
@@ -104,10 +111,10 @@ router.post('/i18n/lang', optionalAuth, g.setLang);
 router.put('/i18n/lang', optionalAuth, g.setLang);
 
 // RUM beacon (public, no auth — no PII accepted)
-router.post('/rum', g.rumBeacon);
+router.post('/rum', rumLimiter, g.rumBeacon);
 
 // External calendar feed (random token; rotate/revoke via host API)
-router.get('/feeds/host/:hostId/calendar.ics', g.hostIcalFeed);
+router.get('/feeds/host/:hostId/calendar.ics', icalLimiter, g.hostIcalFeed);
 router.post(
   '/host/ical/token',
   verifyToken,
@@ -141,6 +148,7 @@ router.get(
 router.post(
   '/bookings/:bookingId/check-in-token',
   verifyToken,
+  checkInLimiter,
   g.mintCheckIn
 );
 router.post(
@@ -148,6 +156,7 @@ router.post(
   verifyToken,
   authorizeRole('host'),
   requireVerifiedHost,
+  checkInLimiter,
   g.scanCheckIn
 );
 router.post(
@@ -211,7 +220,7 @@ router.get('/jobs/:jobId/download', verifyToken, g.downloadJobFile);
 router.post('/jobs/:jobId/retry', verifyToken, g.retryJob);
 
 // Reviews
-router.post('/reviews/:reviewId/report', verifyToken, g.reportReview);
+router.post('/reviews/:reviewId/report', verifyToken, reviewReportLimiter, g.reportReview);
 router.put('/admin/reviews/:reviewId/moderate', verifyToken, requireAdmin, g.moderateReview);
 router.post(
   '/host/reviews/:reviewId/reply',

@@ -65,7 +65,8 @@ const paymentSchema = new mongoose.Schema({
         type: String,
         index: true,
         sparse: true
-    }
+    },
+    Meta: { type: mongoose.Schema.Types.Mixed, default: {} },
 
 }, { 
     collection: 'payment_histories',

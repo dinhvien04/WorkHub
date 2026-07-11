@@ -54,12 +54,18 @@ async function getCsrfPair(app) {
   // Prefer single csrf cookie matching body (last Set-Cookie wins in browsers)
   const setCookie = res.headers['set-cookie'] || [];
   let cookieVal = csrfToken;
+  let preSession = '';
   for (const c of setCookie) {
     const m = c.match(/^csrfToken=([^;]+)/);
-    if (m) cookieVal = m[1];
+    if (m) cookieVal = decodeURIComponent(m[1]);
+    const p = c.match(/^csrfPreSession=([^;]+)/);
+    if (p) preSession = decodeURIComponent(p[1]);
   }
-  const cookieHeader = `csrfToken=${cookieVal}`;
-  return { cookieHeader, csrfToken: cookieVal };
+  // Session-bound CSRF also needs csrfPreSession for anonymous binding
+  const parts = [`csrfToken=${cookieVal}`];
+  if (preSession) parts.push(`csrfPreSession=${preSession}`);
+  const cookieHeader = parts.join('; ');
+  return { cookieHeader, csrfToken: cookieVal, preSession };
 }
 
 /**

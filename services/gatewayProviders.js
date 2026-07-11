@@ -2,7 +2,7 @@
 
 /**
  * Payment provider adapters — hosted checkout only (never card/CVV).
- * Production never falls back to mock; never accepts client provider override.
+ * Live Stripe verification uses official stripe package only (no HMAC fallback).
  */
 const crypto = require("crypto");
 const env = require("../config/env");
@@ -20,15 +20,15 @@ const ALL_PROVIDERS = [
 function stripeLiveReady() {
   return Boolean(
     process.env.STRIPE_SECRET_KEY &&
-    process.env.STRIPE_SECRET_KEY.startsWith("sk_"),
+      process.env.STRIPE_SECRET_KEY.startsWith("sk_"),
   );
 }
 
 function momoLiveReady() {
   return Boolean(
     process.env.MOMO_PARTNER_CODE &&
-    process.env.MOMO_ACCESS_KEY &&
-    process.env.MOMO_SECRET_KEY,
+      process.env.MOMO_ACCESS_KEY &&
+      process.env.MOMO_SECRET_KEY,
   );
 }
 
@@ -36,10 +36,6 @@ function mockAllowed() {
   return env.ALLOW_MOCK_PAYMENT_PROVIDER && !env.isProduction;
 }
 
-/**
- * Resolve active provider. Client-requested provider is IGNORED in production.
- * Never auto-downgrade live → mock in production.
- */
 function activeProvider(requested) {
   const fromEnv = String(
     env.PAYMENT_PROVIDER || process.env.PAYMENT_PROVIDER || "",
@@ -69,7 +65,6 @@ function activeProvider(requested) {
     return p;
   }
 
-  // Dev/test: may use mock
   let p = String(requested || fromEnv || "workhub_mock").toLowerCase();
   if (LIVE_PROVIDERS.has(p)) {
     if (p === "stripe" && !stripeLiveReady()) {
@@ -124,6 +119,13 @@ function providerCheckoutUrl(provider, sessionId) {
   return `/payment/gateway/${sessionId}`;
 }
 
+function getStripeClient() {
+  const Stripe = require("stripe");
+  return new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
+    apiVersion: "2024-11-20.acacia",
+  });
+}
+
 async function tryCreateLiveSession({
   provider,
   amount,
@@ -131,55 +133,42 @@ async function tryCreateLiveSession({
   bookingId,
   successUrl,
   cancelUrl,
+  idempotencyKey,
 }) {
   if (provider === "stripe" && stripeLiveReady()) {
-    const params = new URLSearchParams();
-    params.set("mode", "payment");
-    params.set(
-      "success_url",
-      successUrl ||
-        `${env.PUBLIC_BASE_URL || ""}/payment/gateway/{CHECKOUT_SESSION_ID}`,
-    );
-    params.set(
-      "cancel_url",
-      cancelUrl || `${env.PUBLIC_BASE_URL || ""}/payment`,
-    );
-    params.set("client_reference_id", String(bookingId));
-    params.set(
-      "line_items[0][price_data][currency]",
-      (currency || "vnd").toLowerCase(),
-    );
-    params.set(
-      "line_items[0][price_data][product_data][name]",
-      `WorkHub booking ${bookingId}`,
-    );
-    params.set(
-      "line_items[0][price_data][unit_amount]",
-      String(Math.round(amount)),
-    );
-    params.set("line_items[0][quantity]", "1");
-    const res = await globalThis.fetch(
-      "https://api.stripe.com/v1/checkout/sessions",
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.create(
       {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+        mode: "payment",
+        success_url:
+          successUrl ||
+          `${env.PUBLIC_BASE_URL || ""}/payment/gateway/{CHECKOUT_SESSION_ID}`,
+        cancel_url: cancelUrl || `${env.PUBLIC_BASE_URL || ""}/payment`,
+        client_reference_id: String(bookingId),
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: (currency || "vnd").toLowerCase(),
+              unit_amount: Math.round(amount),
+              product_data: {
+                name: `WorkHub booking ${bookingId}`,
+              },
+            },
+          },
+        ],
+        metadata: {
+          bookingId: String(bookingId),
         },
-        body: params,
       },
+      idempotencyKey
+        ? { idempotencyKey: String(idempotencyKey).slice(0, 255) }
+        : undefined,
     );
-    if (!res.ok) {
-      const err = new Error("Stripe session create failed");
-      err.statusCode = 502;
-      err.isOperational = true;
-      throw err;
-    }
-    const data = await res.json();
     return {
-      sessionId: data.id,
-      checkoutUrl: data.url,
-      providerRef: data.id,
+      sessionId: session.id,
+      checkoutUrl: session.url,
+      providerRef: session.id,
       live: true,
     };
   }
@@ -199,14 +188,19 @@ function webhookSecretFor(provider) {
       process.env.MOMO_SECRET_KEY || process.env.GATEWAY_WEBHOOK_SECRET || ""
     );
   }
-  // workhub_mock — never use JWT_SECRET as fallback in production (validated at startup)
   return (
     process.env.GATEWAY_WEBHOOK_SECRET ||
     (env.isProduction ? "" : env.JWT_SECRET)
   );
 }
 
+/**
+ * Mock / non-Stripe signing (tests + mock adapters only).
+ */
 function signForProvider(provider, body) {
+  if (provider === "stripe" && env.isProduction) {
+    throw new Error("Cannot mock-sign live Stripe webhooks in production.");
+  }
   const secret = webhookSecretFor(provider);
   const raw = typeof body === "string" ? body : JSON.stringify(body);
   const ts = Math.floor(Date.now() / 1000);
@@ -217,13 +211,99 @@ function signForProvider(provider, body) {
   return `t=${ts},v1=${v1}`;
 }
 
+/**
+ * Live Stripe: official constructEvent only — no generic HMAC fallback.
+ * Mock providers: home-grown t=,v1= HMAC (cannot authenticate live stripe).
+ */
 function verifyForProvider(provider, rawBody, signature, _event) {
   if (!signature) return false;
-  const secret = webhookSecretFor(provider);
-  if (!secret) return false;
   const raw = typeof rawBody === "string" ? rawBody : String(rawBody || "");
 
-  // Stripe-style t=,v1=
+  // LIVE STRIPE — official SDK only
+  if (provider === "stripe") {
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!secret) return false;
+    try {
+      const stripe = getStripeClient();
+      stripe.webhooks.constructEvent(
+        Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(raw, "utf8"),
+        signature,
+        secret,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // stripe_mock / workhub_mock / momo — mock path (never used for live stripe)
+  const secret = webhookSecretFor(provider);
+  if (!secret) return false;
+
+  if (provider === "momo" || provider === "momo_mock") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.partnerCode && process.env.MOMO_PARTNER_CODE) {
+        if (
+          String(parsed.partnerCode) !== String(process.env.MOMO_PARTNER_CODE)
+        ) {
+          return false;
+        }
+      }
+      if (
+        parsed.partnerCode != null &&
+        parsed.orderId != null &&
+        parsed.requestId != null
+      ) {
+        const accessKey = process.env.MOMO_ACCESS_KEY || "";
+        const rawSig =
+          `accessKey=${accessKey}` +
+          `&amount=${parsed.amount ?? ""}` +
+          `&extraData=${parsed.extraData ?? ""}` +
+          `&message=${parsed.message ?? ""}` +
+          `&orderId=${parsed.orderId ?? ""}` +
+          `&orderInfo=${parsed.orderInfo || ""}` +
+          `&orderType=${parsed.orderType || ""}` +
+          `&partnerCode=${parsed.partnerCode || ""}` +
+          `&payType=${parsed.payType || ""}` +
+          `&requestId=${parsed.requestId || ""}` +
+          `&responseTime=${parsed.responseTime || ""}` +
+          `&resultCode=${parsed.resultCode || ""}` +
+          `&transId=${parsed.transId || ""}`;
+        const expected = crypto
+          .createHmac("sha256", secret)
+          .update(rawSig)
+          .digest("hex");
+        const provided = String(
+          signature || parsed.signature || "",
+        ).toLowerCase();
+        try {
+          return crypto.timingSafeEqual(
+            Buffer.from(provided),
+            Buffer.from(expected),
+          );
+        } catch {
+          return false;
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(raw)
+      .digest("hex");
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(String(signature)),
+        Buffer.from(expected),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // Mock Stripe-style t=,v1= (stripe_mock / workhub_mock only)
   if (String(signature).includes("v1=")) {
     const parts = Object.fromEntries(
       String(signature)
@@ -247,96 +327,6 @@ function verifyForProvider(provider, rawBody, signature, _event) {
     }
   }
 
-  // MoMo: prefer official construct when stripe package present for stripe;
-  // MoMo IPN canonical: partnerCode+orderId+requestId+amount+orderInfo+orderType+transId+resultCode+message+payType+responseTime+extraData
-  if (provider === "momo" || provider === "momo_mock") {
-    try {
-      const parsed = JSON.parse(raw);
-      // Require core MoMo identifiers when present in payload
-      if (parsed.partnerCode && process.env.MOMO_PARTNER_CODE) {
-        if (
-          String(parsed.partnerCode) !== String(process.env.MOMO_PARTNER_CODE)
-        ) {
-          return false;
-        }
-      }
-      if (
-        parsed.partnerCode != null &&
-        parsed.orderId != null &&
-        parsed.requestId != null
-      ) {
-        const accessKey = process.env.MOMO_ACCESS_KEY || "";
-        const rawSig =
-          `accessKey=${accessKey}` +
-          `&amount=${parsed.amount ?? ""}` +
-          `&extraData=${parsed.extraData ?? ""}` +
-          `&message=${parsed.message ?? ""}` +
-          `&orderId=${parsed.orderId ?? ""}` +
-          `&orderInfo=${parsed.orderInfo ?? ""}` +
-          `&orderType=${parsed.orderType ?? ""}` +
-          `&partnerCode=${parsed.partnerCode ?? ""}` +
-          `&payType=${parsed.payType ?? ""}` +
-          `&requestId=${parsed.requestId ?? ""}` +
-          `&responseTime=${parsed.responseTime ?? ""}` +
-          `&resultCode=${parsed.resultCode ?? ""}` +
-          `&transId=${parsed.transId ?? ""}`;
-        const expected = crypto
-          .createHmac("sha256", secret)
-          .update(rawSig)
-          .digest("hex");
-        const provided = String(
-          signature || parsed.signature || "",
-        ).toLowerCase();
-        try {
-          return crypto.timingSafeEqual(
-            Buffer.from(provided),
-            Buffer.from(expected),
-          );
-        } catch {
-          return false;
-        }
-      }
-    } catch {
-      /* fall through to raw body HMAC for mocks */
-    }
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(raw)
-      .digest("hex");
-    try {
-      return crypto.timingSafeEqual(
-        Buffer.from(String(signature)),
-        Buffer.from(expected),
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  // Stripe live: try official SDK constructEvent when stripe package is installed
-  if (provider === "stripe" && process.env.STRIPE_WEBHOOK_SECRET) {
-    try {
-      let Stripe;
-      try {
-        Stripe = require("stripe");
-      } catch {
-        Stripe = null;
-      }
-      if (Stripe) {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_x");
-        stripe.webhooks.constructEvent(
-          raw,
-          signature,
-          process.env.STRIPE_WEBHOOK_SECRET,
-        );
-        return true;
-      }
-    } catch {
-      // fall through — t=,v1= path already handled above
-    }
-  }
-
-  // Raw hex HMAC
   const expected = crypto
     .createHmac("sha256", secret)
     .update(raw)
@@ -358,8 +348,14 @@ function normalizeWebhookEvent(provider, event) {
     return {
       type: event.type || "checkout.session.completed",
       id: event.id || obj.id,
-      sessionId: obj.id || event.sessionId || obj.client_reference_id,
+      sessionId:
+        obj.object === "checkout.session"
+          ? obj.id
+          : obj.id || event.sessionId || obj.client_reference_id,
       amount: obj.amount_total || event.amount,
+      currency: obj.currency || event.currency,
+      paymentStatus: obj.payment_status || event.payment_status,
+      livemode: event.livemode,
     };
   }
   if (provider === "momo" || provider === "momo_mock") {
@@ -393,34 +389,22 @@ function listProviders() {
   return items;
 }
 
-/** Test/helper: verify Stripe-style t=,v1= with explicit secret */
 function verifyStripeSignature(rawBody, signature, secret) {
   if (!signature || !secret) return false;
-  const raw = typeof rawBody === "string" ? rawBody : String(rawBody || "");
-  if (!String(signature).includes("v1=")) return false;
-  const parts = Object.fromEntries(
-    String(signature)
-      .split(",")
-      .map((p) => p.split("="))
-      .filter((x) => x.length === 2),
-  );
-  const ts = parts.t;
-  const v1 = parts.v1;
-  if (!ts || !v1) return false;
-  const age = Math.abs(Math.floor(Date.now() / 1000) - Number(ts));
-  if (age > 300) return false;
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(`${ts}.${raw}`)
-    .digest("hex");
   try {
-    return crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));
+    const Stripe = require("stripe");
+    const stripe = new Stripe("sk_test_placeholder");
+    stripe.webhooks.constructEvent(
+      Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody), "utf8"),
+      signature,
+      secret,
+    );
+    return true;
   } catch {
     return false;
   }
 }
 
-/** Test/helper: MoMo IPN field signature */
 function verifyMomoIpn(event, secret) {
   if (!event || !secret) return false;
   const accessKey = process.env.MOMO_ACCESS_KEY || "";
@@ -459,4 +443,5 @@ module.exports = {
   webhookSecretFor,
   verifyStripeSignature,
   verifyMomoIpn,
+  getStripeClient,
 };

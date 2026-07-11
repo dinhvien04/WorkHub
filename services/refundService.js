@@ -65,6 +65,10 @@ async function requestRefund({
   reason,
   idempotencyKey,
 }) {
+  if (!idempotencyKey) {
+    throw new ValidationError("Idempotency-Key là bắt buộc cho yêu cầu hoàn tiền.");
+  }
+
   const booking = await Booking.findById(bookingId);
   if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   const isCustomer = String(booking.CustomerID) === String(userId);
@@ -89,14 +93,26 @@ async function requestRefund({
     );
   }
 
-  if (idempotencyKey) {
-    const existing = await Refund.findOne({ IdempotencyKey: idempotencyKey });
-    if (existing) {
-      if (existing.Amount !== amt) {
-        throw new ConflictError("Idempotency-Key đã dùng với số tiền khác.");
-      }
-      return existing;
+  // Scope idempotency by requester + booking + operation via hash prefix
+  const crypto = require("crypto");
+  const scopedKey = crypto
+    .createHash("sha256")
+    .update(`refund:${userId}:${bookingId}:${idempotencyKey}`)
+    .digest("hex");
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(`${userId}|${bookingId}|${amt}|${String(reason || "").slice(0, 200)}`)
+    .digest("hex");
+
+  const existing = await Refund.findOne({ IdempotencyKey: scopedKey });
+  if (existing) {
+    if (existing.Amount !== amt) {
+      throw new ConflictError("Idempotency-Key đã dùng với số tiền khác.");
     }
+    if (existing.Meta?.fingerprint && existing.Meta.fingerprint !== fingerprint) {
+      throw new ConflictError("Idempotency-Key đã dùng với request fingerprint khác.");
+    }
+    return existing;
   }
 
   try {
@@ -108,27 +124,44 @@ async function requestRefund({
       Reason: String(reason || "").slice(0, 1000),
       Status: "requested",
       RequestedBy: userId,
-      IdempotencyKey: idempotencyKey || undefined,
+      IdempotencyKey: scopedKey,
+      Meta: { fingerprint, clientKey: String(idempotencyKey).slice(0, 100) },
     });
-    // Side-effect after create (request is not financial settle)
-    await notifyUser({
-      userId: booking.HostID,
-      title: "Yêu cầu hoàn tiền",
-      body: `${amt.toLocaleString("vi-VN")}đ`,
-      type: "payment",
-      entityType: "Refund",
-      entityId: refund._id,
-      link: "/host/payments",
-    });
+    try {
+      const outboxService = require("./outboxService");
+      await outboxService.enqueueNotification(
+        {
+          userId: booking.HostID,
+          title: "Yêu cầu hoàn tiền",
+          body: `${amt.toLocaleString("vi-VN")}đ`,
+          type: "payment",
+          entityType: "Refund",
+          entityId: refund._id,
+          link: "/host/payments",
+        },
+        { idempotencyKey: `refund:${refund._id}:notify-request` },
+      );
+      await outboxService.processPending({ limit: 3 });
+    } catch {
+      await notifyUser({
+        userId: booking.HostID,
+        title: "Yêu cầu hoàn tiền",
+        body: `${amt.toLocaleString("vi-VN")}đ`,
+        type: "payment",
+        entityType: "Refund",
+        entityId: refund._id,
+        link: "/host/payments",
+      });
+    }
     return refund;
   } catch (err) {
     if (err.code === 11000) {
-      const existing = await Refund.findOne({ IdempotencyKey: idempotencyKey });
-      if (existing) {
-        if (existing.Amount !== amt) {
+      const again = await Refund.findOne({ IdempotencyKey: scopedKey });
+      if (again) {
+        if (again.Amount !== amt) {
           throw new ConflictError("Idempotency-Key đã dùng với số tiền khác.");
         }
-        return existing;
+        return again;
       }
       throw new ConflictError("Refund trùng lặp.");
     }

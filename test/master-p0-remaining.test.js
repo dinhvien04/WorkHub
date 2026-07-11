@@ -426,6 +426,7 @@ describe("P0 Payout atomicity", () => {
         payoutId: orphan._id,
         approve: true,
         adminId: host._id,
+        transferReference: 'ORPHAN-TEST-REF',
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
     const fresh = await Payout.findById(orphan._id);

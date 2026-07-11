@@ -34,6 +34,8 @@ const {
   loginLimiter,
   registerLimiter,
   passwordLimiter,
+  webauthnLimiter,
+  emailVerifyLimiter,
 } = require('../middlewares/rateLimiters');
 const { ensureCsrfCookie } = require('../middlewares/csrfMiddleware');
 
@@ -57,13 +59,13 @@ router.get('/2fa/status', authMiddleware.verifyToken, get2faStatus);
 router.post('/2fa/setup', authMiddleware.verifyToken, setup2fa);
 router.post('/2fa/enable', authMiddleware.verifyToken, enable2fa);
 router.post('/2fa/disable', authMiddleware.verifyToken, disable2fa);
-router.post('/email/request-verify', authMiddleware.verifyToken, requestEmailVerification);
-router.post('/email/confirm', confirmEmailVerification);
+router.post('/email/request-verify', authMiddleware.verifyToken, emailVerifyLimiter, requestEmailVerification);
+router.post('/email/confirm', emailVerifyLimiter, confirmEmailVerification);
 // Passkey / WebAuthn
-router.post('/webauthn/register/options', authMiddleware.verifyToken, webauthnRegisterOptions);
-router.post('/webauthn/register/verify', authMiddleware.verifyToken, webauthnRegisterVerify);
-router.post('/webauthn/login/options', loginLimiter, webauthnLoginOptions);
-router.post('/webauthn/login/verify', loginLimiter, webauthnLoginVerify);
+router.post('/webauthn/register/options', authMiddleware.verifyToken, webauthnLimiter, webauthnRegisterOptions);
+router.post('/webauthn/register/verify', authMiddleware.verifyToken, webauthnLimiter, webauthnRegisterVerify);
+router.post('/webauthn/login/options', webauthnLimiter, webauthnLoginOptions);
+router.post('/webauthn/login/verify', webauthnLimiter, webauthnLoginVerify);
 router.get('/webauthn/credentials', authMiddleware.verifyToken, webauthnList);
 router.delete('/webauthn/credentials/:credentialId', authMiddleware.verifyToken, webauthnRevoke);
 // Google OIDC

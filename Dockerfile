@@ -1,5 +1,5 @@
-# WorkHub production image
-FROM node:20-alpine AS base
+# WorkHub production image — pin Node minor to engines contract
+FROM node:20.19-alpine AS base
 WORKDIR /app
 
 FROM base AS deps

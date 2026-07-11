@@ -281,12 +281,20 @@ async function createSeries({
     throw new ValidationError("Thiếu thời gian lặp.");
   }
 
+  const RecurringOccurrence = require("../models/RecurringOccurrence");
+
   if (idempotencyKey) {
     const existing = await RecurringSeries.findOne({
       IdempotencyKey: idempotencyKey,
       CustomerID: customerId,
     });
     if (existing) {
+      // Resume incomplete series instead of returning partial as done
+      if (
+        ["draft", "creating", "partial", "failed"].includes(existing.Status)
+      ) {
+        return resumeSeriesCreation(existing);
+      }
       return {
         series: existing,
         createdCount: (existing.BookingIDs || []).length,
@@ -302,6 +310,7 @@ async function createSeries({
 
   let series;
   try {
+    // Start as draft/creating — never mark active before children exist
     series = await RecurringSeries.create({
       CustomerID: customerId,
       SpaceID: spaceId,
@@ -314,7 +323,7 @@ async function createSeries({
       SeriesStart: new Date(seriesStart),
       SeriesEnd: seriesEnd ? new Date(seriesEnd) : null,
       OccurrenceCount: wanted,
-      Status: "active",
+      Status: "creating",
       BookingIDs: [],
       IdempotencyKey: idempotencyKey || undefined,
       Timezone: timeZone,
@@ -325,6 +334,9 @@ async function createSeries({
         IdempotencyKey: idempotencyKey,
       });
       if (again) {
+        if (["draft", "creating", "partial", "failed"].includes(again.Status)) {
+          return resumeSeriesCreation(again);
+        }
         return {
           series: again,
           createdCount: (again.BookingIDs || []).length,
@@ -337,54 +349,146 @@ async function createSeries({
     throw err;
   }
 
-  // Same generator as preview — up to 52 occurrences (not hard-capped at 12)
   const occurrences = buildOccurrences(series, wanted, timeZone);
-  const created = [];
-  const failed = [];
-
+  // Upsert occurrence plan rows (unique SeriesID+OccurrenceKey)
   for (const oc of occurrences) {
     try {
+      await RecurringOccurrence.updateOne(
+        { SeriesID: series._id, OccurrenceKey: oc.occurrenceKey },
+        {
+          $setOnInsert: {
+            SeriesID: series._id,
+            OccurrenceKey: oc.occurrenceKey,
+            StartTime: oc.start,
+            EndTime: oc.end,
+            Status: "pending",
+            Attempts: 0,
+          },
+        },
+        { upsert: true },
+      );
+    } catch {
+      /* ignore race */
+    }
+  }
+
+  return resumeSeriesCreation(series);
+}
+
+/**
+ * Resume missing occurrences — never duplicate children.
+ */
+async function resumeSeriesCreation(series) {
+  const RecurringOccurrence = require("../models/RecurringOccurrence");
+  const Booking = require("../models/Booking");
+  const timeZone = series.Timezone || "Asia/Ho_Chi_Minh";
+  const wanted = series.OccurrenceCount || 8;
+
+  series.Status = "creating";
+  await series.save();
+
+  // Ensure occurrence plan exists
+  let plan = await RecurringOccurrence.find({ SeriesID: series._id });
+  if (!plan.length) {
+    const built = buildOccurrences(series, wanted, timeZone);
+    for (const oc of built) {
+      try {
+        await RecurringOccurrence.create({
+          SeriesID: series._id,
+          OccurrenceKey: oc.occurrenceKey,
+          StartTime: oc.start,
+          EndTime: oc.end,
+          Status: "pending",
+        });
+      } catch {
+        /* dup ok */
+      }
+    }
+    plan = await RecurringOccurrence.find({ SeriesID: series._id });
+  }
+
+  const created = [...(series.BookingIDs || []).map(String)];
+  const failed = [];
+
+  for (const row of plan) {
+    if (row.Status === "created" && row.BookingID) {
+      if (!created.includes(String(row.BookingID))) {
+        created.push(String(row.BookingID));
+      }
+      continue;
+    }
+    if (row.Status === "cancelled") continue;
+
+    try {
+      await RecurringOccurrence.updateOne(
+        { _id: row._id },
+        { $inc: { Attempts: 1 } },
+      );
       const booking = await bookingService.createBooking({
-        customerId,
-        spaceId,
-        startTime: oc.start,
-        endTime: oc.end,
+        customerId: series.CustomerID,
+        spaceId: series.SpaceID,
+        startTime: row.StartTime,
+        endTime: row.EndTime,
         note: `Recurring series ${series._id}`,
       });
-      try {
-        await require("../models/Booking").updateOne(
-          { _id: booking._id },
-          {
-            $set: {
-              SeriesID: series._id,
-              OccurrenceKey: oc.occurrenceKey,
-            },
+      await Booking.updateOne(
+        { _id: booking._id },
+        {
+          $set: {
+            SeriesID: series._id,
+            OccurrenceKey: row.OccurrenceKey,
           },
-        );
-      } catch {
-        /* optional fields */
-      }
-      created.push(booking._id);
+        },
+      );
+      await RecurringOccurrence.updateOne(
+        { _id: row._id },
+        {
+          $set: {
+            Status: "created",
+            BookingID: booking._id,
+            FailureCode: "",
+          },
+        },
+      );
+      created.push(String(booking._id));
     } catch (err) {
+      await RecurringOccurrence.updateOne(
+        { _id: row._id },
+        {
+          $set: {
+            Status: "failed",
+            FailureCode: String(err.code || err.message || "error").slice(
+              0,
+              100,
+            ),
+          },
+        },
+      );
       failed.push({
-        start: oc.start,
-        occurrenceKey: oc.occurrenceKey,
+        start: row.StartTime,
+        occurrenceKey: row.OccurrenceKey,
         error: err.message,
       });
     }
   }
 
   series.BookingIDs = created;
-  if (failed.length && !created.length) {
-    series.Status = "cancelled";
+  if (!created.length && failed.length) {
+    series.Status = "failed";
+  } else if (failed.length) {
+    series.Status = "partial";
+  } else {
+    series.Status = "active";
   }
   await series.save();
+
   return {
     series,
     createdCount: created.length,
     failed,
     bookingIds: created,
     timeZone,
+    resumed: true,
   };
 }
 
@@ -479,6 +583,7 @@ async function cancelSeries(
 }
 
 module.exports = {
+  resumeSeriesCreation,
   createSeries,
   cancelSeries,
   buildOccurrences,

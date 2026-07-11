@@ -6,10 +6,26 @@ on:
   pull_request:
 
 jobs:
-  build:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint:security-ui
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run audit:prod
+      - run: npm run build
+      - run: test -s public/css/app.min.css
+
+  unit:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-
     services:
       mongo:
         image: mongo:7
@@ -20,49 +36,78 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.19'
           cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Security UI (no inline handlers)
-        run: npm run lint:security-ui
-
-      - name: Format check (core)
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
+      - run: npm ci
+      - name: Unit / integration (standalone Mongo — no multi-doc tx)
         run: npm run test:noforce
         env:
           NODE_ENV: test
           JWT_SECRET: test_jwt_secret_key_at_least_32_characters_long_for_workhub
           MONGODB_URI: mongodb://127.0.0.1:27017/workhub_ci_test
           ENABLE_TRANSACTIONS: 'false'
+      - name: Upload jest logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-logs
+          path: |
+            **/coverage/**
+            **/*junit*.xml
+          if-no-files-found: ignore
 
-      - name: Build CSS + hashed assets
-        run: npm run build
+  transactions-replica-set:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
+      - run: npm ci
+      - name: Transaction suites (MongoMemoryReplSet)
+        run: npm run test:transactions
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test_jwt_secret_key_at_least_32_characters_long_for_workhub
+          ENABLE_TRANSACTIONS: 'true'
+          USE_MONGO_REPLSET: '1'
+      - name: Upload transaction failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transaction-logs
+          path: |
+            **/coverage/**
+          if-no-files-found: ignore
 
-      - name: Verify CSS artifact
-        run: test -s public/css/app.min.css
-
-      - name: Audit production high+
-        run: npm run audit:prod
-
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [unit]
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
       - name: Start app + readiness
         run: |
           set -e
@@ -87,15 +132,20 @@ jobs:
             kill $(cat /tmp/workhub.pid) 2>/dev/null || true
             exit 1
           fi
-
       - name: E2E Playwright
         run: PLAYWRIGHT_REQUIRE=1 BASE_URL=http://127.0.0.1:3000 npm run test:e2e
         env:
           CI: 'true'
-
       - name: Stop app
         if: always()
         run: kill $(cat /tmp/workhub.pid) 2>/dev/null || true
 
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
       - name: Docker build
         run: docker build -t workhub:ci .
+      - name: Report Node version in image
+        run: docker run --rm workhub:ci node -p "process.versions.node"

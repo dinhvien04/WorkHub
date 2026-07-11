@@ -102,6 +102,7 @@ const adminProcessPayout = asyncHandler(async (req, res) => {
     payoutId: req.params.payoutId,
     approve: req.body.approve !== false,
     adminId: req.user.userId,
+    transferReference: req.body.transferReference || req.body.transferRef || null,
   });
   res.json({ payout });
 });
@@ -248,11 +249,12 @@ const createApiKey = asyncHandler(async (req, res) => {
   }
 
   // Explicit AllBranches: default true when no branch list; false + [] = deny all
-  let allBranches = true;
-  if (req.body.allBranches === false) {
-    allBranches = false;
-  } else if (branchIds.length > 0) {
-    allBranches = false;
+  // Require explicit allBranches:true OR at least one owned branch — no silent all-access
+  const allBranches = req.body.allBranches === true;
+  if (!allBranches && branchIds.length === 0) {
+    throw new ValidationError(
+      'Phải chỉ định allBranches:true hoặc ít nhất một allowedBranchIds thuộc host.',
+    );
   }
 
   // Admin must target a verified host when creating keys for others
@@ -268,9 +270,10 @@ const createApiKey = asyncHandler(async (req, res) => {
   }
 
   const { raw, prefix, hash } = ApiKey.generate();
+  // Short default expiry (90 days) unless explicit expiresAt
   const expiresAt = req.body.expiresAt
     ? new Date(req.body.expiresAt)
-    : new Date(Date.now() + 365 * 24 * 3600000);
+    : new Date(Date.now() + 90 * 24 * 3600000);
 
   const doc = await ApiKey.create({
     Name: String(req.body.name || 'Partner key').slice(0, 100),
@@ -394,47 +397,55 @@ const listSessions = asyncHandler(async (req, res) => {
     UserID: req.user.userId,
     RevokedAt: null,
   })
-    .select('Sid UserAgent IP LastSeenAt ExpiresAt createdAt')
+    .select('PublicSessionID UserAgent IP LastSeenAt ExpiresAt createdAt AuthMethod')
     .sort({ LastSeenAt: -1 })
     .limit(20)
     .lean();
   res.json({
     sessions: items.map((s) => ({
-      id: s.Sid || String(s._id),
+      id: s.PublicSessionID || String(s._id),
       userAgent: s.UserAgent,
       ip: s.IP,
       lastSeenAt: s.LastSeenAt,
       expiresAt: s.ExpiresAt,
       createdAt: s.createdAt,
-      current: req.user.sid && s.Sid === req.user.sid,
+      authMethod: s.AuthMethod || null,
+      // Never expose Sid or SidHash
+      current:
+        req.user.publicSessionId &&
+        s.PublicSessionID === req.user.publicSessionId,
     })),
   });
 });
 
 const revokeSession = asyncHandler(async (req, res) => {
-  const sid = String(req.params.id || '');
+  const id = String(req.params.id || '');
   const mongoose = require('mongoose');
   const base = { UserID: req.user.userId, RevokedAt: null };
-  // Prefer Sid (opaque); only match _id when value is a real ObjectId string
   const filter =
-    mongoose.isValidObjectId(sid) && String(new mongoose.Types.ObjectId(sid)) === sid
-      ? { ...base, $or: [{ Sid: sid }, { _id: sid }] }
-      : { ...base, Sid: sid };
+    mongoose.isValidObjectId(id) && String(new mongoose.Types.ObjectId(id)) === id
+      ? { ...base, $or: [{ PublicSessionID: id }, { _id: id }] }
+      : { ...base, PublicSessionID: id };
   const doc = await UserSession.findOneAndUpdate(
     filter,
     { $set: { RevokedAt: new Date() } },
     { new: true }
   );
   if (!doc) throw new NotFoundError('Session not found');
-  // If revoking current session, clear cookie
-  if (req.user.sid && doc.Sid === req.user.sid) {
+  if (
+    req.user.publicSessionId &&
+    doc.PublicSessionID === req.user.publicSessionId
+  ) {
     res.clearCookie(require('../config/env').AUTH_COOKIE_NAME, {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
     });
   }
-  res.json({ message: 'Đã thu hồi phiên.', id: doc.Sid || String(doc._id) });
+  res.json({
+    message: 'Đã thu hồi phiên.',
+    id: doc.PublicSessionID || String(doc._id),
+  });
 });
 
 const logoutAll = asyncHandler(async (req, res) => {
@@ -600,6 +611,29 @@ const replayDeadLetter = asyncHandler(async (req, res) => {
 });
 
 const retryJob = asyncHandler(async (req, res) => {
+  const existing = await jobQueue.getJob(req.params.jobId);
+  if (!existing) throw new NotFoundError('Job not found');
+  const isAdmin = req.user.role === 'admin';
+  const isOwner =
+    existing.OwnerUserID &&
+    String(existing.OwnerUserID) === String(req.user.userId);
+  if (!isAdmin && !isOwner) {
+    throw new ForbiddenError('Không có quyền retry job này.');
+  }
+  // Non-admin may only retry allowlisted self-service job types
+  const SELF_SERVICE = new Set([
+    'export_bookings',
+    'export_payments',
+    'export_ledger',
+    'csv_export',
+    'xlsx_export',
+  ]);
+  if (!isAdmin) {
+    const t = String(existing.Type || existing.JobType || '');
+    if (!SELF_SERVICE.has(t)) {
+      throw new ForbiddenError('Loại job này không cho phép self-service retry.');
+    }
+  }
   const job = await jobQueue.retryFailedJob(req.params.jobId);
   res.json({ job });
 });
@@ -673,16 +707,24 @@ const rsvpGroupInvite = asyncHandler(async (req, res) => {
 // —— RUM / Web Vitals beacon (no PII; fire-and-forget) ——
 const rumBeacon = asyncHandler(async (req, res) => {
   const body = req.body || {};
+  // Sample ~20% in production to limit abuse/volume
+  if (require('../config/env').isProduction && Math.random() > 0.2) {
+    return res.status(204).end();
+  }
+  const clamp = (n, max) => {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v < 0) return null;
+    return Math.min(v, max);
+  };
   const metrics = {
-    lcp: Number(body.lcp) || null,
-    inp: Number(body.inp) || null,
-    cls: Number(body.cls) || null,
-    ttfb: Number(body.ttfb) || null,
-    fcp: Number(body.fcp) || null,
+    lcp: clamp(body.lcp, 120_000),
+    inp: clamp(body.inp, 60_000),
+    cls: clamp(body.cls, 10),
+    ttfb: clamp(body.ttfb, 60_000),
+    fcp: clamp(body.fcp, 120_000),
     path: String(body.path || '').slice(0, 200),
     navType: String(body.navType || '').slice(0, 40),
   };
-  // Log only — no storage of user identifiers
   try {
     require('../utils/logger').info({ rum: metrics }, 'web-vitals');
   } catch {
@@ -1010,7 +1052,14 @@ const reportReview = asyncHandler(async (req, res) => {
   const review = await Review.findById(req.params.reviewId);
   if (!review) throw new NotFoundError('Không tìm thấy review.');
   const reason = String(req.body.reason || 'abuse').slice(0, 500);
-  review.ReportCount = (review.ReportCount || 0) + 1;
+  const reporterId = String(req.user.userId);
+  // Per-user report record — no unlimited counter increments
+  const reporters = Array.isArray(review.ReportedBy) ? review.ReportedBy.map(String) : [];
+  if (reporters.includes(reporterId)) {
+    return res.json({ review, message: 'Bạn đã báo cáo review này.', duplicate: true });
+  }
+  review.ReportedBy = [...(review.ReportedBy || []), req.user.userId].slice(-200);
+  review.ReportCount = (review.ReportedBy || []).length;
   review.ReportReasons = [...(review.ReportReasons || []), reason].slice(-20);
   if (review.Status === 'published') review.Status = 'reported';
   await review.save();

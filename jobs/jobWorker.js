@@ -14,6 +14,16 @@ async function tick() {
     if (done.length) {
       logger.info(`Job worker processed ${done.length} job(s)`);
     }
+    // Drain transactional outbox (email/notify/audit)
+    try {
+      const outboxService = require('../services/outboxService');
+      const out = await outboxService.processPending({ limit: 20 });
+      if (out.length) {
+        logger.info(`Outbox worker processed ${out.length} event(s)`);
+      }
+    } catch (outErr) {
+      logger.warn(`Outbox worker: ${outErr.message}`);
+    }
   } catch (err) {
     logger.error(`Job worker error: ${err.message}`);
   } finally {

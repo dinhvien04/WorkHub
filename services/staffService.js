@@ -41,15 +41,29 @@ async function inviteStaff({
     ? branchIds.filter(Boolean).map(String)
     : [];
   const grantAll = allBranches === true;
-  // Empty BranchIDs without AllBranches = deny all (no silent all-access)
-  if (!grantAll && ids.length === 0) {
-    // Allow invite with empty scope (deny until host assigns branches)
+
+  // Verify every assigned branch belongs to the host — reject mixed lists
+  if (!grantAll && ids.length > 0) {
+    const Branch = require("../models/Branch");
+    const owned = await Branch.find({
+      _id: { $in: ids },
+      HostID: ownerId,
+    })
+      .select("_id")
+      .lean();
+    if (owned.length !== ids.length) {
+      throw new ValidationError(
+        "Một hoặc nhiều branch không thuộc host — từ chối invite.",
+      );
+    }
   }
 
   const token = crypto.randomBytes(24).toString("hex");
   const hash = crypto.createHash("sha256").update(token).digest("hex");
+  const env = require("../config/env");
 
   try {
+    // Invalidate any previous invite token by overwriting hash
     const staff = await StaffMember.findOneAndUpdate(
       { HostOwnerID: ownerId, UserID: user._id },
       {
@@ -67,13 +81,19 @@ async function inviteStaff({
     await notifyUser({
       userId: user._id,
       title: "Lời mời staff WorkHub",
-      body: `Bạn được mời làm ${role}. Token (dev): ${token.slice(0, 8)}…`,
+      body: env.isProduction
+        ? `Bạn được mời làm ${role}. Kiểm tra email để chấp nhận.`
+        : `Bạn được mời làm ${role}. Token (dev): ${token.slice(0, 8)}…`,
       type: "host",
       entityType: "StaffMember",
       entityId: staff._id,
       link: "/host/staff",
     });
-    return { staff, inviteToken: token };
+    // Never return raw invite token in production — deliver via verified channel only
+    const result = { staff };
+    if (!env.isProduction) result.inviteToken = token;
+    else result.inviteTokenDelivered = true;
+    return result;
   } catch (err) {
     if (err.code === 11000) throw new ConflictError("Staff đã tồn tại.");
     throw err;

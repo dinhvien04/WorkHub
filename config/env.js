@@ -162,6 +162,34 @@ function validateEnv() {
     if (boolEnv("ALLOW_GOOGLE_MOCK", false)) {
       throw new Error("ALLOW_GOOGLE_MOCK cannot be true in production.");
     }
+
+    // Mongo multi-doc transactions are mandatory in production
+    if (boolEnv("ENABLE_TRANSACTIONS", true) === false) {
+      throw new Error(
+        "Mongo transactions are required in production (ENABLE_TRANSACTIONS cannot be false).",
+      );
+    }
+
+    // Node runtime floor
+    const parts = process.versions.node.split(".").map(Number);
+    const major = parts[0] || 0;
+    const minor = parts[1] || 0;
+    if (major < 20 || (major === 20 && minor < 19)) {
+      throw new Error(
+        `Node.js >=20.19.0 is required (current: ${process.versions.node}).`,
+      );
+    }
+  }
+
+  // Always fail fast on unsupported Node when below engines floor
+  {
+    const parts = process.versions.node.split(".").map(Number);
+    const major = parts[0] || 0;
+    if (major < 20) {
+      throw new Error(
+        `Unsupported Node.js ${process.versions.node}. WorkHub requires Node >=20.19.0.`,
+      );
+    }
   }
 }
 
@@ -196,6 +224,11 @@ const env = {
   MAX_BOOKING_HOURS: Number(process.env.MAX_BOOKING_HOURS) || 24,
   MAX_BOOKING_DAYS_AHEAD: Number(process.env.MAX_BOOKING_DAYS_AHEAD) || 180,
   ENABLE_TRANSACTIONS: boolEnv("ENABLE_TRANSACTIONS", isProduction),
+  /** After migration cutoff, reject JWTs without sid (default: production only). */
+  SESSION_REQUIRE_SID: boolEnv(
+    "SESSION_REQUIRE_SID",
+    isProduction,
+  ),
   EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || "",
   EMAIL_FROM: process.env.EMAIL_FROM || "",
   RESEND_API_KEY: process.env.RESEND_API_KEY || "",

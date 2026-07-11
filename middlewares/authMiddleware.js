@@ -49,14 +49,32 @@ async function attachUserFromToken(token) {
     );
   }
 
-  // Per-session revoke: when JWT carries sid, require active UserSession
+  // Per-session revoke: JWT sid is secret; DB lookup by SidHash only
   let sid = decoded.sid || null;
+  let publicSessionId = null;
+
+  // After cutoff, reject SID-less JWTs (legacy migration window via env)
+  const requireSid =
+    env.SESSION_REQUIRE_SID === true ||
+    (env.isProduction && env.SESSION_REQUIRE_SID !== false);
+  if (!sid && requireSid) {
+    throw new UnauthorizedError(
+      "Phiên đăng nhập cũ không còn hiệu lực. Vui lòng đăng nhập lại.",
+    );
+  }
+
   if (sid) {
+    const crypto = require("crypto");
     const UserSession = require("../models/Session");
+    const sidHash = crypto
+      .createHash("sha256")
+      .update(String(sid))
+      .digest("hex");
+    // Support legacy rows that still stored plaintext Sid during migration
     const sess = await UserSession.findOne({
-      Sid: String(sid),
       UserID: userId,
       RevokedAt: null,
+      $or: [{ SidHash: sidHash }, { Sid: String(sid) }],
     }).lean();
     if (!sess) {
       throw new UnauthorizedError(
@@ -68,7 +86,7 @@ async function attachUserFromToken(token) {
         "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
       );
     }
-    // Best-effort last-seen throttle
+    publicSessionId = sess.PublicSessionID || null;
     const last = sess.LastSeenAt ? new Date(sess.LastSeenAt).getTime() : 0;
     if (Date.now() - last > 60_000) {
       UserSession.updateOne(
@@ -87,6 +105,7 @@ async function attachUserFromToken(token) {
       email: user.Email,
       fullName: user.FullName,
       sid: sid || null,
+      publicSessionId,
     },
     user,
   };
