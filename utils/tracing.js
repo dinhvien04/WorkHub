@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Lightweight W3C trace context + optional OTLP/HTTP JSON export.
@@ -9,25 +9,31 @@
  *   OTEL_SERVICE_NAME=workhub
  *   OTEL_TRACES_SAMPLER=1.0   (0..1)
  */
-const crypto = require('crypto');
-const logger = require('./logger');
+const crypto = require("crypto");
+const logger = require("./logger");
 
-const serviceName = process.env.OTEL_SERVICE_NAME || 'workhub';
-const endpoint = (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || '').replace(/\/$/, '');
-const sampleRate = Math.min(1, Math.max(0, Number(process.env.OTEL_TRACES_SAMPLER ?? '1')));
+const serviceName = process.env.OTEL_SERVICE_NAME || "workhub";
+const endpoint = (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "").replace(
+  /\/$/,
+  "",
+);
+const sampleRate = Math.min(
+  1,
+  Math.max(0, Number(process.env.OTEL_TRACES_SAMPLER ?? "1")),
+);
 
 const buffer = [];
 const MAX_BUFFER = 100;
 let flushTimer = null;
 
 function randomHex(bytes) {
-  return crypto.randomBytes(bytes).toString('hex');
+  return crypto.randomBytes(bytes).toString("hex");
 }
 
 function parseTraceparent(header) {
   // version-traceid-spanid-flags
-  if (!header || typeof header !== 'string') return null;
-  const parts = header.trim().split('-');
+  if (!header || typeof header !== "string") return null;
+  const parts = header.trim().split("-");
   if (parts.length < 4) return null;
   const [ver, traceId, parentId, flags] = parts;
   if (traceId.length !== 32 || parentId.length !== 16) return null;
@@ -53,10 +59,10 @@ function startSpan(req) {
     name: `${req.method} ${req.path}`,
     start,
     attributes: {
-      'http.method': req.method,
-      'http.route': req.path,
-      'http.target': req.originalUrl?.slice(0, 200),
-      'service.name': serviceName,
+      "http.method": req.method,
+      "http.route": req.path,
+      "http.target": req.originalUrl?.slice(0, 200),
+      "service.name": serviceName,
     },
   };
 }
@@ -65,8 +71,8 @@ function endSpan(span, res) {
   if (!span || !span.sampled) return;
   const end = process.hrtime.bigint();
   const durationNs = Number(end - span.start);
-  span.attributes['http.status_code'] = res.statusCode;
-  span.attributes['http.response_time_ms'] = Math.round(durationNs / 1e6);
+  span.attributes["http.status_code"] = res.statusCode;
+  span.attributes["http.response_time_ms"] = Math.round(durationNs / 1e6);
   buffer.push({
     traceId: span.traceId,
     spanId: span.spanId,
@@ -100,12 +106,12 @@ async function flush() {
       {
         resource: {
           attributes: [
-            { key: 'service.name', value: { stringValue: serviceName } },
+            { key: "service.name", value: { stringValue: serviceName } },
           ],
         },
         scopeSpans: [
           {
-            scope: { name: 'workhub-lite-tracer', version: '1.0.0' },
+            scope: { name: "workhub-lite-tracer", version: "1.0.0" },
             spans: batch.map((s) => ({
               traceId: s.traceId,
               spanId: s.spanId,
@@ -117,7 +123,7 @@ async function flush() {
               attributes: Object.entries(s.attributes).map(([key, val]) => ({
                 key,
                 value:
-                  typeof val === 'number'
+                  typeof val === "number"
                     ? { intValue: String(Math.round(val)) }
                     : { stringValue: String(val) },
               })),
@@ -128,12 +134,12 @@ async function flush() {
     ],
   };
   try {
-    const url = endpoint.endsWith('/v1/traces')
+    const url = endpoint.endsWith("/v1/traces")
       ? endpoint
       : `${endpoint}/v1/traces`;
     const res = await globalThis.fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -148,10 +154,10 @@ function tracingMiddleware(req, res, next) {
   const span = startSpan(req);
   req.trace = span;
   if (span.sampled) {
-    const flags = '01';
-    res.setHeader('traceparent', `00-${span.traceId}-${span.spanId}-${flags}`);
+    const flags = "01";
+    res.setHeader("traceparent", `00-${span.traceId}-${span.spanId}-${flags}`);
   }
-  res.on('finish', () => endSpan(span, res));
+  res.on("finish", () => endSpan(span, res));
   next();
 }
 

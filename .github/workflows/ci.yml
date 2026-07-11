@@ -89,7 +89,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [unit]
+    needs: [unit, transactions-replica-set]
     services:
       mongo:
         image: mongo:7
@@ -149,3 +149,24 @@ jobs:
         run: docker build -t workhub:ci .
       - name: Report Node version in image
         run: docker run --rm workhub:ci node -p "process.versions.node"
+
+  # Final gate — fails the workflow if any required job failed
+  final-gate:
+    runs-on: ubuntu-latest
+    needs: [static, unit, transactions-replica-set, e2e, docker]
+    if: always()
+    steps:
+      - name: Require all jobs green
+        run: |
+          set -e
+          echo "static=${{ needs.static.result }}"
+          echo "unit=${{ needs.unit.result }}"
+          echo "transactions=${{ needs.transactions-replica-set.result }}"
+          echo "e2e=${{ needs.e2e.result }}"
+          echo "docker=${{ needs.docker.result }}"
+          test "${{ needs.static.result }}" = "success"
+          test "${{ needs.unit.result }}" = "success"
+          test "${{ needs.transactions-replica-set.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.docker.result }}" = "success"
+          echo "Final gate GREEN for SHA ${{ github.sha }}"

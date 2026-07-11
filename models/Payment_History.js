@@ -48,7 +48,18 @@ const paymentSchema = new mongoose.Schema({
     // 4. TRẠNG THÁI GIAO DỊCH
     Status: { 
         type: String, 
-        enum: ['pending', 'successful', 'failed', 'refunded', 'partially_refunded', 'refund_pending'], 
+        enum: [
+          'pending',
+          'successful',
+          'failed',
+          'refunded',
+          'partially_refunded',
+          'refund_pending',
+          // Non-revenue / reconciliation — never count in net paid
+          'reconciliation_required',
+          'overpayment_pending_refund',
+          'provider_refund_pending',
+        ], 
         default: 'pending',
         index: true 
     },

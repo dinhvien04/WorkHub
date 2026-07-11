@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Optional distributed rate-limit store.
@@ -8,7 +8,7 @@
  * Compatible with express-rate-limit v7+ custom store shape (increment/decrement/resetKey).
  */
 
-const logger = require('./logger');
+const logger = require("./logger");
 
 function memoryStore() {
   const hits = new Map(); // key -> { count, resetTime }
@@ -85,20 +85,23 @@ async function getRateLimitStore(windowMs = 60_000) {
   try {
     let Redis;
     try {
-      Redis = require('ioredis');
-      const client = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true });
+      Redis = require("ioredis");
+      const client = new Redis(url, {
+        maxRetriesPerRequest: 1,
+        lazyConnect: true,
+      });
       await client.connect().catch(() => client); // ioredis may auto-connect
       // ping
-      if (typeof client.ping === 'function') await client.ping();
-      logger.info('Rate limit store: Redis (ioredis)');
+      if (typeof client.ping === "function") await client.ping();
+      logger.info("Rate limit store: Redis (ioredis)");
       cached = redisStore(client, { windowMs });
       return cached;
     } catch {
-      const { createClient } = require('redis');
+      const { createClient } = require("redis");
       const client = createClient({ url });
-      client.on('error', (e) => logger.warn(`redis error: ${e.message}`));
+      client.on("error", (e) => logger.warn(`redis error: ${e.message}`));
       await client.connect();
-      logger.info('Rate limit store: Redis (node-redis)');
+      logger.info("Rate limit store: Redis (node-redis)");
       const adapter = {
         incr: (k) => client.incr(k),
         pexpire: (k, ms) => client.pExpire(k, ms),
@@ -110,7 +113,9 @@ async function getRateLimitStore(windowMs = 60_000) {
       return cached;
     }
   } catch (err) {
-    logger.warn(`Redis rate limit unavailable (${err.message}) — using memory store`);
+    logger.warn(
+      `Redis rate limit unavailable (${err.message}) — using memory store`,
+    );
     cached = memoryStore();
     return cached;
   }

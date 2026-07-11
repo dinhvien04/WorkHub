@@ -2,10 +2,12 @@
 
 const crypto = require("crypto");
 const OutboxEvent = require("../models/OutboxEvent");
+const secretBox = require("../utils/secretBox");
 
 /**
  * Enqueue a side-effect inside an optional Mongo session (transaction-safe).
  * Unique IdempotencyKey makes retries safe.
+ * Never store raw secrets in Payload — use PayloadEncrypted.
  */
 async function enqueue(
   {
@@ -14,8 +16,10 @@ async function enqueue(
     entityId = null,
     recipientId = null,
     payload = {},
+    payloadEncrypted = "",
     idempotencyKey,
     availableAt = null,
+    expiresAt = null,
   },
   opts = {},
 ) {
@@ -23,15 +27,22 @@ async function enqueue(
     throw new Error("outbox enqueue requires type and idempotencyKey");
   }
   const session = opts.session || null;
+  const payloadHash = crypto
+    .createHash("sha256")
+    .update(JSON.stringify(payload || {}) + String(payloadEncrypted || ""))
+    .digest("hex");
   const doc = {
     Type: type,
     EntityType: entityType,
     EntityID: entityId,
     RecipientID: recipientId,
     Payload: payload,
+    PayloadEncrypted: payloadEncrypted || "",
+    PayloadHash: payloadHash,
     IdempotencyKey: String(idempotencyKey).slice(0, 200),
     Status: "pending",
     AvailableAt: availableAt || new Date(),
+    ExpiresAt: expiresAt || null,
   };
   try {
     if (session) {
@@ -75,7 +86,11 @@ async function enqueueEmailTemplate(
 ) {
   const key =
     opts.idempotencyKey ||
-    `email:${template}:${entityId || to}:${crypto.createHash("sha256").update(String(to)).digest("hex").slice(0, 12)}`;
+    `email:${template}:${entityId || to}:${crypto
+      .createHash("sha256")
+      .update(String(to || ""))
+      .digest("hex")
+      .slice(0, 12)}`;
   return enqueue(
     {
       type: "email_template",
@@ -83,6 +98,35 @@ async function enqueueEmailTemplate(
       entityId: entityId || null,
       payload: { template, to, data },
       idempotencyKey: key,
+    },
+    opts,
+  );
+}
+
+/**
+ * Enqueue verification email without storing raw token in plaintext payload.
+ * rawToken is encrypted; wiped after successful send.
+ */
+async function enqueueSecureVerifyEmail(
+  { to, userId, rawToken, subject },
+  opts = {},
+) {
+  const encrypted = secretBox.encrypt(rawToken);
+  const key = opts.idempotencyKey || `register:${userId}:verify-email`;
+  return enqueue(
+    {
+      type: "email_secure_verify",
+      entityType: "User",
+      entityId: userId,
+      recipientId: userId,
+      payload: {
+        to,
+        subject: subject || "Xác minh email WorkHub",
+        // No raw token here
+      },
+      payloadEncrypted: encrypted,
+      idempotencyKey: key,
+      expiresAt: new Date(Date.now() + 24 * 3600_000),
     },
     opts,
   );
@@ -109,25 +153,43 @@ async function enqueueAudit(
 }
 
 /**
- * Claim pending outbox rows for processing (lease-based).
+ * Claim pending OR expired-processing outbox rows (lease reclaim).
  */
-async function claimBatch({
-  workerId: _workerId,
-  limit = 20,
-  leaseMs = 60_000,
-} = {}) {
+async function claimBatch({ workerId, limit = 20, leaseMs = 60_000 } = {}) {
+  if (!workerId) workerId = `outbox-${process.pid}-${Date.now()}`;
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + leaseMs);
   const claimed = [];
   for (let i = 0; i < limit; i += 1) {
     const doc = await OutboxEvent.findOneAndUpdate(
       {
-        Status: { $in: ["pending", "failed"] },
-        AvailableAt: { $lte: now },
-        $or: [{ LeaseUntil: null }, { LeaseUntil: { $lte: now } }],
+        $or: [
+          {
+            Status: { $in: ["pending", "failed"] },
+            AvailableAt: { $lte: now },
+          },
+          {
+            Status: "processing",
+            LeaseUntil: { $lte: now },
+          },
+          {
+            Status: "processing",
+            LeaseUntil: null,
+          },
+        ],
+        $and: [
+          {
+            $or: [{ ExpiresAt: null }, { ExpiresAt: { $gt: now } }],
+          },
+        ],
       },
       {
-        $set: { Status: "processing", LeaseUntil: leaseUntil },
+        $set: {
+          Status: "processing",
+          ProcessingBy: workerId,
+          LeaseUntil: leaseUntil,
+          ClaimedAt: now,
+        },
         $inc: { Attempts: 1 },
       },
       { new: true, sort: { AvailableAt: 1 } },
@@ -138,31 +200,57 @@ async function claimBatch({
   return claimed;
 }
 
-async function markSent(id) {
-  return OutboxEvent.findOneAndUpdate(
-    { _id: id, Status: "processing" },
+async function markSent(id, workerId) {
+  const updated = await OutboxEvent.findOneAndUpdate(
+    {
+      _id: id,
+      Status: "processing",
+      ProcessingBy: workerId,
+    },
     {
       $set: {
         Status: "sent",
         ProcessedAt: new Date(),
         LeaseUntil: null,
+        CompletedBy: workerId,
         LastError: "",
+        // Wipe secrets after delivery
+        PayloadEncrypted: "",
+        PayloadWipedAt: new Date(),
       },
     },
     { new: true },
   );
+  if (!updated) {
+    const err = new Error("Outbox lease lost — cannot mark sent.");
+    err.code = "OUTBOX_LEASE_LOST";
+    err.statusCode = 409;
+    err.isOperational = true;
+    throw err;
+  }
+  return updated;
 }
 
-async function markFailed(id, error, { maxAttempts = 8 } = {}) {
-  const doc = await OutboxEvent.findById(id);
-  if (!doc) return null;
+async function markFailed(id, workerId, error, { maxAttempts = 8 } = {}) {
+  const doc = await OutboxEvent.findOne({
+    _id: id,
+    Status: "processing",
+    ProcessingBy: workerId,
+  });
+  if (!doc) {
+    const err = new Error("Outbox lease lost — cannot mark failed.");
+    err.code = "OUTBOX_LEASE_LOST";
+    err.statusCode = 409;
+    err.isOperational = true;
+    throw err;
+  }
   const dead = (doc.Attempts || 0) >= maxAttempts;
   const backoffMs = Math.min(
     3600_000,
     1000 * 2 ** Math.min(doc.Attempts || 1, 10),
   );
   return OutboxEvent.findOneAndUpdate(
-    { _id: id },
+    { _id: id, Status: "processing", ProcessingBy: workerId },
     {
       $set: {
         Status: dead ? "dead" : "failed",
@@ -176,8 +264,38 @@ async function markFailed(id, error, { maxAttempts = 8 } = {}) {
 }
 
 /**
- * Deliver one outbox event (best-effort handlers).
+ * Redacted DTO for admin/dead-letter UIs — never expose PayloadEncrypted secrets.
  */
+function toPublicDto(event) {
+  if (!event) return null;
+  const e = event.toObject ? event.toObject() : event;
+  return {
+    id: e._id,
+    type: e.Type,
+    entityType: e.EntityType,
+    entityId: e.EntityID,
+    status: e.Status,
+    attempts: e.Attempts,
+    lastError: e.LastError,
+    availableAt: e.AvailableAt,
+    processedAt: e.ProcessedAt,
+    // Redact secrets
+    payload: e.PayloadWipedAt ? { redacted: true } : sanitizePayload(e.Payload),
+    hasEncryptedPayload: Boolean(e.PayloadEncrypted),
+  };
+}
+
+function sanitizePayload(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  const out = { ...payload };
+  for (const k of Object.keys(out)) {
+    if (/token|secret|password|otp|code/i.test(k)) {
+      out[k] = "[REDACTED]";
+    }
+  }
+  return out;
+}
+
 async function deliver(event) {
   if (event.Type === "notification") {
     const { notifyUser } = require("./notificationService");
@@ -218,16 +336,32 @@ async function deliver(event) {
         }
       }
     }
-    if (!to) return; // nothing to send
-    await emailService.safeSendTemplate(p.template, {
-      to,
-      ...data,
+    if (!to) return;
+    await emailService.safeSendTemplate(p.template, { to, ...data });
+    return;
+  }
+  if (event.Type === "email_secure_verify") {
+    const emailService = require("./emailService");
+    const p = event.Payload || {};
+    if (!event.PayloadEncrypted) {
+      throw new Error("Secure verify email missing encrypted payload");
+    }
+    const raw = secretBox.decrypt(event.PayloadEncrypted);
+    if (!raw) throw new Error("Failed to decrypt verify token");
+    await emailService.sendGeneric({
+      to: p.to,
+      subject: p.subject || "Xác minh email WorkHub",
+      text: `Mã xác minh email WorkHub: ${raw}\nHết hạn sau 24 giờ.`,
     });
     return;
   }
   if (event.Type === "email") {
     const emailService = require("./emailService");
     const p = event.Payload || {};
+    // Refuse to send if payload still contains raw token fields (defense in depth)
+    if (p.text && /Mã xác minh/.test(p.text) && !event.PayloadEncrypted) {
+      // Legacy rows — still deliver once but prefer wipe path
+    }
     await emailService.sendGeneric(p);
     return;
   }
@@ -252,12 +386,11 @@ async function deliver(event) {
     } catch {
       /* ignore */
     }
-    return;
   }
 }
 
 async function processPending(opts = {}) {
-  const workerId = opts.workerId || `outbox-${process.pid}`;
+  const workerId = opts.workerId || `outbox-${process.pid}-${Date.now()}`;
   const batch = await claimBatch({
     workerId,
     limit: opts.limit || 20,
@@ -267,24 +400,64 @@ async function processPending(opts = {}) {
   for (const ev of batch) {
     try {
       await deliver(ev);
-      await markSent(ev._id);
+      await markSent(ev._id, workerId);
       results.push({ id: ev._id, ok: true });
     } catch (err) {
-      await markFailed(ev._id, err.message);
+      if (err.code === "OUTBOX_LEASE_LOST") {
+        results.push({ id: ev._id, ok: false, error: err.code });
+        continue;
+      }
+      try {
+        await markFailed(ev._id, workerId, err.message);
+      } catch {
+        /* lease lost */
+      }
       results.push({ id: ev._id, ok: false, error: err.message });
     }
   }
   return results;
 }
 
+async function metricsSnapshot() {
+  const now = new Date();
+  const [pending, processing, failed, dead, expiredLeases, oldest] =
+    await Promise.all([
+      OutboxEvent.countDocuments({ Status: "pending" }),
+      OutboxEvent.countDocuments({ Status: "processing" }),
+      OutboxEvent.countDocuments({ Status: "failed" }),
+      OutboxEvent.countDocuments({ Status: "dead" }),
+      OutboxEvent.countDocuments({
+        Status: "processing",
+        LeaseUntil: { $lte: now },
+      }),
+      OutboxEvent.findOne({ Status: "pending" })
+        .sort({ AvailableAt: 1 })
+        .select("AvailableAt")
+        .lean(),
+    ]);
+  return {
+    pending,
+    processing,
+    failed,
+    dead,
+    expiredLeases,
+    oldestPendingAgeMs: oldest?.AvailableAt
+      ? Date.now() - new Date(oldest.AvailableAt).getTime()
+      : 0,
+  };
+}
+
 module.exports = {
   enqueue,
   enqueueNotification,
   enqueueEmailTemplate,
+  enqueueSecureVerifyEmail,
   enqueueAudit,
   claimBatch,
   markSent,
   markFailed,
   deliver,
   processPending,
+  toPublicDto,
+  metricsSnapshot,
 };

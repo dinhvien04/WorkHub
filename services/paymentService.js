@@ -24,38 +24,32 @@ function validateIdempotencyKey(key) {
 }
 
 async function getSuccessfulPaidAmount(bookingId, session = null) {
-  const q = PaymentHistory.find({
-    BookingID: bookingId,
-    Status: "successful",
-  }).select("Amount");
-  if (session) q.session(session);
-  const rows = await q.lean();
-  return rows.reduce((sum, p) => sum + (p.Amount || 0), 0);
+  const { getNetPaidForBooking } = require("../utils/netPaid");
+  return getNetPaidForBooking(bookingId, { session });
 }
 
-async function getRemainingAmount(bookingId) {
-  const booking = await Booking.findById(bookingId)
-    .select("TotalAmount")
-    .lean();
-  if (!booking) throw new NotFoundError("Không tìm thấy đơn hàng.");
-  const paid = await getSuccessfulPaidAmount(bookingId);
-  return Math.max(0, booking.TotalAmount - paid);
+async function getRemainingAmount(bookingId, session = null) {
+  const { getRemainingForBooking } = require("../utils/netPaid");
+  const r = await getRemainingForBooking(bookingId, { session });
+  return r.remainingAmount;
 }
 
 async function getPaymentProgress(bookingId) {
+  const { getRemainingForBooking } = require("../utils/netPaid");
   const booking = await Booking.findById(bookingId)
     .select("TotalAmount DepositAmount")
     .lean();
   if (!booking) throw new NotFoundError("Không tìm thấy đơn hàng.");
-  const paid = await getSuccessfulPaidAmount(bookingId);
-  const total = booking.TotalAmount || 0;
+  const r = await getRemainingForBooking(bookingId);
+  const total = r.totalAmount;
+  const paid = r.paidAmount;
   const percent =
     total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
   return {
     totalAmount: total,
     depositAmount: booking.DepositAmount || 0,
     paidAmount: paid,
-    remainingAmount: Math.max(0, total - paid),
+    remainingAmount: r.remainingAmount,
     percentPaid: percent,
   };
 }
@@ -313,8 +307,8 @@ async function verifyPayment(hostId, paymentId) {
 }
 
 /**
- * Canonical manual payment verify + single ledger credit (P0.7).
- * All UI routes must call this — never separate verify vs verify-ledger paths.
+ * Canonical manual payment verify + ledger credit in ONE required transaction.
+ * Side effects only via outbox after commit. Routes must call this only.
  */
 async function verifyManualPaymentAndPostLedger({
   hostOwnerId,
@@ -322,21 +316,133 @@ async function verifyManualPaymentAndPostLedger({
   paymentId,
   idempotencyKey,
 }) {
-  const payment = await verifyPayment(hostOwnerId, paymentId);
+  const { withTransaction } = require("../utils/mongoTransaction");
   const ledgerService = require("./ledgerService");
-  const entry = await ledgerService.postEntry({
-    hostId: hostOwnerId,
-    customerId: payment.CustomerID,
-    bookingId: payment.BookingID,
-    paymentId: payment._id,
-    type: "payment",
-    amount: payment.Amount,
-    direction: "credit",
-    description: `Payment ${payment.TransactionCode}`,
-    idempotencyKey: idempotencyKey || `ledger-pay-${payment._id}`,
-    meta: { actorUserId: String(actorUserId || hostOwnerId) },
-  });
-  return { payment, ledgerEntry: entry };
+  const outboxService = require("./outboxService");
+  const env = require("../config/env");
+  const { getNetPaidForBooking } = require("../utils/netPaid");
+
+  const result = await withTransaction(
+    async (session) => {
+      const payQ = PaymentHistory.findOne({
+        _id: paymentId,
+        HostID: hostOwnerId,
+      });
+      if (session) payQ.session(session);
+      const payment = await payQ;
+      if (!payment) throw new NotFoundError("Không tìm thấy giao dịch.");
+      if (payment.Status === "successful") {
+        // Idempotent replay
+        const entryQ = require("../models/LedgerEntry").findOne({
+          IdempotencyKey: idempotencyKey || `ledger-pay-${payment._id}`,
+        });
+        if (session) entryQ.session(session);
+        const existing = await entryQ;
+        return { payment, ledgerEntry: existing, duplicate: true };
+      }
+      if (payment.Status !== "pending") {
+        throw new ValidationError(
+          "Chỉ có thể xác minh giao dịch đang pending.",
+        );
+      }
+
+      const bookQ = Booking.findOne({
+        _id: payment.BookingID,
+        HostID: hostOwnerId,
+      });
+      if (session) bookQ.session(session);
+      const booking = await bookQ;
+      if (!booking) throw new NotFoundError("Không tìm thấy đơn hàng.");
+
+      const paidBefore = await getNetPaidForBooking(payment.BookingID, {
+        session,
+      });
+      if (paidBefore + payment.Amount > booking.TotalAmount) {
+        throw new ValidationError("Xác minh sẽ làm vượt tổng đơn hàng.");
+      }
+
+      const now = new Date();
+      const casQ = PaymentHistory.findOneAndUpdate(
+        { _id: paymentId, HostID: hostOwnerId, Status: "pending" },
+        {
+          $set: {
+            Status: "successful",
+            PaidAt: now,
+            VerifiedAt: now,
+            VerifiedBy: hostOwnerId,
+          },
+        },
+        { new: true },
+      );
+      if (session) casQ.session(session);
+      const updated = await casQ;
+      if (!updated) {
+        throw new ConflictError("Giao dịch đã được xử lý bởi request khác.");
+      }
+
+      const entry = await ledgerService.postEntry(
+        {
+          hostId: hostOwnerId,
+          customerId: updated.CustomerID,
+          bookingId: updated.BookingID,
+          paymentId: updated._id,
+          type: "payment",
+          amount: updated.Amount,
+          direction: "credit",
+          description: `Payment ${updated.TransactionCode}`,
+          idempotencyKey: idempotencyKey || `ledger-pay-${updated._id}`,
+          meta: { actorUserId: String(actorUserId || hostOwnerId) },
+        },
+        { session },
+      );
+
+      await outboxService.enqueueAudit(
+        {
+          userId: hostOwnerId,
+          action: "VERIFY_PAYMENT",
+          entityType: "PaymentHistory",
+          entityId: updated._id,
+          message: "Host xác minh thanh toán",
+          level: "success",
+        },
+        {
+          session,
+          idempotencyKey: `payment:${updated._id}:audit-verify`,
+        },
+      );
+      await outboxService.enqueueNotification(
+        {
+          userId: updated.CustomerID,
+          title: "Thanh toán đã xác minh",
+          body: `${Number(updated.Amount || 0).toLocaleString("vi-VN")}đ đã được host xác nhận.`,
+          type: "payment",
+          entityType: "Booking",
+          entityId: updated.BookingID,
+          link: `/booking/detail?id=${updated.BookingID}`,
+        },
+        {
+          session,
+          idempotencyKey: `payment:${updated._id}:notify-customer`,
+        },
+      );
+      await outboxService.enqueue(
+        {
+          type: "metrics",
+          entityType: "PaymentHistory",
+          entityId: updated._id,
+          payload: { fn: "incPaymentsVerified" },
+          idempotencyKey: `payment:${updated._id}:metrics`,
+        },
+        { session },
+      );
+
+      return { payment: updated, ledgerEntry: entry, duplicate: false };
+    },
+    { required: env.isProduction },
+  );
+
+  // Worker delivers outbox — never processPending or direct notify here
+  return result;
 }
 
 /**

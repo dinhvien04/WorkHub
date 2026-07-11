@@ -182,20 +182,18 @@ const registerUser = asyncHandler(async (req, res) => {
         if (session) await EmailVerificationToken.create([tokenDoc], { session });
         else await EmailVerificationToken.create(tokenDoc);
 
-        await outboxService.enqueue(
+        // Raw token only encrypted short-lived — never plaintext in durable outbox
+        await outboxService.enqueueSecureVerifyEmail(
           {
-            type: 'email',
-            entityType: 'User',
-            entityId: createdUser._id,
-            recipientId: createdUser._id,
-            payload: {
-              to: createdUser.Email,
-              subject: 'Xác minh email WorkHub',
-              text: `Mã xác minh email WorkHub: ${rawVerify}\nHết hạn sau 24 giờ.`,
-            },
-            idempotencyKey: `register:${createdUser._id}:verify-email`,
+            to: createdUser.Email,
+            userId: createdUser._id,
+            rawToken: rawVerify,
+            subject: 'Xác minh email WorkHub',
           },
-          { session }
+          {
+            session,
+            idempotencyKey: `register:${createdUser._id}:verify-email`,
+          }
         );
       }
 
@@ -232,12 +230,7 @@ const registerUser = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  // Drain outbox after commit
-  try {
-    await outboxService.processPending({ limit: 5 });
-  } catch {
-    /* worker will retry */
-  }
+  // Worker owns outbox delivery — do not processPending inline
 
   const payload = {
     message:

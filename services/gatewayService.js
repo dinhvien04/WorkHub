@@ -66,20 +66,11 @@ function buildRequestFingerprint({
 
 /**
  * Sum successful payments minus refunded amounts for a booking.
+ * Delegates to canonical netPaid helper.
  */
 async function getPaidNet(bookingId, session = null) {
-  const q = PaymentHistory.find({
-    BookingID: bookingId,
-    Status: { $in: ["successful", "partially_refunded"] },
-  });
-  if (session) q.session(session);
-  const payments = await q.lean();
-  let paid = 0;
-  for (const p of payments) {
-    const refunded = Number(p.RefundedAmount || 0);
-    paid += Math.max(0, Number(p.Amount || 0) - refunded);
-  }
-  return paid;
+  const { getNetPaidForBooking } = require("../utils/netPaid");
+  return getNetPaidForBooking(bookingId, { session });
 }
 
 /**
@@ -281,6 +272,10 @@ async function createCheckoutSession({
   const scopedIdempotencyKey = `op:${operation._id}:attempt:${attemptNumber}`;
 
   const base = env.PUBLIC_BASE_URL || "";
+  const isLiveProvider = providers.LIVE_PROVIDERS
+    ? providers.LIVE_PROVIDERS.has(provider)
+    : ["stripe", "momo"].includes(provider);
+
   let live = null;
   try {
     live = await providers.tryCreateLiveSession({
@@ -295,8 +290,24 @@ async function createCheckoutSession({
       idempotencyKey: scopedIdempotencyKey,
     });
   } catch (err) {
+    // Production / live providers: fail closed — never create local pseudo-session
+    if (isLiveProvider || env.isProduction) {
+      throw err;
+    }
+    // Dev/test mock path only: may continue without live session
     if (err.statusCode === 502 || err.statusCode === 503) throw err;
     live = null;
+  }
+
+  // Live provider without live session must not invent a local checkout URL
+  if (isLiveProvider && !live) {
+    const err = new Error(
+      "Live payment provider did not return a checkout session.",
+    );
+    err.statusCode = 502;
+    err.code = "PAYMENT_PROVIDER_UNAVAILABLE";
+    err.isOperational = true;
+    throw err;
   }
 
   const sessionId = live?.sessionId || providers.makeSessionId(provider);
@@ -483,8 +494,66 @@ async function handleWebhook({
       throw new ValidationError("Webhook amount mismatch.");
     }
 
+    // Stripe Checkout: only credit when payment_status is paid
+    // (completed+unpaid must not fulfill)
+    if (provider === "stripe" || provider === "stripe_mock") {
+      const pStatus = String(
+        normalized.paymentStatus || parsed?.data?.object?.payment_status || "",
+      ).toLowerCase();
+      const evtType = String(normalized.type || "");
+      if (evtType === "checkout.session.async_payment_failed") {
+        await GatewayPayment.updateOne(
+          { _id: gwSession._id, Status: { $ne: "succeeded" } },
+          { $set: { Status: "failed" } },
+        );
+        await markWebhookProcessed(inbox._id, workerId, null);
+        return { ok: true, session: gwSession, failed: true };
+      }
+      if (evtType === "checkout.session.expired") {
+        await GatewayPayment.updateOne(
+          { _id: gwSession._id, Status: { $ne: "succeeded" } },
+          { $set: { Status: "expired" } },
+        );
+        await markWebhookProcessed(inbox._id, workerId, null);
+        return { ok: true, session: gwSession, expired: true };
+      }
+      const creditTypes = new Set([
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+      ]);
+      if (!creditTypes.has(evtType)) {
+        await markWebhookProcessed(inbox._id, workerId, null);
+        return { ok: true, ignored: true, reason: "unhandled_stripe_event" };
+      }
+      if (pStatus && pStatus !== "paid") {
+        // completed but unpaid — do not credit
+        await markWebhookProcessed(inbox._id, workerId, null);
+        return {
+          ok: true,
+          ignored: true,
+          reason: "payment_status_not_paid",
+          paymentStatus: pStatus,
+        };
+      }
+      // Validate booking reference when present
+      const ref =
+        normalized.clientReferenceId ||
+        parsed?.data?.object?.client_reference_id ||
+        parsed?.data?.object?.metadata?.bookingId;
+      if (ref && String(ref) !== String(gwSession.BookingID)) {
+        throw new ValidationError("Webhook booking reference mismatch.");
+      }
+      const cur = String(
+        normalized.currency || parsed?.data?.object?.currency || "",
+      ).toLowerCase();
+      if (cur && cur !== String(gwSession.Currency || "vnd").toLowerCase()) {
+        throw new ValidationError("Webhook currency mismatch.");
+      }
+    }
+
     const okTypes = new Set([
       "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
       "payment.succeeded",
       "payment.success",
     ]);
@@ -557,89 +626,76 @@ async function handleWebhook({
 
         let payment = null;
         if (overpay) {
-          // Preserve provider transaction as reconciliation required — no revenue credit
+          // Non-revenue status — never count in net paid / host balance
           payment = await ensurePaymentOnly(cas, mongoSession, {
-            status: "successful",
+            status: "overpayment_pending_refund",
             metaOverpay: true,
           });
-          await ledgerService.postEntry(
+          // Alert finance via outbox only (no revenue ledger credit)
+          await outboxService.enqueueNotification(
             {
-              hostId: cas.HostID,
-              customerId: cas.CustomerID,
-              bookingId: cas.BookingID,
-              paymentId: payment._id,
-              type: "adjustment",
-              amount: cas.Amount,
-              direction: "credit",
-              description: `Gateway overpay hold ${cas.SessionId}`,
-              idempotencyKey: `payment:gw-${cas.SessionId}:overpay-hold`,
-              meta: {
-                skipProjection: true,
-                reconciliationRequired: true,
-                overpay: true,
-              },
+              userId: cas.HostID,
+              title: "Thanh toán vượt — cần hoàn/đối soát",
+              body: `${cas.Amount.toLocaleString("vi-VN")}đ (không ghi doanh thu)`,
+              type: "payment",
+              entityType: "PaymentHistory",
+              entityId: payment?._id,
+              link: "/host/payments",
             },
-            { session: mongoSession },
+            {
+              session: mongoSession,
+              idempotencyKey: `booking:gw-${cas.SessionId}:notify-overpay`,
+            },
           );
-          try {
-            const alert = require("./alertService");
-            if (alert?.securityAlert) {
-              // Fire after commit via outbox-like best effort below
-            }
-          } catch {
-            /* ignore */
-          }
         } else {
           const result = await ensurePaymentAndLedger(cas, mongoSession);
           payment = result.payment;
-        }
 
-        if (
-          booking &&
-          [
-            "pending",
-            "hold",
-            "awaiting_payment",
-            "payment_under_review",
-          ].includes(booking.Status)
-        ) {
-          booking.Status = "payment_under_review";
-          if (mongoSession) await booking.save({ session: mongoSession });
-          else await booking.save();
-        }
+          if (
+            booking &&
+            [
+              "pending",
+              "hold",
+              "awaiting_payment",
+              "payment_under_review",
+            ].includes(booking.Status)
+          ) {
+            booking.Status = "payment_under_review";
+            if (mongoSession) await booking.save({ session: mongoSession });
+            else await booking.save();
+          }
 
-        if (cas.OperationID) {
-          const opQ = CheckoutOperation.findOneAndUpdate(
-            { _id: cas.OperationID },
-            {
-              $set: {
-                Status: "succeeded",
-                SucceededAttemptID: cas._id,
-                CurrentAttemptID: cas._id,
+          if (cas.OperationID) {
+            const opQ = CheckoutOperation.findOneAndUpdate(
+              { _id: cas.OperationID },
+              {
+                $set: {
+                  Status: "succeeded",
+                  SucceededAttemptID: cas._id,
+                  CurrentAttemptID: cas._id,
+                },
               },
+            );
+            if (mongoSession) opQ.session(mongoSession);
+            await opQ;
+          }
+
+          await outboxService.enqueueNotification(
+            {
+              userId: cas.HostID,
+              title: "Thanh toán gateway thành công",
+              body: `${cas.Amount.toLocaleString("vi-VN")}đ`,
+              type: "payment",
+              entityType: "PaymentHistory",
+              entityId: payment?._id,
+              link: "/host/payments",
+            },
+            {
+              session: mongoSession,
+              idempotencyKey: `booking:gw-${cas.SessionId}:notify-host`,
             },
           );
-          if (mongoSession) opQ.session(mongoSession);
-          await opQ;
         }
-
-        await outboxService.enqueueNotification(
-          {
-            userId: cas.HostID,
-            title: overpay
-              ? "Thanh toán gateway — cần đối soát"
-              : "Thanh toán gateway thành công",
-            body: `${cas.Amount.toLocaleString("vi-VN")}đ`,
-            type: "payment",
-            entityType: "PaymentHistory",
-            entityId: payment?._id,
-            link: "/host/payments",
-          },
-          {
-            session: mongoSession,
-            idempotencyKey: `booking:gw-${cas.SessionId}:notify-host`,
-          },
-        );
 
         await markWebhookProcessed(inbox._id, workerId, mongoSession);
 
@@ -654,13 +710,7 @@ async function handleWebhook({
       { required: true },
     );
 
-    // Deliver outbox after commit (best-effort; worker also drains)
-    try {
-      await outboxService.processPending({ limit: 5 });
-    } catch {
-      /* ignore */
-    }
-
+    // Worker owns outbox delivery — do not processPending inline (duplicate risk)
     return settleResult;
   } catch (err) {
     // Only mark failed if we still own the lease — never flip processed → failed
@@ -903,6 +953,19 @@ async function mockCompleteSession(sessionId, customerId) {
     id: `evt_mock_${Date.now()}`,
     sessionId,
     amount: session.Amount,
+    // Mock complete implies paid funds available
+    paymentStatus: "paid",
+    data: {
+      object: {
+        id: sessionId,
+        object: "checkout.session",
+        amount_total: session.Amount,
+        currency: "vnd",
+        payment_status: "paid",
+        client_reference_id: String(session.BookingID),
+        mode: "payment",
+      },
+    },
   };
   const raw = JSON.stringify(event);
   const signature = signPayload(raw, session.Provider || "workhub_mock");

@@ -10,7 +10,6 @@ const {
   NotFoundError,
   ConflictError,
 } = require("../utils/errors");
-const { notifyUser } = require("./notificationService");
 const env = require("../config/env");
 
 /** Test-only hooks */
@@ -405,16 +404,9 @@ async function processPayout({
       },
       { idempotencyKey: `payout:${payout._id}:notify-paid` },
     );
-    await outboxService.processPending({ limit: 3 });
+    // Worker owns delivery — never processPending or direct notify fallback
   } catch {
-    await notifyUser({
-      userId: payout.HostID,
-      title: "Payout đã chuyển",
-      body: `${payout.Amount.toLocaleString("vi-VN")}đ`,
-      type: "payment",
-      entityType: "Payout",
-      entityId: payout._id,
-    });
+    /* enqueue failure is non-fatal for finance settle */
   }
   return paid;
 }

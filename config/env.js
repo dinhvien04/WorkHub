@@ -170,6 +170,14 @@ function validateEnv() {
       );
     }
 
+    // Reject unimplemented MoMo live provider
+    const payP = String(process.env.PAYMENT_PROVIDER || "").toLowerCase();
+    if (payP === "momo") {
+      throw new Error(
+        "PAYMENT_PROVIDER=momo is not implemented (PROVIDER_NOT_IMPLEMENTED). Use stripe or disable.",
+      );
+    }
+
     // Node runtime floor
     const parts = process.versions.node.split(".").map(Number);
     const major = parts[0] || 0;

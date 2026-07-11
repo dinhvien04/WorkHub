@@ -1,15 +1,15 @@
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 let cache = null;
 
 function loadManifest() {
   if (cache) return cache;
-  const p = path.join(__dirname, '../public/asset-manifest.json');
+  const p = path.join(__dirname, "../public/asset-manifest.json");
   try {
-    cache = JSON.parse(fs.readFileSync(p, 'utf8'));
+    cache = JSON.parse(fs.readFileSync(p, "utf8"));
   } catch {
     cache = { files: {} };
   }

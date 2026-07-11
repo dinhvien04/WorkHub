@@ -61,90 +61,128 @@ async function postCreditEntry({
 
   const { withTransaction } = require("../utils/mongoTransaction");
   const env = require("../config/env");
+  const fingerprint = [
+    String(membershipId),
+    String(userId),
+    String(type),
+    String(direction),
+    String(hrs),
+    String(bookingId || ""),
+  ].join("|");
 
-  return withTransaction(
-    async (session) => {
-      if (idempotencyKey) {
-        const againQ = MembershipCreditLedger.findOne({
-          IdempotencyKey: idempotencyKey,
-        });
-        if (session) againQ.session(session);
-        const existing = await againQ;
-        if (existing) return existing;
+  if (idempotencyKey) {
+    const existing = await MembershipCreditLedger.findOne({
+      IdempotencyKey: idempotencyKey,
+    });
+    if (existing) {
+      const prevFp = existing.Meta?.fingerprint;
+      if (prevFp && prevFp !== fingerprint) {
+        throw new ConflictError(
+          "Idempotency-Key đã dùng với request fingerprint khác.",
+        );
       }
-
-      const filter = { _id: membershipId };
-      let inc = 0;
-      if (direction === "credit") {
-        inc = hrs;
-      } else {
-        inc = -hrs;
-        filter.CreditsRemaining = { $gte: hrs };
+      if (Math.abs(Number(existing.Hours) || 0) !== hrs) {
+        throw new ConflictError("Idempotency-Key đã dùng với số giờ khác.");
       }
+      return existing;
+    }
+  }
 
-      const updQ = Membership.findOneAndUpdate(
-        filter,
-        { $inc: { CreditsRemaining: inc } },
-        { new: true },
-      );
-      if (session) updQ.session(session);
-      const updated = await updQ;
-      if (!updated) {
-        if (direction === "debit") {
-          throw new ValidationError("Không đủ giờ membership.");
-        }
-        throw new NotFoundError("Membership không tồn tại.");
-      }
-
-      const next = Math.max(0, updated.CreditsRemaining || 0);
-      try {
-        if (session) {
-          const [entry] = await MembershipCreditLedger.create(
-            [
-              {
-                MembershipID: membershipId,
-                UserID: userId,
-                Type: type,
-                Hours: hrs,
-                Direction: direction,
-                BalanceAfter: next,
-                ExpiresAt: expiresAt,
-                BookingID: bookingId || null,
-                IdempotencyKey: idempotencyKey || undefined,
-                Description: description,
-                Meta: meta,
-              },
-            ],
-            { session },
-          );
-          return entry;
-        }
-        return await MembershipCreditLedger.create({
-          MembershipID: membershipId,
-          UserID: userId,
-          Type: type,
-          Hours: hrs,
-          Direction: direction,
-          BalanceAfter: next,
-          ExpiresAt: expiresAt,
-          BookingID: bookingId || null,
-          IdempotencyKey: idempotencyKey || undefined,
-          Description: description,
-          Meta: meta,
-        });
-      } catch (err) {
-        if (err.code === 11000 && idempotencyKey) {
+  try {
+    return await withTransaction(
+      async (session) => {
+        // Re-check inside txn
+        if (idempotencyKey) {
           const againQ = MembershipCreditLedger.findOne({
             IdempotencyKey: idempotencyKey,
           });
           if (session) againQ.session(session);
-          return againQ;
+          const existing = await againQ;
+          if (existing) return existing;
         }
-        throw err;
-      }
-    },
-    { required: env.isProduction },
-  );
+
+        // Ledger-first intent insert (unique key) BEFORE balance mutation.
+        // On concurrent race the loser gets 11000 and aborts the whole txn.
+        let provisional;
+        try {
+          const intent = {
+            MembershipID: membershipId,
+            UserID: userId,
+            Type: type,
+            Hours: hrs,
+            Direction: direction,
+            BalanceAfter: 0, // updated after balance CAS
+            ExpiresAt: expiresAt,
+            BookingID: bookingId || null,
+            IdempotencyKey: idempotencyKey || undefined,
+            Description: description,
+            Meta: { ...meta, fingerprint, provisional: true },
+          };
+          if (session) {
+            [provisional] = await MembershipCreditLedger.create([intent], {
+              session,
+            });
+          } else {
+            provisional = await MembershipCreditLedger.create(intent);
+          }
+        } catch (err) {
+          if (err.code === 11000 && idempotencyKey) {
+            // Abort txn by throwing — caller loads existing outside
+            const race = new Error("IDEMPOTENCY_RACE");
+            race.code = "IDEMPOTENCY_RACE";
+            race.idempotencyKey = idempotencyKey;
+            throw race;
+          }
+          throw err;
+        }
+
+        const filter = { _id: membershipId };
+        let inc = 0;
+        if (direction === "credit") {
+          inc = hrs;
+        } else {
+          inc = -hrs;
+          filter.CreditsRemaining = { $gte: hrs };
+        }
+
+        const updQ = Membership.findOneAndUpdate(
+          filter,
+          { $inc: { CreditsRemaining: inc } },
+          { new: true },
+        );
+        if (session) updQ.session(session);
+        const updated = await updQ;
+        if (!updated) {
+          if (direction === "debit") {
+            throw new ValidationError("Không đủ giờ membership.");
+          }
+          throw new NotFoundError("Membership không tồn tại.");
+        }
+
+        const next = Math.max(0, updated.CreditsRemaining || 0);
+        const finQ = MembershipCreditLedger.findOneAndUpdate(
+          { _id: provisional._id },
+          {
+            $set: {
+              BalanceAfter: next,
+              Meta: { ...meta, fingerprint, provisional: false },
+            },
+          },
+          { new: true },
+        );
+        if (session) finQ.session(session);
+        return finQ;
+      },
+      { required: env.isProduction },
+    );
+  } catch (err) {
+    if (err.code === "IDEMPOTENCY_RACE" && err.idempotencyKey) {
+      return MembershipCreditLedger.findOne({
+        IdempotencyKey: err.idempotencyKey,
+      });
+    }
+    throw err;
+  }
 }
 
 async function subscribe({ userId, planCode }) {

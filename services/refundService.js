@@ -6,7 +6,6 @@ const PaymentHistory = require("../models/Payment_History");
 const Booking = require("../models/Booking");
 const LedgerEntry = require("../models/LedgerEntry");
 const ledgerService = require("./ledgerService");
-const { notifyUser } = require("./notificationService");
 const { withTransaction } = require("../utils/mongoTransaction");
 const {
   ValidationError,
@@ -37,16 +36,8 @@ async function runHook(name) {
 }
 
 async function getSuccessfulPaid(bookingId, session = null) {
-  const q = PaymentHistory.find({
-    BookingID: bookingId,
-    Status: { $in: ["successful", "partially_refunded"] },
-  });
-  if (session) q.session(session);
-  const rows = await q.lean();
-  return rows.reduce(
-    (s, p) => s + Math.max(0, (p.Amount || 0) - (p.RefundedAmount || 0)),
-    0,
-  );
+  const { getNetPaidForBooking } = require("../utils/netPaid");
+  return getNetPaidForBooking(bookingId, { session });
 }
 
 async function getRefundedTotal(bookingId) {
@@ -150,17 +141,9 @@ async function requestRefund({
         },
         { idempotencyKey: `refund:${refund._id}:notify-request` },
       );
-      await outboxService.processPending({ limit: 3 });
+      // Worker owns delivery — no processPending / no direct notify fallback
     } catch {
-      await notifyUser({
-        userId: booking.HostID,
-        title: "Yêu cầu hoàn tiền",
-        body: `${amt.toLocaleString("vi-VN")}đ`,
-        type: "payment",
-        entityType: "Refund",
-        entityId: refund._id,
-        link: "/host/payments",
-      });
+      /* enqueue failure non-fatal for refund request record */
     }
     return refund;
   } catch (err) {
@@ -353,6 +336,39 @@ async function processRefund({ refundId, actorId, approve, role }) {
         throw new ValidationError("Hoàn sẽ vượt số đã thanh toán thành công.");
       }
 
+      // Detect gateway payments in allocation set — cannot complete without provider
+      const payQ = PaymentHistory.find({
+        BookingID: claimed.BookingID,
+        Status: { $in: ["successful", "partially_refunded"] },
+      }).select("PaymentMethod");
+      if (session) payQ.session(session);
+      const payMethods = await payQ.lean();
+      const hasGateway = payMethods.some((p) => p.PaymentMethod === "e_wallet");
+
+      if (hasGateway) {
+        // Reserve allocation + mark provider_pending — do NOT ledger complete yet
+        await allocateRefundToPayments(claimed, session);
+        await runHook("afterAllocation");
+        const pendQ = Refund.findOneAndUpdate(
+          { _id: claimed._id, Status: "processing" },
+          {
+            $set: {
+              Status: "provider_pending",
+              ProcessedBy: actorId,
+              FailureReason: "",
+              Meta: {
+                ...(claimed.Meta || {}),
+                requiresProviderRefund: true,
+              },
+            },
+          },
+          { new: true },
+        );
+        if (session) pendQ.session(session);
+        return pendQ;
+      }
+
+      // Offline/manual (bank_transfer/cash): settle internally with audit
       await allocateRefundToPayments(claimed, session);
 
       await ledgerService.postEntry(
@@ -365,12 +381,11 @@ async function processRefund({ refundId, actorId, approve, role }) {
           direction: "debit",
           description: `Refund ${claimed._id}`,
           idempotencyKey: `refund:${claimed._id}:debit`,
-          meta: { refundId: claimed._id },
+          meta: { refundId: claimed._id, channel: "manual_offline" },
         },
         { session },
       );
       await runHook("afterLedger");
-
       await runHook("beforeComplete");
 
       const doneQ = Refund.findOneAndUpdate(
@@ -380,6 +395,10 @@ async function processRefund({ refundId, actorId, approve, role }) {
             Status: "completed",
             ProcessedAt: new Date(),
             ProcessedBy: actorId,
+            Meta: {
+              ...(claimed.Meta || {}),
+              channel: "manual_offline",
+            },
           },
         },
         { new: true },
@@ -449,15 +468,27 @@ async function processRefund({ refundId, actorId, approve, role }) {
     throw err;
   }
 
-  // Side effects AFTER commit
-  await notifyUser({
-    userId: completed.CustomerID,
-    title: "Hoàn tiền đã xử lý",
-    body: `${completed.Amount.toLocaleString("vi-VN")}đ`,
-    type: "payment",
-    entityType: "Refund",
-    entityId: completed._id,
-  });
+  // Outbox only — worker delivers (no direct notify)
+  try {
+    const outboxService = require("./outboxService");
+    const title =
+      completed.Status === "provider_pending"
+        ? "Hoàn tiền đang chờ nhà cung cấp"
+        : "Hoàn tiền đã xử lý";
+    await outboxService.enqueueNotification(
+      {
+        userId: completed.CustomerID,
+        title,
+        body: `${completed.Amount.toLocaleString("vi-VN")}đ`,
+        type: "payment",
+        entityType: "Refund",
+        entityId: completed._id,
+      },
+      { idempotencyKey: `refund:${completed._id}:notify-done` },
+    );
+  } catch {
+    /* non-fatal */
+  }
 
   return completed;
 }

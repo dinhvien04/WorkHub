@@ -24,7 +24,12 @@ function stripeLiveReady() {
   );
 }
 
+/** Live MoMo checkout is not implemented — always false. */
 function momoLiveReady() {
+  return false;
+}
+
+function momoCredentialsPresent() {
   return Boolean(
     process.env.MOMO_PARTNER_CODE &&
     process.env.MOMO_ACCESS_KEY &&
@@ -56,9 +61,12 @@ function activeProvider(requested) {
       err.isOperational = true;
       throw err;
     }
-    if (p === "momo" && !momoLiveReady()) {
-      const err = new Error("MoMo credentials missing.");
+    if (p === "momo") {
+      const err = new Error(
+        "MoMo live checkout is not implemented (PROVIDER_NOT_IMPLEMENTED).",
+      );
       err.statusCode = 503;
+      err.code = "PROVIDER_NOT_IMPLEMENTED";
       err.isOperational = true;
       throw err;
     }
@@ -76,12 +84,17 @@ function activeProvider(requested) {
       }
       p = "stripe_mock";
     }
-    if (p === "momo" && !momoLiveReady()) {
+    if (p === "momo") {
+      // Live adapter incomplete — only mock in non-production when allowed
       if (!mockAllowed()) {
-        throw Object.assign(new Error("MoMo not ready and mock disabled."), {
-          statusCode: 503,
-          isOperational: true,
-        });
+        throw Object.assign(
+          new Error("MoMo live is not implemented (PROVIDER_NOT_IMPLEMENTED)."),
+          {
+            statusCode: 503,
+            code: "PROVIDER_NOT_IMPLEMENTED",
+            isOperational: true,
+          },
+        );
       }
       p = "momo_mock";
     }
@@ -126,6 +139,44 @@ function getStripeClient() {
   });
 }
 
+function normalizeProviderError(err, provider) {
+  const msg = String(err?.message || err || "provider error");
+  const type = String(err?.type || err?.rawType || "").toLowerCase();
+  const code = String(err?.code || "").toLowerCase();
+  const out = new Error(msg.slice(0, 300));
+  out.isOperational = true;
+  out.provider = provider;
+  if (
+    type.includes("authentication") ||
+    code.includes("api_key") ||
+    msg.includes("Invalid API Key")
+  ) {
+    out.statusCode = 502;
+    out.code = "PAYMENT_PROVIDER_AUTH_ERROR";
+  } else if (
+    type.includes("invalid_request") ||
+    code.includes("parameter") ||
+    code.includes("currency")
+  ) {
+    out.statusCode = 502;
+    out.code = "PAYMENT_PROVIDER_VALIDATION_ERROR";
+  } else if (code.includes("rate_limit") || err?.statusCode === 429) {
+    out.statusCode = 503;
+    out.code = "PAYMENT_PROVIDER_RATE_LIMITED";
+  } else if (
+    type.includes("api_connection") ||
+    msg.includes("timeout") ||
+    err?.statusCode === 503
+  ) {
+    out.statusCode = 503;
+    out.code = "PAYMENT_PROVIDER_UNAVAILABLE";
+  } else {
+    out.statusCode = 502;
+    out.code = "PAYMENT_PROVIDER_CONFIGURATION_ERROR";
+  }
+  return out;
+}
+
 async function tryCreateLiveSession({
   provider,
   amount,
@@ -135,42 +186,67 @@ async function tryCreateLiveSession({
   cancelUrl,
   idempotencyKey,
 }) {
+  if (provider === "momo") {
+    const err = new Error(
+      "MoMo live checkout is not implemented (PROVIDER_NOT_IMPLEMENTED).",
+    );
+    err.statusCode = 503;
+    err.code = "PROVIDER_NOT_IMPLEMENTED";
+    err.isOperational = true;
+    throw err;
+  }
+
   if (provider === "stripe" && stripeLiveReady()) {
-    const stripe = getStripeClient();
-    const session = await stripe.checkout.sessions.create(
-      {
-        mode: "payment",
-        success_url:
-          successUrl ||
-          `${env.PUBLIC_BASE_URL || ""}/payment/gateway/{CHECKOUT_SESSION_ID}`,
-        cancel_url: cancelUrl || `${env.PUBLIC_BASE_URL || ""}/payment`,
-        client_reference_id: String(bookingId),
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: (currency || "vnd").toLowerCase(),
-              unit_amount: Math.round(amount),
-              product_data: {
-                name: `WorkHub booking ${bookingId}`,
+    try {
+      const stripe = getStripeClient();
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: "payment",
+          success_url:
+            successUrl ||
+            `${env.PUBLIC_BASE_URL || ""}/payment/gateway/{CHECKOUT_SESSION_ID}`,
+          cancel_url: cancelUrl || `${env.PUBLIC_BASE_URL || ""}/payment`,
+          client_reference_id: String(bookingId),
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: (currency || "vnd").toLowerCase(),
+                unit_amount: Math.round(amount),
+                product_data: {
+                  name: `WorkHub booking ${bookingId}`,
+                },
               },
             },
+          ],
+          metadata: {
+            bookingId: String(bookingId),
           },
-        ],
-        metadata: {
-          bookingId: String(bookingId),
         },
-      },
-      idempotencyKey
-        ? { idempotencyKey: String(idempotencyKey).slice(0, 255) }
-        : undefined,
+        idempotencyKey
+          ? { idempotencyKey: String(idempotencyKey).slice(0, 255) }
+          : undefined,
+      );
+      return {
+        sessionId: session.id,
+        checkoutUrl: session.url,
+        providerRef: session.id,
+        live: true,
+      };
+    } catch (err) {
+      throw normalizeProviderError(err, "stripe");
+    }
+  }
+
+  // Live providers without a create path must fail closed (never null for live)
+  if (LIVE_PROVIDERS.has(provider)) {
+    const err = new Error(
+      `Live provider ${provider} has no create session adapter.`,
     );
-    return {
-      sessionId: session.id,
-      checkoutUrl: session.url,
-      providerRef: session.id,
-      live: true,
-    };
+    err.statusCode = 503;
+    err.code = "PROVIDER_NOT_IMPLEMENTED";
+    err.isOperational = true;
+    throw err;
   }
   return null;
 }
@@ -351,11 +427,17 @@ function normalizeWebhookEvent(provider, event) {
       sessionId:
         obj.object === "checkout.session"
           ? obj.id
-          : obj.id || event.sessionId || obj.client_reference_id,
+          : event.sessionId || obj.id || obj.client_reference_id,
       amount: obj.amount_total || event.amount,
       currency: obj.currency || event.currency,
-      paymentStatus: obj.payment_status || event.payment_status,
+      paymentStatus:
+        obj.payment_status || event.payment_status || event.paymentStatus,
+      clientReferenceId:
+        obj.client_reference_id ||
+        obj.metadata?.bookingId ||
+        event.clientReferenceId,
       livemode: event.livemode,
+      mode: obj.mode || event.mode,
     };
   }
   if (provider === "momo" || provider === "momo_mock") {
@@ -383,9 +465,10 @@ function listProviders() {
     items.push({ id: "stripe", name: "Stripe", live: true });
   else if (mockAllowed())
     items.push({ id: "stripe_mock", name: "Stripe (mock)", live: false });
-  if (momoLiveReady()) items.push({ id: "momo", name: "MoMo", live: true });
-  else if (mockAllowed())
+  // Never advertise live MoMo until adapter is complete
+  if (mockAllowed()) {
     items.push({ id: "momo_mock", name: "MoMo (mock)", live: false });
+  }
   return items;
 }
 
@@ -439,7 +522,10 @@ module.exports = {
   listProviders,
   stripeLiveReady,
   momoLiveReady,
+  momoCredentialsPresent,
   mockAllowed,
+  normalizeProviderError,
+  LIVE_PROVIDERS,
   webhookSecretFor,
   verifyStripeSignature,
   verifyMomoIpn,

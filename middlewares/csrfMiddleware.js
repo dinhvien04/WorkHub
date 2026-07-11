@@ -166,13 +166,18 @@ function csrfProtection(req, res, next) {
   }
 
   const binding = getBinding(req);
-  if (
-    !verifySignedToken(cookieToken, binding) &&
-    !verifySignedToken(cookieToken, "")
-  ) {
-    return next(new ForbiddenError("Thiếu hoặc sai CSRF token."));
+  if (verifySignedToken(cookieToken, binding)) {
+    return next();
   }
-  return next();
+  // Legacy unbound tokens only until cutoff (default: allowed in non-production)
+  const legacyUntil = process.env.CSRF_ALLOW_LEGACY_UNBOUND_UNTIL;
+  const allowLegacy = legacyUntil
+    ? Date.now() < new Date(legacyUntil).getTime()
+    : !env.isProduction;
+  if (allowLegacy && verifySignedToken(cookieToken, "")) {
+    return next();
+  }
+  return next(new ForbiddenError("Thiếu hoặc sai CSRF token."));
 }
 
 module.exports = {

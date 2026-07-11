@@ -630,16 +630,7 @@ async function createBooking({
 
       return booking;
     }),
-  ).then(async (booking) => {
-    // Drain outbox after commit (best-effort; job worker also processes)
-    try {
-      const outboxService = require("./outboxService");
-      await outboxService.processPending({ limit: 10 });
-    } catch {
-      /* ignore */
-    }
-    return booking;
-  });
+  );
 }
 
 async function confirmBooking(hostId, bookingId) {

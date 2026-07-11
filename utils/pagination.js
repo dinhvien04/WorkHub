@@ -1,6 +1,9 @@
-'use strict';
+"use strict";
 
-function parsePagination(query = {}, defaults = { page: 1, limit: 20, maxLimit: 100 }) {
+function parsePagination(
+  query = {},
+  defaults = { page: 1, limit: 20, maxLimit: 100 },
+) {
   let page = parseInt(query.page, 10);
   let limit = parseInt(query.limit, 10);
   if (!Number.isFinite(page) || page < 1) page = defaults.page;

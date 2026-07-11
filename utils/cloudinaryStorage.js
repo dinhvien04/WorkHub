@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * First-party Multer storage for Cloudinary 2.x.
@@ -8,7 +8,7 @@
  *   _handleFile(req, file, cb)
  *   _removeFile(req, file, cb)
  */
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 function CloudinaryStorage(opts = {}) {
   if (!(this instanceof CloudinaryStorage)) {
@@ -21,22 +21,23 @@ function CloudinaryStorage(opts = {}) {
 CloudinaryStorage.prototype._handleFile = function _handleFile(req, file, cb) {
   const cloudinary = this.cloudinary;
   if (!cloudinary || !cloudinary.uploader) {
-    return cb(new Error('Cloudinary client not configured'));
+    return cb(new Error("Cloudinary client not configured"));
   }
 
   Promise.resolve()
     .then(async () => {
       const params =
-        typeof this.params === 'function'
+        typeof this.params === "function"
           ? await this.params(req, file)
           : this.params || {};
 
-      const folder = params.folder || 'coworking/misc';
+      const folder = params.folder || "coworking/misc";
       const publicId =
         params.public_id ||
         params.publicId ||
-        crypto.randomBytes(16).toString('hex');
-      const resourceType = params.resource_type || params.resourceType || 'auto';
+        crypto.randomBytes(16).toString("hex");
+      const resourceType =
+        params.resource_type || params.resourceType || "auto";
       const allowed =
         params.allowed_formats || params.allowedFormats || undefined;
 
@@ -58,7 +59,7 @@ CloudinaryStorage.prototype._handleFile = function _handleFile(req, file, cb) {
           (err, result) => {
             if (err) return reject(err);
             resolve(result);
-          }
+          },
         );
         file.stream.pipe(stream);
       });
@@ -76,7 +77,7 @@ CloudinaryStorage.prototype._handleFile = function _handleFile(req, file, cb) {
         format: result.format,
         resource_type: result.resource_type,
         // Multer-compatible extras
-        destination: result.folder || '',
+        destination: result.folder || "",
         url: result.secure_url || result.url,
       });
     })
@@ -87,18 +88,18 @@ CloudinaryStorage.prototype._removeFile = function _removeFile(req, file, cb) {
   const cloudinary = this.cloudinary;
   const publicId = file.public_id || file.filename;
   if (!cloudinary || !publicId) return cb(null);
-  const resourceType = file.resource_type || 'image';
+  const resourceType = file.resource_type || "image";
   cloudinary.uploader.destroy(
     publicId,
-    { resource_type: resourceType === 'raw' ? 'raw' : resourceType },
-    (err) => cb(err || null)
+    { resource_type: resourceType === "raw" ? "raw" : resourceType },
+    (err) => cb(err || null),
   );
 };
 
 /**
  * Destroy by public_id with optional resource type.
  */
-async function destroyUpload(cloudinary, publicId, resourceType = 'image') {
+async function destroyUpload(cloudinary, publicId, resourceType = "image") {
   if (!cloudinary || !publicId) return null;
   return cloudinary.uploader.destroy(publicId, {
     resource_type: resourceType,
@@ -114,7 +115,7 @@ async function cleanupUploadedFile(cloudinary, file) {
   const publicId = file.public_id || file.filename;
   if (!publicId) return;
   try {
-    await destroyUpload(cloudinary, publicId, file.resource_type || 'auto');
+    await destroyUpload(cloudinary, publicId, file.resource_type || "auto");
   } catch {
     /* ignore cleanup errors */
   }
