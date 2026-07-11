@@ -114,6 +114,36 @@ const adminProcessPayout = asyncHandler(async (req, res) => {
   res.json({ payout });
 });
 
+/** Admin: list payouts (optional status filter). */
+const adminListPayouts = asyncHandler(async (req, res) => {
+  const Payout = require("../models/Payout");
+  const filter = {};
+  if (req.query.status) filter.Status = String(req.query.status);
+  const items = await Payout.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(Math.min(Number(req.query.limit) || 50, 100))
+    .populate("HostID", "FullName Email")
+    .lean();
+  res.json({ payouts: items });
+});
+
+/** Host or admin: list refunds for processing. */
+const listRefunds = asyncHandler(async (req, res) => {
+  const Refund = require("../models/Refund");
+  const filter = {};
+  if (req.user.role === "host") {
+    filter.HostID = req.user.userId;
+  } else if (req.user.role !== "admin") {
+    filter.CustomerID = req.user.userId;
+  }
+  if (req.query.status) filter.Status = String(req.query.status);
+  const items = await Refund.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(Math.min(Number(req.query.limit) || 50, 100))
+    .lean();
+  res.json({ refunds: items });
+});
+
 // —— Membership ——
 const listPlans = asyncHandler(async (req, res) => {
   res.json({ plans: await membershipService.listPlans() });
@@ -1584,6 +1614,8 @@ module.exports = {
   requestPayout,
   listPayouts,
   adminProcessPayout,
+  adminListPayouts,
+  listRefunds,
   listPlans,
   myMembership,
   subscribe,

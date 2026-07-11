@@ -65,6 +65,46 @@
   </section>
 
   <section class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Tin nhắn &amp; hỗ trợ</h2>
+    <div class="flex flex-wrap gap-2">
+      <a id="bd-messages" href="/messages" class="text-xs font-black uppercase border px-3 py-2 rounded-xl no-underline text-slate-700">Tin nhắn booking</a>
+      <a href="/support" class="text-xs font-black uppercase border px-3 py-2 rounded-xl no-underline text-slate-700">Gửi ticket</a>
+    </div>
+  </section>
+
+  <section id="bd-refund-section" class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Yêu cầu hoàn tiền</h2>
+    <p class="text-xs text-slate-500 mb-3">Số tiền ≤ số đã thanh toán còn lại (net paid − hoàn đang chờ). Bắt buộc Idempotency-Key.</p>
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <label class="text-[10px] font-black uppercase text-slate-400 block">Số tiền (VND)
+        <input id="bd-refund-amount" type="number" min="1000" step="1000" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-[10px] font-black uppercase text-slate-400 block">Lý do
+        <input id="bd-refund-reason" maxlength="1000" placeholder="Lý do hoàn" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <button type="button" id="bd-refund-btn"
+      class="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+      Gửi yêu cầu hoàn
+    </button>
+    <p id="bd-refund-msg" class="text-sm mt-2" role="status"></p>
+    <ul id="bd-refund-list" class="mt-3 space-y-1 text-xs text-slate-600"></ul>
+  </section>
+
+  <section id="bd-dispute-section" class="bg-white rounded-3xl border p-5 mb-4">
+    <h2 class="font-bold mb-2">Mở tranh chấp (dispute)</h2>
+    <p class="text-xs text-slate-500 mb-3">Khi thanh toán / hoàn tiền / chất lượng dịch vụ có vấn đề chưa giải quyết.</p>
+    <label class="text-[10px] font-black uppercase text-slate-400 block mb-3">Lý do (tối thiểu 5 ký tự)
+      <textarea id="bd-dispute-reason" rows="3" maxlength="2000" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Mô tả chi tiết…"></textarea>
+    </label>
+    <button type="button" id="bd-dispute-btn"
+      class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+      Mở dispute
+    </button>
+    <p id="bd-dispute-msg" class="text-sm mt-2" role="status"></p>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-4">
     <h2 class="font-bold mb-2">Hủy đặt chỗ</h2>
     <p id="bd-cancel-preview" class="text-sm text-slate-600 mb-2"></p>
     <button type="button" id="bd-cancel-btn"

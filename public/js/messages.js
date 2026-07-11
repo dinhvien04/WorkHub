@@ -27,7 +27,10 @@ async function loadMessages() {
 }
 document.addEventListener('DOMContentLoaded', () => {
   const q = new URLSearchParams(location.search);
-  if (q.get('bookingId')) document.getElementById('msg-booking').value = q.get('bookingId');
+  if (q.get('bookingId') && document.getElementById('msg-booking')) {
+    document.getElementById('msg-booking').value = q.get('bookingId');
+    loadMessages();
+  }
   document.getElementById('msg-load')?.addEventListener('click', loadMessages);
   document.getElementById('msg-send')?.addEventListener('click', async () => {
     const body = document.getElementById('msg-body').value.trim();

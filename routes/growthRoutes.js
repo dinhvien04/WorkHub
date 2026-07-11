@@ -43,7 +43,13 @@ if (!env.isProduction && env.ALLOW_MOCK_COMPLETE) {
 // Payouts
 router.post('/host/payouts', verifyToken, authorizeRole('host'), requireVerifiedHost, g.requestPayout);
 router.get('/host/payouts', verifyToken, authorizeRole('host'), requireVerifiedHost, g.listPayouts);
+router.get('/admin/payouts', verifyToken, requireAdmin, g.adminListPayouts);
 router.put('/admin/payouts/:payoutId/process', verifyToken, requireAdmin, g.adminProcessPayout);
+
+// Refunds list (customer / host / admin)
+router.get('/refunds', verifyToken, g.listRefunds);
+router.get('/host/refunds', verifyToken, authorizeRole('host'), requireVerifiedHost, g.listRefunds);
+router.get('/admin/refunds', verifyToken, requireAdmin, g.listRefunds);
 
 // Membership
 router.get('/membership/plans', g.listPlans);

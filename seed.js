@@ -24,11 +24,11 @@ async function seed() {
   const passwordHash = await bcrypt.hash(rawPassword, 10);
 
   const users = [
-    { Email: 'customer1@example.com', PasswordHash: passwordHash,FullName: 'Nguyễn Văn A', Role: 'customer', Status: 'active' },
-    { Email: 'customer2@example.com', PasswordHash: passwordHash, FullName: 'Trần Thị B', Role: 'customer', Status: 'active' },
-    { Email: 'customer3@example.com', PasswordHash: passwordHash, FullName: 'Lê Văn C', Role: 'customer', Status: 'active' },
-    { Email: 'host1@example.com', PasswordHash: passwordHash, FullName: 'Trần Thị Mạnh', Role: 'host', Status: 'active' },
-    { Email: 'admin@example.com', PasswordHash: passwordHash, FullName: 'Administrator', Role: 'admin', Status: 'active' },
+    { Email: 'customer1@example.com', PasswordHash: passwordHash,FullName: 'Nguyễn Văn A', Role: 'customer', Status: 'active', EmailVerified: true, EmailVerifiedAt: new Date() },
+    { Email: 'customer2@example.com', PasswordHash: passwordHash, FullName: 'Trần Thị B', Role: 'customer', Status: 'active', EmailVerified: true, EmailVerifiedAt: new Date() },
+    { Email: 'customer3@example.com', PasswordHash: passwordHash, FullName: 'Lê Văn C', Role: 'customer', Status: 'active', EmailVerified: true, EmailVerifiedAt: new Date() },
+    { Email: 'host1@example.com', PasswordHash: passwordHash, FullName: 'Trần Thị Mạnh', Role: 'host', Status: 'active', EmailVerified: true, EmailVerifiedAt: new Date() },
+    { Email: 'admin@example.com', PasswordHash: passwordHash, FullName: 'Administrator', Role: 'admin', Status: 'active', EmailVerified: true, EmailVerifiedAt: new Date() },
   ];
 
   const createdUsers = await User.insertMany(users);
@@ -68,7 +68,8 @@ async function seed() {
     Hotline: '0911111111',
     TaxCode: 'TAXCODE-HOST-0001',
     VerificationDocument: '',
-    IsVerified: false,
+    IsVerified: true,
+    VerificationStatus: 'approved',
     BankName: 'BIDV',
     BankNumber: '4444444444',
   });

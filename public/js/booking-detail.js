@@ -181,6 +181,85 @@ document.addEventListener('DOMContentLoaded', async () => {
       setTimeout(() => location.reload(), 800);
     });
 
+    // Messages deep-link
+    const msgLink = document.getElementById('bd-messages');
+    if (msgLink) msgLink.href = '/messages?bookingId=' + encodeURIComponent(bookingId);
+
+    // Refunds from timeline events
+    const refundList = document.getElementById('bd-refund-list');
+    if (refundList) {
+      DomSafe.clearElement(refundList);
+      const refundEv = (tl.events || []).filter((e) => e.type === 'refund');
+      if (refundEv.length) {
+        refundEv.forEach((ev) => {
+          refundList.appendChild(
+            DomSafe.createTextElement(
+              'li',
+              '',
+              `${ev.label || 'Hoàn'} · ${Number(ev.meta?.amount || 0).toLocaleString('vi-VN')}đ` +
+                (ev.at ? ' · ' + new Date(ev.at).toLocaleString('vi-VN') : '')
+            )
+          );
+        });
+      } else {
+        refundList.appendChild(
+          DomSafe.createTextElement('li', 'text-slate-400', 'Chưa có yêu cầu hoàn.')
+        );
+      }
+    }
+
+    document.getElementById('bd-refund-btn')?.addEventListener('click', async () => {
+      const msg = document.getElementById('bd-refund-msg');
+      const amount = Number(document.getElementById('bd-refund-amount')?.value || 0);
+      const reason = (document.getElementById('bd-refund-reason')?.value || '').trim();
+      if (!amount || amount <= 0) {
+        msg.textContent = 'Nhập số tiền hoàn hợp lệ.';
+        msg.className = 'text-sm mt-2 text-red-600';
+        return;
+      }
+      const idem = 'refund-ui-' + bookingId + '-' + Date.now();
+      const res = await WorkHubAPI.api(`/api/bookings/${bookingId}/refunds`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idem },
+        body: { amount, reason: reason || undefined },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        msg.textContent = data.error || 'Yêu cầu hoàn thất bại';
+        msg.className = 'text-sm mt-2 text-red-600';
+        return;
+      }
+      msg.textContent =
+        'Đã tạo hoàn ' +
+        Number(data.refund?.Amount || amount).toLocaleString('vi-VN') +
+        'đ · ' +
+        (data.refund?.Status || 'requested');
+      msg.className = 'text-sm mt-2 text-teal-700 font-bold';
+      setTimeout(() => location.reload(), 900);
+    });
+
+    document.getElementById('bd-dispute-btn')?.addEventListener('click', async () => {
+      const msg = document.getElementById('bd-dispute-msg');
+      const reason = (document.getElementById('bd-dispute-reason')?.value || '').trim();
+      if (reason.length < 5) {
+        msg.textContent = 'Lý do tối thiểu 5 ký tự.';
+        msg.className = 'text-sm mt-2 text-red-600';
+        return;
+      }
+      const res = await WorkHubAPI.api(`/api/bookings/${bookingId}/disputes`, {
+        method: 'POST',
+        body: { reason },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        msg.textContent = data.error || 'Mở dispute thất bại';
+        msg.className = 'text-sm mt-2 text-red-600';
+        return;
+      }
+      msg.textContent = 'Đã mở dispute · ' + (data.dispute?.Status || 'open');
+      msg.className = 'text-sm mt-2 text-teal-700 font-bold';
+    });
+
     // —— Reschedule ——
     if (detail.canReschedule) {
       const section = document.getElementById('bd-reschedule-section');

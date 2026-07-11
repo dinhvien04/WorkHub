@@ -1,0 +1,42 @@
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-black mb-1">Developer — Partner API</h1>
+  <p class="text-sm text-slate-500 mb-6">API keys cho tích hợp partner, feed lịch iCal. Secret chỉ hiện một lần khi tạo.</p>
+  <div id="dev-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status"></div>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Tạo API key</h2>
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <label class="text-xs font-bold text-slate-500">Tên
+        <input id="key-name" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="CRM sync" value="Partner key" />
+      </label>
+      <label class="text-xs font-bold text-slate-500 flex items-center gap-2 mt-6">
+        <input type="checkbox" id="key-all-branches" checked /> allBranches (toàn bộ chi nhánh)
+      </label>
+      <label class="text-xs font-bold text-slate-500 sm:col-span-2">Branch IDs (CSV — bắt buộc nếu bỏ allBranches)
+        <input id="key-branches" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" placeholder="id1,id2" />
+      </label>
+      <fieldset class="sm:col-span-2">
+        <legend class="text-xs font-bold text-slate-500 mb-2">Scopes</legend>
+        <label class="inline-flex items-center gap-1 text-sm mr-3"><input type="checkbox" class="key-scope" value="spaces:read" checked /> spaces:read</label>
+        <label class="inline-flex items-center gap-1 text-sm mr-3"><input type="checkbox" class="key-scope" value="bookings:read" checked /> bookings:read</label>
+      </fieldset>
+    </div>
+    <button type="button" id="key-create" class="btn-primary">Tạo key</button>
+    <pre id="key-secret" class="hidden mt-3 text-xs bg-amber-50 border border-amber-100 text-amber-900 p-3 rounded-xl overflow-x-auto whitespace-pre-wrap"></pre>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Keys hiện có</h2>
+    <ul id="key-list" class="space-y-2 text-sm"></ul>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6">
+    <h2 class="font-bold mb-3">iCal feed (external calendar)</h2>
+    <p class="text-xs text-slate-500 mb-3">Token ngẫu nhiên; rotate sẽ thu hồi URL cũ.</p>
+    <div class="flex flex-wrap gap-2 mb-3">
+      <button type="button" id="ical-rotate" class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">Rotate token</button>
+      <button type="button" id="ical-revoke" class="border border-red-300 text-red-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">Revoke</button>
+    </div>
+    <pre id="ical-url" class="text-xs bg-slate-50 p-3 rounded-xl overflow-x-auto whitespace-pre-wrap text-slate-600">Chưa có feed — bấm Rotate.</pre>
+  </section>
+</div>

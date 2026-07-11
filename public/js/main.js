@@ -7,6 +7,8 @@ const menus = {
     { id: 'home', label: 'Trang chủ', icon: '🏠' },
     { id: 'dashboard', label: 'Tổng quan', icon: '📊' },
     { id: 'booking_wizard', label: 'Đặt chỗ', icon: '✨' },
+    { id: 'booking_recurring', label: 'Đặt lặp lại', icon: '🔁' },
+    { id: 'booking_group', label: 'Đặt nhóm', icon: '👥' },
     { id: 'history', label: 'Lịch sử đặt', icon: '📅' },
     { id: 'favorites', label: 'Yêu thích', icon: '❤️' },
     { id: 'notifications', label: 'Thông báo', icon: '🔔' },
@@ -24,10 +26,11 @@ const menus = {
     { id: 'host_calendar', label: 'Lịch', icon: '🗓️' },
     { id: 'host_reception', label: 'Lễ tân', icon: '🛎️' },
     { id: 'host_spaces', label: 'Quản lý không gian', icon: '🏢' },
-    { id: 'host_ops', label: 'Bulk ops', icon: '🧰' },
+    { id: 'host_ops', label: 'Ops / pricing', icon: '🧰' },
     { id: 'host_bookings', label: 'Quản lý đơn', icon: '📋' },
     { id: 'host_finance', label: 'Tài chính', icon: '💵' },
     { id: 'host_staff', label: 'Nhân viên', icon: '👥' },
+    { id: 'host_developer', label: 'Developer API', icon: '🔑' },
     { id: 'host_reports', label: 'Báo cáo', icon: '💰' },
     { id: 'host_payments', label: 'Lịch sử tiền', icon: '💳' },
     { id: 'host_profile', label: 'Hồ sơ', icon: '👤' },
@@ -41,7 +44,7 @@ const menus = {
     { id: 'admin_cms', label: 'CMS', icon: '📝' },
     { id: 'admin_seo', label: 'SEO', icon: '🔎' },
     { id: 'admin_flags', label: 'Flags', icon: '🚩' },
-    { id: 'admin_health', label: 'Health', icon: '💚' },
+    { id: 'admin_health', label: 'Health & ops', icon: '💚' },
     { id: 'admin_activitylog', label: 'Nhật ký hoạt động', icon: '⭐' },
   ],
 };
@@ -59,12 +62,15 @@ function navigateTo(id) {
     favorites: '/favorites',
     notifications: '/notifications',
     booking_wizard: '/booking/wizard',
+    booking_recurring: '/booking/recurring',
+    booking_group: '/booking/group',
     messages: '/messages',
     membership: '/membership',
     support: '/support',
     security: '/security',
     consent: '/consent',
     booking_detail: '/booking/detail',
+    staff_accept: '/staff/accept',
     login: '/login',
     host_profile: '/host/profile',
     host_dashboard: '/host/dashboard',
@@ -76,10 +82,10 @@ function navigateTo(id) {
     host_bookings: '/host/bookings',
     host_finance: '/host/finance',
     host_staff: '/host/staff',
+    host_developer: '/host/developer',
     host_reports: '/host/reports',
     host_payments: '/host/payments',
     compare: '/compare',
-    support: '/support',
     admin_dashboard: '/admin/dashboard',
     admin_users: '/admin/users',
     admin_hosts: '/admin/hosts',
@@ -293,6 +299,9 @@ function renderMenu(currentRole) {
 
     let expectedPath = '/' + i.id;
     if (i.id === 'home') expectedPath = '/';
+    else if (i.id === 'booking_wizard') expectedPath = '/booking/wizard';
+    else if (i.id === 'booking_recurring') expectedPath = '/booking/recurring';
+    else if (i.id === 'booking_group') expectedPath = '/booking/group';
     else if (i.id.startsWith('host_')) expectedPath = '/host/' + i.id.replace('host_', '');
     else if (i.id.startsWith('admin_')) expectedPath = '/admin/' + i.id.replace('admin_', '');
 

@@ -1,4 +1,35 @@
-<div class="max-w-2xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">System health</h1>
-  <pre id="health-json" class="bg-slate-900 text-teal-100 rounded-3xl p-5 text-xs overflow-x-auto">Đang tải…</pre>
+<div class="max-w-4xl mx-auto">
+  <h1 class="text-2xl font-black mb-2">System health &amp; ops</h1>
+  <p class="text-sm text-slate-500 mb-6">Health snapshot, dead-letter queue, payouts &amp; refunds chờ xử lý.</p>
+
+  <section class="mb-6">
+    <h2 class="font-bold mb-2">Health JSON</h2>
+    <pre id="health-json" class="bg-slate-900 text-teal-100 rounded-3xl p-5 text-xs overflow-x-auto">Đang tải…</pre>
+  </section>
+
+  <div id="ops-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status"></div>
+
+  <section class="bg-white rounded-3xl border p-5 mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold">Dead letters</h2>
+      <button type="button" id="dl-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+    </div>
+    <ul id="dl-list" class="space-y-2 text-sm"></ul>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold">Payouts (requested)</h2>
+      <button type="button" id="po-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+    </div>
+    <ul id="po-list" class="space-y-2 text-sm"></ul>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-5 mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold">Refunds (pending)</h2>
+      <button type="button" id="rf-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+    </div>
+    <ul id="admin-rf-list" class="space-y-2 text-sm"></ul>
+  </section>
 </div>

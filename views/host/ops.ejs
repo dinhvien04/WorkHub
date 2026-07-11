@@ -61,8 +61,76 @@
     <div id="bo-alts" class="mt-3 text-xs text-slate-500"></div>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6">
+  <section class="bg-white rounded-3xl border p-6 mb-6">
     <h2 class="font-bold mb-3">Blackouts hiện có</h2>
     <ul id="bo-list" class="space-y-2 text-sm"></ul>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Add-ons (dịch vụ kèm)</h2>
+    <p class="text-xs text-slate-500 mb-3">Khách chọn add-on khi đặt chỗ (wizard). Branch ID để trống = toàn host.</p>
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <label class="text-xs font-bold text-slate-500">Tên
+        <input id="ao-name" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Nước / Projector" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Giá (VND)
+        <input id="ao-price" type="number" min="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Đơn vị
+        <select id="ao-unit" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="booking">booking</option>
+          <option value="hour">hour</option>
+          <option value="person">person</option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-slate-500">Branch ID (tuỳ chọn)
+        <input id="ao-branch" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
+      </label>
+      <label class="text-xs font-bold text-slate-500 sm:col-span-2">Mô tả
+        <input id="ao-desc" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <button type="button" id="ao-create" class="btn-primary">Tạo add-on</button>
+    <ul id="ao-list" class="mt-4 space-y-2 text-sm"></ul>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Pricing rules</h2>
+    <p class="text-xs text-slate-500 mb-3">Tạo draft → Publish khi sẵn sàng. Type: peak_hour, weekend, holiday…</p>
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <label class="text-xs font-bold text-slate-500">Tên rule
+        <input id="pr-name" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Type
+        <select id="pr-type" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="peak_hour">peak_hour</option>
+          <option value="weekend">weekend</option>
+          <option value="holiday">holiday</option>
+          <option value="last_minute">last_minute</option>
+          <option value="long_stay">long_stay</option>
+          <option value="corporate">corporate</option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-slate-500">Multiplier
+        <input id="pr-mult" type="number" step="0.05" min="0" value="1.2" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Fixed adjust (VND)
+        <input id="pr-fixed" type="number" step="1000" value="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Priority (thấp = ưu tiên)
+        <input id="pr-prio" type="number" value="100" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Space ID (tuỳ chọn)
+        <input id="pr-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
+      </label>
+    </div>
+    <button type="button" id="pr-create" class="btn-primary">Tạo draft rule</button>
+    <ul id="pr-list" class="mt-4 space-y-2 text-sm"></ul>
+  </section>
+
+  <section class="bg-white rounded-3xl border p-6">
+    <h2 class="font-bold mb-3">Hoàn tiền chờ xử lý (host)</h2>
+    <p class="text-xs text-slate-500 mb-3">Duyệt/hoàn offline cần <code>transferReference</code> khi manual.</p>
+    <ul id="rf-list" class="space-y-2 text-sm"></ul>
   </section>
 </div>

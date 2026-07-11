@@ -102,5 +102,202 @@
     });
 
     loadBlackouts();
+    loadAddOns();
+    loadPricingRules();
+    loadHostRefunds();
+
+    $('ao-create')?.addEventListener('click', async () => {
+      const body = {
+        name: ($('ao-name')?.value || '').trim(),
+        price: Number($('ao-price')?.value || 0),
+        unit: $('ao-unit')?.value || 'booking',
+        description: ($('ao-desc')?.value || '').trim(),
+      };
+      const branchId = ($('ao-branch')?.value || '').trim();
+      if (branchId) body.branchId = branchId;
+      if (!body.name) return msg('Nhập tên add-on.');
+      const res = await WorkHubAPI.api('/api/host/addons', { method: 'POST', body });
+      const data = await res.json();
+      if (!res.ok) return msg(data.error || 'Tạo add-on thất bại');
+      msg('Đã tạo add-on ' + (data.addOn?.Name || body.name), true);
+      if ($('ao-name')) $('ao-name').value = '';
+      loadAddOns();
+    });
+
+    $('pr-create')?.addEventListener('click', async () => {
+      const body = {
+        name: ($('pr-name')?.value || '').trim(),
+        type: $('pr-type')?.value || 'peak_hour',
+        multiplier: Number($('pr-mult')?.value || 1),
+        fixedAdjust: Number($('pr-fixed')?.value || 0),
+        priority: Number($('pr-prio')?.value || 100),
+      };
+      const spaceId = ($('pr-space')?.value || '').trim();
+      if (spaceId) body.spaceId = spaceId;
+      if (!body.name) return msg('Nhập tên pricing rule.');
+      const res = await WorkHubAPI.api('/api/host/pricing-rules', { method: 'POST', body });
+      const data = await res.json();
+      if (!res.ok) return msg(data.error || 'Tạo rule thất bại');
+      msg('Đã tạo draft rule ' + (data.rule?.Name || body.name), true);
+      loadPricingRules();
+    });
   });
+
+  async function loadAddOns() {
+    const box = $('ao-list');
+    if (!box) return;
+    DomSafe.clearElement(box);
+    const res = await WorkHubAPI.api('/api/host/addons', { redirectOn401: true });
+    const data = await res.json();
+    if (!res.ok) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-red-600', data.error || 'Lỗi'));
+      return;
+    }
+    const items = data.addOns || [];
+    if (!items.length) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-slate-400', 'Chưa có add-on.'));
+      return;
+    }
+    items.forEach((a) => {
+      const li = document.createElement('li');
+      li.className = 'border rounded-xl p-3';
+      li.appendChild(
+        DomSafe.createTextElement(
+          'span',
+          'font-semibold',
+          `${a.Name} · ${Number(a.Price || 0).toLocaleString('vi-VN')}đ / ${a.Unit || 'booking'}`
+        )
+      );
+      li.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'text-xs text-slate-500',
+          `${a.Status || 'active'}${a.BranchID ? ' · branch ' + a.BranchID : ' · global'}`
+        )
+      );
+      box.appendChild(li);
+    });
+  }
+
+  async function loadPricingRules() {
+    const box = $('pr-list');
+    if (!box) return;
+    DomSafe.clearElement(box);
+    const res = await WorkHubAPI.api('/api/host/pricing-rules', { redirectOn401: true });
+    const data = await res.json();
+    if (!res.ok) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-red-600', data.error || 'Lỗi'));
+      return;
+    }
+    const items = data.rules || data.pricingRules || [];
+    if (!items.length) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-slate-400', 'Chưa có pricing rule.'));
+      return;
+    }
+    items.forEach((r) => {
+      const li = document.createElement('li');
+      li.className = 'border rounded-xl p-3 flex flex-wrap justify-between gap-2 items-center';
+      const left = document.createElement('div');
+      left.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'font-semibold',
+          `${r.Name} · ${r.Type} · ×${r.Multiplier}` +
+            (r.FixedAdjust ? ` +${Number(r.FixedAdjust).toLocaleString('vi-VN')}đ` : '')
+        )
+      );
+      left.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'text-xs text-slate-500',
+          `status=${r.Status} · prio=${r.Priority}${r.SpaceID ? ' · space ' + r.SpaceID : ''}`
+        )
+      );
+      li.appendChild(left);
+      if (r.Status === 'draft') {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-xs font-black uppercase bg-teal-600 text-white px-3 py-1.5 rounded-xl';
+        btn.textContent = 'Publish';
+        btn.addEventListener('click', async () => {
+          const res2 = await WorkHubAPI.api(`/api/host/pricing-rules/${r._id}/publish`, {
+            method: 'PUT',
+            body: {},
+          });
+          const d2 = await res2.json().catch(() => ({}));
+          if (!res2.ok) return msg(d2.error || 'Publish thất bại');
+          msg('Đã publish rule', true);
+          loadPricingRules();
+        });
+        li.appendChild(btn);
+      }
+      box.appendChild(li);
+    });
+  }
+
+  async function loadHostRefunds() {
+    const box = $('rf-list');
+    if (!box) return;
+    DomSafe.clearElement(box);
+    const res = await WorkHubAPI.api('/api/host/refunds?limit=30', { redirectOn401: true });
+    const data = await res.json();
+    if (!res.ok) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-red-600', data.error || 'Lỗi'));
+      return;
+    }
+    const items = data.refunds || [];
+    if (!items.length) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-slate-400', 'Không có refund.'));
+      return;
+    }
+    items.forEach((r) => {
+      const li = document.createElement('li');
+      li.className = 'border rounded-xl p-3 flex flex-wrap justify-between gap-2 items-center';
+      const left = document.createElement('div');
+      left.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'font-semibold',
+          `${Number(r.Amount || 0).toLocaleString('vi-VN')}đ · ${r.Status}`
+        )
+      );
+      left.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'text-xs text-slate-500 font-mono',
+          String(r._id) + ' · booking ' + String(r.BookingID || '')
+        )
+      );
+      if (r.Reason) {
+        left.appendChild(DomSafe.createTextElement('p', 'text-xs text-slate-500', r.Reason));
+      }
+      li.appendChild(left);
+      const actionable = ['requested', 'approved', 'manual_action_required', 'manual_refund_required'].includes(
+        r.Status
+      );
+      if (actionable) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-xs font-black uppercase bg-amber-600 text-white px-3 py-1.5 rounded-xl';
+        btn.textContent = 'Xử lý';
+        btn.addEventListener('click', async () => {
+          const transferReference =
+            window.prompt('Transfer reference (bắt buộc nếu hoàn offline/manual):') || '';
+          const res2 = await WorkHubAPI.api(`/api/host/refunds/${r._id}/process`, {
+            method: 'PUT',
+            body: {
+              approve: true,
+              transferReference: transferReference || undefined,
+            },
+          });
+          const d2 = await res2.json().catch(() => ({}));
+          if (!res2.ok) return msg(d2.error || 'Xử lý refund thất bại');
+          msg('Refund → ' + (d2.refund?.Status || 'ok'), true);
+          loadHostRefunds();
+        });
+        li.appendChild(btn);
+      }
+      box.appendChild(li);
+    });
+  }
 })();

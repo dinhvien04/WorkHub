@@ -419,6 +419,13 @@ function createApp() {
       scripts: res.locals.scriptsFrom(["/js/host-finance.js"]),
     }),
   );
+  app.get("/host/developer", requireHostPage, (req, res) =>
+    res.render("host/developer", {
+      currentUser: req.currentUser,
+      pageTitle: "Developer API — Host",
+      scripts: res.locals.scriptsFrom(["/js/host-developer.js"]),
+    }),
+  );
   app.get("/host/reports", requireHostPage, (req, res, next) => {
     res.locals.loadChartJs = true;
     return getHostReportsPage(req, res, next);
@@ -483,6 +490,12 @@ function createApp() {
     res.render("customer/consent", {
       pageTitle: "Quyền riêng tư — WorkHub",
       scripts: res.locals.scriptsFrom(["/js/consent.js"]),
+    }),
+  );
+  app.get("/staff/accept", (req, res) =>
+    res.render("customer/staff-accept", {
+      pageTitle: "Nhận lời mời staff — WorkHub",
+      scripts: res.locals.scriptsFrom(["/js/staff-accept.js"]),
     }),
   );
   app.get("/hosts/:hostId", async (req, res, next) => {
