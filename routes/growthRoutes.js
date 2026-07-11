@@ -227,7 +227,15 @@ router.post('/jobs/:jobId/retry', verifyToken, g.retryJob);
 
 // Reviews
 router.post('/reviews/:reviewId/report', verifyToken, reviewReportLimiter, g.reportReview);
+router.get('/admin/reviews', verifyToken, requireAdmin, g.listAdminReviews);
 router.put('/admin/reviews/:reviewId/moderate', verifyToken, requireAdmin, g.moderateReview);
+router.get(
+  '/host/reviews',
+  verifyToken,
+  authorizeRole('host'),
+  requireVerifiedHost,
+  g.listHostReviews
+);
 router.post(
   '/host/reviews/:reviewId/reply',
   verifyToken,

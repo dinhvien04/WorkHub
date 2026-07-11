@@ -141,6 +141,23 @@
       msg('Đã tạo draft rule ' + (data.rule?.Name || body.name), true);
       loadPricingRules();
     });
+
+    $('so-save')?.addEventListener('click', async () => {
+      const spaceId = ($('so-space')?.value || '').trim();
+      if (!spaceId) return msg('Nhập space ID.');
+      const body = {};
+      if ($('so-before')?.value !== '') body.bufferBeforeMinutes = Number($('so-before').value);
+      if ($('so-after')?.value !== '') body.cleanupAfterMinutes = Number($('so-after').value);
+      if ($('so-fc')?.value !== '') body.freeCancelHours = Number($('so-fc').value);
+      body.instantBook = !!$('so-instant')?.checked;
+      const res = await WorkHubAPI.api(`/api/host/spaces/${spaceId}/ops`, {
+        method: 'PATCH',
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok) return msg(data.error || 'Lưu space ops thất bại');
+      msg('Đã cập nhật space ops', true);
+    });
   });
 
   async function loadAddOns() {

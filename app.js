@@ -426,6 +426,13 @@ function createApp() {
       scripts: res.locals.scriptsFrom(["/js/host-developer.js"]),
     }),
   );
+  app.get("/host/reviews", requireHostPage, (req, res) =>
+    res.render("host/reviews", {
+      currentUser: req.currentUser,
+      pageTitle: "Reviews — Host",
+      scripts: res.locals.scriptsFrom(["/js/host-reviews.js"]),
+    }),
+  );
   app.get("/host/reports", requireHostPage, (req, res, next) => {
     res.locals.loadChartJs = true;
     return getHostReportsPage(req, res, next);

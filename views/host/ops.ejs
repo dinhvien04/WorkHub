@@ -128,6 +128,29 @@
     <ul id="pr-list" class="mt-4 space-y-2 text-sm"></ul>
   </section>
 
+  <section class="bg-white rounded-3xl border p-6 mb-6">
+    <h2 class="font-bold mb-3">Space ops (buffer / instant / free-cancel)</h2>
+    <p class="text-xs text-slate-500 mb-3">PATCH buffer trước/sau slot, instant book, free cancel hours.</p>
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <label class="text-xs font-bold text-slate-500">Space ID
+        <input id="so-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Buffer before (phút)
+        <input id="so-before" type="number" min="0" max="180" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Cleanup after (phút)
+        <input id="so-after" type="number" min="0" max="180" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500">Free cancel hours
+        <input id="so-fc" type="number" min="0" max="168" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-500 flex items-center gap-2 mt-6">
+        <input type="checkbox" id="so-instant" /> Instant book
+      </label>
+    </div>
+    <button type="button" id="so-save" class="btn-primary">Lưu space ops</button>
+  </section>
+
   <section class="bg-white rounded-3xl border p-6">
     <h2 class="font-bold mb-3">Hoàn tiền chờ xử lý (host)</h2>
     <p class="text-xs text-slate-500 mb-3">Duyệt/hoàn offline cần <code>transferReference</code> khi manual.</p>

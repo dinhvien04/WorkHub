@@ -245,11 +245,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  async function loadReviews() {
+    const box = document.getElementById('admin-rev-list');
+    if (!box) return;
+    DomSafe.clearElement(box);
+    const res = await WorkHubAPI.api('/api/admin/reviews?limit=40');
+    const data = await res.json();
+    if (!res.ok) {
+      box.appendChild(DomSafe.createTextElement('li', 'text-red-600', data.error || 'Lỗi'));
+      return;
+    }
+    const items = data.reviews || [];
+    if (!items.length) {
+      box.appendChild(
+        DomSafe.createTextElement('li', 'text-slate-400', 'Không có review cần moderate.')
+      );
+      return;
+    }
+    items.forEach((r) => {
+      const li = document.createElement('li');
+      li.className = 'border rounded-xl p-3';
+      li.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'font-semibold',
+          `★${r.Rating} · ${r.Status} · reports ${r.ReportCount || 0}`
+        )
+      );
+      li.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'text-xs text-slate-600 mt-1',
+          (r.Comment || '').slice(0, 160) || '(empty)'
+        )
+      );
+      li.appendChild(
+        DomSafe.createTextElement(
+          'p',
+          'text-xs text-slate-400 font-mono mt-1',
+          String(r._id) +
+            ' · ' +
+            (r.CustomerID?.FullName || r.CustomerID?.Email || '') +
+            ' · ' +
+            (r.SpaceID?.Name || '')
+        )
+      );
+      if (r.ReportReasons && r.ReportReasons.length) {
+        li.appendChild(
+          DomSafe.createTextElement(
+            'p',
+            'text-xs text-amber-700 mt-1',
+            'Reasons: ' + r.ReportReasons.slice(-3).join('; ')
+          )
+        );
+      }
+      const actions = document.createElement('div');
+      actions.className = 'flex flex-wrap gap-2 mt-2';
+      [
+        ['published', 'Publish', 'bg-teal-600 text-white'],
+        ['hidden', 'Hide', 'bg-slate-800 text-white'],
+        ['removed', 'Remove', 'border border-red-300 text-red-700'],
+      ].forEach(([status, label, cls]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-xs font-black uppercase px-3 py-1.5 rounded-xl ' + cls;
+        btn.textContent = label;
+        btn.addEventListener('click', async () => {
+          const r2 = await WorkHubAPI.api(`/api/admin/reviews/${r._id}/moderate`, {
+            method: 'PUT',
+            body: { status },
+          });
+          const d = await r2.json().catch(() => ({}));
+          if (!r2.ok) return msg(d.error || 'Moderate thất bại');
+          msg('Review → ' + status, true);
+          loadReviews();
+        });
+        actions.appendChild(btn);
+      });
+      li.appendChild(actions);
+      box.appendChild(li);
+    });
+  }
+
   document.getElementById('dl-refresh')?.addEventListener('click', loadDeadLetters);
   document.getElementById('po-refresh')?.addEventListener('click', loadPayouts);
   document.getElementById('rf-refresh')?.addEventListener('click', loadRefunds);
+  document.getElementById('rev-refresh')?.addEventListener('click', loadReviews);
 
   loadDeadLetters();
   loadPayouts();
   loadRefunds();
+  loadReviews();
 });

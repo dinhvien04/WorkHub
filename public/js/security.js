@@ -336,6 +336,94 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // —— Web Push ——
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  let lastPushEndpoint = null;
+
+  document.getElementById('push-enable-btn')?.addEventListener('click', async () => {
+    const pushMsg = document.getElementById('push-msg');
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        throw new Error('Trình duyệt không hỗ trợ Web Push.');
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Bạn đã từ chối quyền thông báo.');
+      const keyRes = await WorkHubAPI.api('/api/push/vapid-public-key', { redirectOn401: false });
+      const keyData = await keyRes.json();
+      if (!keyRes.ok || !keyData.publicKey) {
+        throw new Error(keyData.error || 'Chưa cấu hình VAPID public key trên server.');
+      }
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(keyData.publicKey),
+        });
+      }
+      const json = sub.toJSON();
+      lastPushEndpoint = json.endpoint;
+      const res = await WorkHubAPI.api('/api/push/subscribe', {
+        method: 'POST',
+        body: {
+          endpoint: json.endpoint,
+          keys: json.keys || {},
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Đăng ký push thất bại');
+      if (pushMsg) {
+        pushMsg.textContent = 'Đã bật Web Push.';
+        pushMsg.className = 'text-sm mt-2 text-teal-700 font-bold';
+      }
+    } catch (err) {
+      if (pushMsg) {
+        pushMsg.textContent = err.message || 'Lỗi push';
+        pushMsg.className = 'text-sm mt-2 text-red-600';
+      }
+    }
+  });
+
+  document.getElementById('push-disable-btn')?.addEventListener('click', async () => {
+    const pushMsg = document.getElementById('push-msg');
+    try {
+      let endpoint = lastPushEndpoint;
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg && (await reg.pushManager.getSubscription());
+        if (sub) {
+          endpoint = sub.endpoint;
+          await sub.unsubscribe();
+        }
+      }
+      if (!endpoint) throw new Error('Không tìm thấy subscription để hủy.');
+      const res = await WorkHubAPI.api('/api/push/unsubscribe', {
+        method: 'POST',
+        body: { endpoint },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || 'Hủy push thất bại');
+      if (pushMsg) {
+        pushMsg.textContent = data.message || 'Đã tắt Web Push.';
+        pushMsg.className = 'text-sm mt-2 text-teal-700 font-bold';
+      }
+    } catch (err) {
+      if (pushMsg) {
+        pushMsg.textContent = err.message || 'Lỗi';
+        pushMsg.className = 'text-sm mt-2 text-red-600';
+      }
+    }
+  });
+
   loadSessions().catch((e) => {
     secMsg.textContent = e.message || 'Không tải được sessions';
     secMsg.className = 'text-sm text-red-600 mb-3';

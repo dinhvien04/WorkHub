@@ -49,6 +49,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
       }
     }
+
+    const creditsEl = document.getElementById('mem-credits');
+    if (creditsEl) {
+      DomSafe.clearElement(creditsEl);
+      const cRes = await WorkHubAPI.api('/api/membership/credits', { redirectOn401: false });
+      if (cRes.ok) {
+        const cData = await cRes.json();
+        const rows = cData.items || cData.credits || cData.entries || cData.ledger || [];
+        if (!rows.length) {
+          creditsEl.appendChild(
+            DomSafe.createTextElement('li', 'text-slate-400', 'Chưa có giao dịch credit.')
+          );
+        } else {
+          rows.forEach((row) => {
+            const hrs = Number(row.Hours ?? row.hours ?? 0);
+            const dir = row.Direction || row.direction || 'credit';
+            const signed = dir === 'debit' ? -hrs : hrs;
+            const sign = signed > 0 ? '+' : '';
+            creditsEl.appendChild(
+              DomSafe.createTextElement(
+                'li',
+                'border rounded-xl px-3 py-2',
+                `${sign}${signed}h · ${row.Type || row.type || 'entry'}` +
+                  (row.BalanceAfter != null ? ` · sau ${row.BalanceAfter}h` : '') +
+                  (row.createdAt || row.CreatedAt
+                    ? ' · ' + new Date(row.createdAt || row.CreatedAt).toLocaleString('vi-VN')
+                    : '')
+              )
+            );
+          });
+        }
+      } else {
+        creditsEl.appendChild(
+          DomSafe.createTextElement('li', 'text-slate-400', 'Đăng nhập để xem credit ledger.')
+        );
+      }
+    }
   } catch (e) {
     console.error(e);
   }

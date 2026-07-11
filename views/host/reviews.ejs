@@ -1,0 +1,11 @@
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-black mb-1">Đánh giá khách</h1>
+  <p class="text-sm text-slate-500 mb-4">Trả lời review trên listing của bạn. Chỉ host của space mới reply được.</p>
+  <div class="flex flex-wrap gap-2 mb-4">
+    <button type="button" data-rv-filter="" class="rv-filter text-xs font-black uppercase px-3 py-1.5 rounded-xl border ring-2 ring-teal-500">Tất cả</button>
+    <button type="button" data-rv-filter="unreplied" class="rv-filter text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Chưa reply</button>
+    <button type="button" data-rv-filter="reported" class="rv-filter text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Reported</button>
+  </div>
+  <div id="rv-msg" class="hidden mb-3 text-sm p-3 rounded-xl border" role="status"></div>
+  <ul id="rv-list" class="space-y-3"></ul>
+</div>

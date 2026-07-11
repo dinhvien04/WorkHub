@@ -1232,6 +1232,45 @@ const hostReplyReview = asyncHandler(async (req, res) => {
   res.json({ review });
 });
 
+/** Host: list reviews on own spaces. */
+const listHostReviews = asyncHandler(async (req, res) => {
+  const Review = require("../models/Review");
+  const Space = require("../models/Space");
+  const spaces = await Space.find({ HostID: req.user.userId }).select("_id").lean();
+  const spaceIds = spaces.map((s) => s._id);
+  if (!spaceIds.length) return res.json({ reviews: [] });
+  const filter = { SpaceID: { $in: spaceIds } };
+  if (req.query.status) filter.Status = String(req.query.status);
+  if (req.query.unreplied === "1") {
+    filter.$or = [{ HostReply: { $in: [null, ""] } }, { HostReply: { $exists: false } }];
+  }
+  const reviews = await Review.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(Math.min(Number(req.query.limit) || 50, 100))
+    .populate("CustomerID", "FullName Email")
+    .populate("SpaceID", "Name SpaceCode")
+    .lean();
+  res.json({ reviews });
+});
+
+/** Admin: list reviews for moderation (default reported/hidden). */
+const listAdminReviews = asyncHandler(async (req, res) => {
+  const Review = require("../models/Review");
+  const filter = {};
+  if (req.query.status) {
+    filter.Status = String(req.query.status);
+  } else {
+    filter.Status = { $in: ["reported", "hidden"] };
+  }
+  const reviews = await Review.find(filter)
+    .sort({ ReportCount: -1, createdAt: -1 })
+    .limit(Math.min(Number(req.query.limit) || 50, 100))
+    .populate("CustomerID", "FullName Email")
+    .populate("SpaceID", "Name HostID")
+    .lean();
+  res.json({ reviews });
+});
+
 // —— Public host profile (no secrets) ——
 const publicHostProfile = asyncHandler(async (req, res) => {
   const data =
@@ -1672,6 +1711,8 @@ module.exports = {
   reportReview,
   moderateReview,
   hostReplyReview,
+  listHostReviews,
+  listAdminReviews,
   publicHostProfile,
   bookingTimeline,
   cancelPreview,
