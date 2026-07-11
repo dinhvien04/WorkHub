@@ -20,15 +20,15 @@ const ALL_PROVIDERS = [
 function stripeLiveReady() {
   return Boolean(
     process.env.STRIPE_SECRET_KEY &&
-      process.env.STRIPE_SECRET_KEY.startsWith("sk_"),
+    process.env.STRIPE_SECRET_KEY.startsWith("sk_"),
   );
 }
 
 function momoLiveReady() {
   return Boolean(
     process.env.MOMO_PARTNER_CODE &&
-      process.env.MOMO_ACCESS_KEY &&
-      process.env.MOMO_SECRET_KEY,
+    process.env.MOMO_ACCESS_KEY &&
+    process.env.MOMO_SECRET_KEY,
   );
 }
 

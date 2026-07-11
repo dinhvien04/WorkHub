@@ -229,7 +229,11 @@ describe("P0.8 Partner BOLA", () => {
       request(app).post("/api/partner/keys"),
       csrf,
       `authToken=${token}`,
-    ).send({ name: "A", scopes: ["bookings:read"] });
+    ).send({
+      name: "A",
+      scopes: ["bookings:read"],
+      allBranches: true,
+    });
     expect(create.status).toBe(201);
     const secret = create.body.secret;
 

@@ -225,10 +225,7 @@ const env = {
   MAX_BOOKING_DAYS_AHEAD: Number(process.env.MAX_BOOKING_DAYS_AHEAD) || 180,
   ENABLE_TRANSACTIONS: boolEnv("ENABLE_TRANSACTIONS", isProduction),
   /** After migration cutoff, reject JWTs without sid (default: production only). */
-  SESSION_REQUIRE_SID: boolEnv(
-    "SESSION_REQUIRE_SID",
-    isProduction,
-  ),
+  SESSION_REQUIRE_SID: boolEnv("SESSION_REQUIRE_SID", isProduction),
   EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || "",
   EMAIL_FROM: process.env.EMAIL_FROM || "",
   RESEND_API_KEY: process.env.RESEND_API_KEY || "",

@@ -1,7 +1,7 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const OutboxEvent = require('../models/OutboxEvent');
+const crypto = require("crypto");
+const OutboxEvent = require("../models/OutboxEvent");
 
 /**
  * Enqueue a side-effect inside an optional Mongo session (transaction-safe).
@@ -10,17 +10,17 @@ const OutboxEvent = require('../models/OutboxEvent');
 async function enqueue(
   {
     type,
-    entityType = '',
+    entityType = "",
     entityId = null,
     recipientId = null,
     payload = {},
     idempotencyKey,
     availableAt = null,
   },
-  opts = {}
+  opts = {},
 ) {
   if (!type || !idempotencyKey) {
-    throw new Error('outbox enqueue requires type and idempotencyKey');
+    throw new Error("outbox enqueue requires type and idempotencyKey");
   }
   const session = opts.session || null;
   const doc = {
@@ -30,7 +30,7 @@ async function enqueue(
     RecipientID: recipientId,
     Payload: payload,
     IdempotencyKey: String(idempotencyKey).slice(0, 200),
-    Status: 'pending',
+    Status: "pending",
     AvailableAt: availableAt || new Date(),
   };
   try {
@@ -50,83 +50,87 @@ async function enqueue(
 }
 
 async function enqueueNotification(
-  { userId, title, body, type = 'system', entityType, entityId, link },
-  opts = {}
+  { userId, title, body, type = "system", entityType, entityId, link },
+  opts = {},
 ) {
   const key =
     opts.idempotencyKey ||
-    `notify:${entityType || 'x'}:${entityId || crypto.randomBytes(8).toString('hex')}:${userId}`;
+    `notify:${entityType || "x"}:${entityId || crypto.randomBytes(8).toString("hex")}:${userId}`;
   return enqueue(
     {
-      type: 'notification',
-      entityType: entityType || '',
+      type: "notification",
+      entityType: entityType || "",
       entityId: entityId || null,
       recipientId: userId,
       payload: { userId, title, body, type, entityType, entityId, link },
       idempotencyKey: key,
     },
-    opts
+    opts,
   );
 }
 
 async function enqueueEmailTemplate(
   { template, to, data, entityType, entityId },
-  opts = {}
+  opts = {},
 ) {
   const key =
     opts.idempotencyKey ||
-    `email:${template}:${entityId || to}:${crypto.createHash('sha256').update(String(to)).digest('hex').slice(0, 12)}`;
+    `email:${template}:${entityId || to}:${crypto.createHash("sha256").update(String(to)).digest("hex").slice(0, 12)}`;
   return enqueue(
     {
-      type: 'email_template',
-      entityType: entityType || '',
+      type: "email_template",
+      entityType: entityType || "",
       entityId: entityId || null,
       payload: { template, to, data },
       idempotencyKey: key,
     },
-    opts
+    opts,
   );
 }
 
 async function enqueueAudit(
-  { userId, action, entityType, entityId, message, level = 'info' },
-  opts = {}
+  { userId, action, entityType, entityId, message, level = "info" },
+  opts = {},
 ) {
   const key =
     opts.idempotencyKey ||
-    `audit:${action}:${entityId || 'x'}:${userId || 'sys'}`;
+    `audit:${action}:${entityId || "x"}:${userId || "sys"}`;
   return enqueue(
     {
-      type: 'audit',
-      entityType: entityType || '',
+      type: "audit",
+      entityType: entityType || "",
       entityId: entityId || null,
       recipientId: userId || null,
       payload: { userId, action, entityType, entityId, message, level },
       idempotencyKey: key,
     },
-    opts
+    opts,
   );
 }
 
 /**
  * Claim pending outbox rows for processing (lease-based).
  */
-async function claimBatch({ workerId: _workerId, limit = 20, leaseMs = 60_000 } = {}) {
+async function claimBatch({
+  workerId: _workerId,
+  limit = 20,
+  leaseMs = 60_000,
+} = {}) {
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + leaseMs);
   const claimed = [];
   for (let i = 0; i < limit; i += 1) {
     const doc = await OutboxEvent.findOneAndUpdate(
       {
-        Status: { $in: ['pending', 'failed'] },
+        Status: { $in: ["pending", "failed"] },
         AvailableAt: { $lte: now },
         $or: [{ LeaseUntil: null }, { LeaseUntil: { $lte: now } }],
       },
       {
-        $set: { Status: 'processing', LeaseUntil: leaseUntil },
+        $set: { Status: "processing", LeaseUntil: leaseUntil },
         $inc: { Attempts: 1 },
       },
-      { new: true, sort: { AvailableAt: 1 } }
+      { new: true, sort: { AvailableAt: 1 } },
     );
     if (!doc) break;
     claimed.push(doc);
@@ -136,16 +140,16 @@ async function claimBatch({ workerId: _workerId, limit = 20, leaseMs = 60_000 } 
 
 async function markSent(id) {
   return OutboxEvent.findOneAndUpdate(
-    { _id: id, Status: 'processing' },
+    { _id: id, Status: "processing" },
     {
       $set: {
-        Status: 'sent',
+        Status: "sent",
         ProcessedAt: new Date(),
         LeaseUntil: null,
-        LastError: '',
+        LastError: "",
       },
     },
-    { new: true }
+    { new: true },
   );
 }
 
@@ -153,18 +157,21 @@ async function markFailed(id, error, { maxAttempts = 8 } = {}) {
   const doc = await OutboxEvent.findById(id);
   if (!doc) return null;
   const dead = (doc.Attempts || 0) >= maxAttempts;
-  const backoffMs = Math.min(3600_000, 1000 * 2 ** Math.min(doc.Attempts || 1, 10));
+  const backoffMs = Math.min(
+    3600_000,
+    1000 * 2 ** Math.min(doc.Attempts || 1, 10),
+  );
   return OutboxEvent.findOneAndUpdate(
     { _id: id },
     {
       $set: {
-        Status: dead ? 'dead' : 'failed',
-        LastError: String(error || '').slice(0, 500),
+        Status: dead ? "dead" : "failed",
+        LastError: String(error || "").slice(0, 500),
         LeaseUntil: null,
         AvailableAt: new Date(Date.now() + backoffMs),
       },
     },
-    { new: true }
+    { new: true },
   );
 }
 
@@ -172,30 +179,30 @@ async function markFailed(id, error, { maxAttempts = 8 } = {}) {
  * Deliver one outbox event (best-effort handlers).
  */
 async function deliver(event) {
-  if (event.Type === 'notification') {
-    const { notifyUser } = require('./notificationService');
+  if (event.Type === "notification") {
+    const { notifyUser } = require("./notificationService");
     const p = event.Payload || {};
     await notifyUser({
       userId: p.userId || event.RecipientID,
       title: p.title,
       body: p.body,
-      type: p.type || 'system',
+      type: p.type || "system",
       entityType: p.entityType,
       entityId: p.entityId,
       link: p.link,
     });
     return;
   }
-  if (event.Type === 'email_template') {
-    const emailService = require('./emailService');
+  if (event.Type === "email_template") {
+    const emailService = require("./emailService");
     const p = event.Payload || {};
     const data = { ...(p.data || {}) };
     let to = p.to;
     if (!to) {
-      const User = require('../models/User');
+      const User = require("../models/User");
       if (data.customerId) {
         const u = await User.findById(data.customerId)
-          .select('Email FullName NotifyEmail')
+          .select("Email FullName NotifyEmail")
           .lean();
         if (u?.Email && u.NotifyEmail !== false) {
           to = u.Email;
@@ -203,7 +210,7 @@ async function deliver(event) {
         }
       } else if (data.hostId) {
         const u = await User.findById(data.hostId)
-          .select('Email FullName NotifyEmail')
+          .select("Email FullName NotifyEmail")
           .lean();
         if (u?.Email && u.NotifyEmail !== false) {
           to = u.Email;
@@ -218,14 +225,14 @@ async function deliver(event) {
     });
     return;
   }
-  if (event.Type === 'email') {
-    const emailService = require('./emailService');
+  if (event.Type === "email") {
+    const emailService = require("./emailService");
     const p = event.Payload || {};
     await emailService.sendGeneric(p);
     return;
   }
-  if (event.Type === 'audit') {
-    const logActivity = require('../utils/auditLogger');
+  if (event.Type === "audit") {
+    const logActivity = require("../utils/auditLogger");
     const p = event.Payload || {};
     await logActivity(
       p.userId,
@@ -233,15 +240,15 @@ async function deliver(event) {
       p.entityType,
       p.entityId,
       p.message,
-      p.level || 'info'
+      p.level || "info",
     );
     return;
   }
-  if (event.Type === 'metrics') {
+  if (event.Type === "metrics") {
     try {
-      const metrics = require('../utils/metrics');
+      const metrics = require("../utils/metrics");
       const p = event.Payload || {};
-      if (p.fn && typeof metrics[p.fn] === 'function') metrics[p.fn]();
+      if (p.fn && typeof metrics[p.fn] === "function") metrics[p.fn]();
     } catch {
       /* ignore */
     }

@@ -209,7 +209,9 @@ async function createBooking({
         createdAt: { $gte: new Date(Date.now() - 3600000) },
       });
       const hoursPreview = (end - start) / 3600000;
-      const amountPreview = Math.round(hoursPreview * (space.PricePerHour || 0));
+      const amountPreview = Math.round(
+        hoursPreview * (space.PricePerHour || 0),
+      );
       const fraud = fraudService.scoreBookingAttempt({
         userCreatedAt: user?.createdAt,
         amount: amountPreview,
@@ -257,7 +259,10 @@ async function createBooking({
       appliedPricingRules = quote.appliedRules || [];
     } catch (err) {
       // Safe no-rule fallback only when pricing explicitly signals empty
-      if (err && (err.code === "NO_PRICING_RULES" || err.safeFallback === true)) {
+      if (
+        err &&
+        (err.code === "NO_PRICING_RULES" || err.safeFallback === true)
+      ) {
         const hours = (end - start) / (1000 * 60 * 60);
         total = Math.round(hours * (space.PricePerHour || 0));
       } else if (err && err.statusCode && err.statusCode < 500) {

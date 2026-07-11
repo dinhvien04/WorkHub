@@ -110,8 +110,11 @@ describe('QR check-in', () => {
     const host = await createUser({ email: 'hq@test.com', role: 'host' });
     const customer = await createUser({ email: 'cq@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
-    // Check-in window: at most 30 min before StartTime — keep start soon
-    const { start, end } = futureRange(0.25, 1);
+    // Check-in allows EARLY_MINUTES (30) before start. Align to next 30-min slot
+    // but never more than ~30m ahead so "now" is always inside the window.
+    const step = 30 * 60 * 1000;
+    const start = new Date(Math.ceil((Date.now() + 60_000) / step) * step);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
     const booking = await bookingService.createBooking({
       customerId: customer._id,
       spaceId: space._id,

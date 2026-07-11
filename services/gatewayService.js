@@ -788,7 +788,11 @@ async function markWebhookProcessed(id, workerId, session = null) {
   return updated;
 }
 
-async function ensurePaymentOnly(session, mongoSession, { status, metaOverpay } = {}) {
+async function ensurePaymentOnly(
+  session,
+  mongoSession,
+  { status, metaOverpay } = {},
+) {
   const txCode = `GW-${session.SessionId}`;
   let paymentQ = PaymentHistory.findOne({ TransactionCode: txCode });
   if (mongoSession) paymentQ.session(mongoSession);
@@ -796,9 +800,7 @@ async function ensurePaymentOnly(session, mongoSession, { status, metaOverpay } 
   if (payment) return payment;
 
   const paymentType =
-    session.PaymentType ||
-    session.Meta?.paymentType ||
-    "deposit";
+    session.PaymentType || session.Meta?.paymentType || "deposit";
 
   try {
     const docs = [
@@ -815,11 +817,15 @@ async function ensurePaymentOnly(session, mongoSession, { status, metaOverpay } 
         VerifiedAt: new Date(),
         IdempotencyKey: `gw-${session.SessionId}`,
         RefundedAmount: 0,
-        Meta: metaOverpay ? { reconciliationRequired: true, overpay: true } : {},
+        Meta: metaOverpay
+          ? { reconciliationRequired: true, overpay: true }
+          : {},
       },
     ];
     if (mongoSession) {
-      const created = await PaymentHistory.create(docs, { session: mongoSession });
+      const created = await PaymentHistory.create(docs, {
+        session: mongoSession,
+      });
       payment = created[0];
     } else {
       payment = await PaymentHistory.create(docs[0]);

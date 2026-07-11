@@ -66,7 +66,9 @@ async function requestRefund({
   idempotencyKey,
 }) {
   if (!idempotencyKey) {
-    throw new ValidationError("Idempotency-Key là bắt buộc cho yêu cầu hoàn tiền.");
+    throw new ValidationError(
+      "Idempotency-Key là bắt buộc cho yêu cầu hoàn tiền.",
+    );
   }
 
   const booking = await Booking.findById(bookingId);
@@ -101,7 +103,9 @@ async function requestRefund({
     .digest("hex");
   const fingerprint = crypto
     .createHash("sha256")
-    .update(`${userId}|${bookingId}|${amt}|${String(reason || "").slice(0, 200)}`)
+    .update(
+      `${userId}|${bookingId}|${amt}|${String(reason || "").slice(0, 200)}`,
+    )
     .digest("hex");
 
   const existing = await Refund.findOne({ IdempotencyKey: scopedKey });
@@ -109,8 +113,13 @@ async function requestRefund({
     if (existing.Amount !== amt) {
       throw new ConflictError("Idempotency-Key đã dùng với số tiền khác.");
     }
-    if (existing.Meta?.fingerprint && existing.Meta.fingerprint !== fingerprint) {
-      throw new ConflictError("Idempotency-Key đã dùng với request fingerprint khác.");
+    if (
+      existing.Meta?.fingerprint &&
+      existing.Meta.fingerprint !== fingerprint
+    ) {
+      throw new ConflictError(
+        "Idempotency-Key đã dùng với request fingerprint khác.",
+      );
     }
     return existing;
   }

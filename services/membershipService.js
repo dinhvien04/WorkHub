@@ -53,9 +53,7 @@ async function postCreditEntry({
     if (existing) {
       // Same key different hours → conflict
       if (Math.abs(Number(existing.Hours) || 0) !== hrs) {
-        throw new ConflictError(
-          "Idempotency-Key đã dùng với số giờ khác.",
-        );
+        throw new ConflictError("Idempotency-Key đã dùng với số giờ khác.");
       }
       return existing;
     }

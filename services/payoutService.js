@@ -308,85 +308,88 @@ async function processPayout({
     );
   }
 
-  const paid = await withTransaction(async (session) => {
-    await runHook("beforePaid");
+  const paid = await withTransaction(
+    async (session) => {
+      await runHook("beforePaid");
 
-    // CAS payout state first
-    const casQ = Payout.findOneAndUpdate(
-      { _id: payoutId, Status: { $in: ["requested", "processing"] } },
-      {
-        $set: {
-          Status: "paid",
-          ProcessedAt: new Date(),
-          ProcessedBy: adminId || null,
-          TransferReference: String(transferReference).slice(0, 200),
-        },
-      },
-      { new: true },
-    );
-    if (session) casQ.session(session);
-    const casPaid = await casQ;
-    if (!casPaid) throw new ValidationError("Payout không thể xử lý.");
-
-    // Require ReservedBalance >= amount — reject orphan payouts
-    const balQ = HostBalance.findOneAndUpdate(
-      {
-        HostID: payout.HostID,
-        ReservedBalance: { $gte: payout.Amount },
-      },
-      {
-        $inc: {
-          ReservedBalance: -payout.Amount,
-          PaidOutBalance: payout.Amount,
-          Version: 1,
-        },
-      },
-      { new: true },
-    );
-    if (session) balQ.session(session);
-    const bal = await balQ;
-    if (!bal) {
-      // Revert CAS — no reserve
-      const revertQ = Payout.findOneAndUpdate(
-        { _id: payoutId, Status: "paid" },
+      // CAS payout state first
+      const casQ = Payout.findOneAndUpdate(
+        { _id: payoutId, Status: { $in: ["requested", "processing"] } },
         {
           $set: {
-            Status: "requested",
-            ProcessedAt: null,
-            FailureReason: "No reserved balance",
+            Status: "paid",
+            ProcessedAt: new Date(),
+            ProcessedBy: adminId || null,
+            TransferReference: String(transferReference).slice(0, 200),
           },
         },
+        { new: true },
       );
-      if (session) revertQ.session(session);
-      await revertQ;
-      throw new ValidationError(
-        "Payout không có quỹ đã reserve — từ chối mark paid.",
-      );
-    }
+      if (session) casQ.session(session);
+      const casPaid = await casQ;
+      if (!casPaid) throw new ValidationError("Payout không thể xử lý.");
 
-    // Exactly ONE final payout debit after confirmed settlement (reserved→paid_out)
-    await ledgerService.postEntry(
-      {
-        hostId: payout.HostID,
-        type: "payout",
-        amount: payout.Amount,
-        direction: "debit",
-        description: `Payout paid ${payout._id}`,
-        idempotencyKey: `payout:${payout._id}:paid`,
-        meta: {
-          payoutId: payout._id,
-          status: "paid",
-          kind: "payout_settle",
-          adminId: adminId || null,
-          transferReference: String(transferReference).slice(0, 200),
-          skipProjection: true,
+      // Require ReservedBalance >= amount — reject orphan payouts
+      const balQ = HostBalance.findOneAndUpdate(
+        {
+          HostID: payout.HostID,
+          ReservedBalance: { $gte: payout.Amount },
         },
-      },
-      { session },
-    );
+        {
+          $inc: {
+            ReservedBalance: -payout.Amount,
+            PaidOutBalance: payout.Amount,
+            Version: 1,
+          },
+        },
+        { new: true },
+      );
+      if (session) balQ.session(session);
+      const bal = await balQ;
+      if (!bal) {
+        // Revert CAS — no reserve
+        const revertQ = Payout.findOneAndUpdate(
+          { _id: payoutId, Status: "paid" },
+          {
+            $set: {
+              Status: "requested",
+              ProcessedAt: null,
+              FailureReason: "No reserved balance",
+            },
+          },
+        );
+        if (session) revertQ.session(session);
+        await revertQ;
+        throw new ValidationError(
+          "Payout không có quỹ đã reserve — từ chối mark paid.",
+        );
+      }
 
-    return casPaid;
-  }, { required: env.isProduction });
+      // Exactly ONE final payout debit after confirmed settlement (reserved→paid_out)
+      await ledgerService.postEntry(
+        {
+          hostId: payout.HostID,
+          type: "payout",
+          amount: payout.Amount,
+          direction: "debit",
+          description: `Payout paid ${payout._id}`,
+          idempotencyKey: `payout:${payout._id}:paid`,
+          meta: {
+            payoutId: payout._id,
+            status: "paid",
+            kind: "payout_settle",
+            adminId: adminId || null,
+            transferReference: String(transferReference).slice(0, 200),
+            skipProjection: true,
+          },
+        },
+        { session },
+      );
+
+      return casPaid;
+    },
+    { required: env.isProduction },
+  );
 
   // Side effects after commit via outbox
   try {
