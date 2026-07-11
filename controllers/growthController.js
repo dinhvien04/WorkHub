@@ -1,21 +1,25 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const asyncHandler = require('../utils/asyncHandler');
-const gatewayService = require('../services/gatewayService');
-const payoutService = require('../services/payoutService');
-const membershipService = require('../services/membershipService');
-const recurringService = require('../services/recurringService');
-const fraudService = require('../services/fraudService');
-const jobQueue = require('../services/jobQueue');
-const { detectLang } = require('../services/i18n');
-const ApiKey = require('../models/ApiKey');
-const Booking = require('../models/Booking');
-const User = require('../models/User');
-const Space = require('../models/Space');
-const UserSession = require('../models/Session');
-const calendarService = require('../services/calendarService');
-const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
+const crypto = require("crypto");
+const asyncHandler = require("../utils/asyncHandler");
+const gatewayService = require("../services/gatewayService");
+const payoutService = require("../services/payoutService");
+const membershipService = require("../services/membershipService");
+const recurringService = require("../services/recurringService");
+const fraudService = require("../services/fraudService");
+const jobQueue = require("../services/jobQueue");
+const { detectLang } = require("../services/i18n");
+const ApiKey = require("../models/ApiKey");
+const Booking = require("../models/Booking");
+const User = require("../models/User");
+const Space = require("../models/Space");
+const UserSession = require("../models/Session");
+const calendarService = require("../services/calendarService");
+const {
+  ValidationError,
+  NotFoundError,
+  ForbiddenError,
+} = require("../utils/errors");
 
 // —— Gateway ——
 const createCheckout = asyncHandler(async (req, res) => {
@@ -23,8 +27,8 @@ const createCheckout = asyncHandler(async (req, res) => {
     customerId: req.user.userId,
     bookingId: req.body.bookingId,
     // amount/provider from client are ignored server-side
-    paymentType: req.body.paymentType || 'deposit',
-    idempotencyKey: req.get('Idempotency-Key') || req.body.idempotencyKey,
+    paymentType: req.body.paymentType || "deposit",
+    idempotencyKey: req.get("Idempotency-Key") || req.body.idempotencyKey,
   });
   res.status(201).json(result);
 });
@@ -33,19 +37,21 @@ const gatewayWebhook = asyncHandler(async (req, res) => {
   // Prefer exact raw body (Buffer) from express.raw mount
   let raw;
   if (Buffer.isBuffer(req.body)) {
-    raw = req.body.toString('utf8');
-  } else if (typeof req.body === 'string') {
+    raw = req.body.toString("utf8");
+  } else if (typeof req.body === "string") {
     raw = req.body;
   } else if (req.rawBody) {
-    raw = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : String(req.rawBody);
+    raw = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody.toString("utf8")
+      : String(req.rawBody);
   } else {
     raw = JSON.stringify(req.body || {});
   }
   const signature =
-    req.get('x-workhub-signature') ||
-    req.get('x-webhook-signature') ||
-    req.get('stripe-signature') ||
-    req.get('x-momo-signature');
+    req.get("x-workhub-signature") ||
+    req.get("x-webhook-signature") ||
+    req.get("stripe-signature") ||
+    req.get("x-momo-signature");
   let event;
   try {
     event = JSON.parse(raw);
@@ -56,7 +62,7 @@ const gatewayWebhook = asyncHandler(async (req, res) => {
     rawBody: raw,
     signature,
     event,
-    provider: req.query.provider || req.get('x-payment-provider'),
+    provider: req.query.provider || req.get("x-payment-provider"),
   });
   res.json(result);
 });
@@ -68,7 +74,7 @@ const listGatewayProviders = asyncHandler(async (req, res) => {
 const mockCompleteGateway = asyncHandler(async (req, res) => {
   const result = await gatewayService.mockCompleteSession(
     req.params.sessionId,
-    req.user.userId
+    req.user.userId,
   );
   res.json(result);
 });
@@ -77,7 +83,7 @@ const getGatewaySession = asyncHandler(async (req, res) => {
   // Owner-only — SessionId is not an authorization secret
   const dto = await gatewayService.getSessionForCustomer(
     req.params.sessionId,
-    req.user.userId
+    req.user.userId,
   );
   res.json(dto);
 });
@@ -87,7 +93,7 @@ const requestPayout = asyncHandler(async (req, res) => {
   const payout = await payoutService.requestPayout({
     hostId: req.user.userId,
     amount: req.body.amount,
-    idempotencyKey: req.get('Idempotency-Key'),
+    idempotencyKey: req.get("Idempotency-Key"),
   });
   res.status(201).json({ payout });
 });
@@ -102,7 +108,8 @@ const adminProcessPayout = asyncHandler(async (req, res) => {
     payoutId: req.params.payoutId,
     approve: req.body.approve !== false,
     adminId: req.user.userId,
-    transferReference: req.body.transferReference || req.body.transferRef || null,
+    transferReference:
+      req.body.transferReference || req.body.transferRef || null,
   });
   res.json({ payout });
 });
@@ -113,7 +120,9 @@ const listPlans = asyncHandler(async (req, res) => {
 });
 
 const myMembership = asyncHandler(async (req, res) => {
-  res.json({ membership: await membershipService.getActiveMembership(req.user.userId) });
+  res.json({
+    membership: await membershipService.getActiveMembership(req.user.userId),
+  });
 });
 
 const subscribe = asyncHandler(async (req, res) => {
@@ -125,9 +134,12 @@ const subscribe = asyncHandler(async (req, res) => {
 });
 
 const myCreditLedger = asyncHandler(async (req, res) => {
-  const { parsePagination, paginationMeta } = require('../utils/pagination');
+  const { parsePagination, paginationMeta } = require("../utils/pagination");
   const { page, limit } = parsePagination(req.query);
-  const data = await membershipService.listCreditLedger(req.user.userId, { page, limit });
+  const data = await membershipService.listCreditLedger(req.user.userId, {
+    page,
+    limit,
+  });
   res.json({ ...data, pagination: paginationMeta(data.total, page, limit) });
 });
 
@@ -141,7 +153,7 @@ const previewRecurring = asyncHandler(async (req, res) => {
     daysOfWeek: body.daysOfWeek
       ? Array.isArray(body.daysOfWeek)
         ? body.daysOfWeek
-        : String(body.daysOfWeek).split(',').map(Number)
+        : String(body.daysOfWeek).split(",").map(Number)
       : [],
     startTimeOfDay: body.startTimeOfDay,
     durationMinutes: body.durationMinutes,
@@ -154,7 +166,13 @@ const previewRecurring = asyncHandler(async (req, res) => {
 
 const createRecurring = asyncHandler(async (req, res) => {
   const space = await Space.findById(req.body.spaceId);
-  if (!space) throw new NotFoundError('Space not found');
+  if (!space) throw new NotFoundError("Space not found");
+  const idempotencyKey = req.get("Idempotency-Key") || req.body.idempotencyKey;
+  if (!idempotencyKey) {
+    throw new ValidationError(
+      "Idempotency-Key là bắt buộc cho recurring series.",
+    );
+  }
   const result = await recurringService.createSeries({
     customerId: req.user.userId,
     spaceId: space._id,
@@ -167,6 +185,7 @@ const createRecurring = asyncHandler(async (req, res) => {
     seriesStart: req.body.seriesStart,
     seriesEnd: req.body.seriesEnd,
     occurrenceCount: req.body.occurrenceCount,
+    idempotencyKey,
   });
   res.status(201).json(result);
 });
@@ -178,11 +197,16 @@ const listRecurring = asyncHandler(async (req, res) => {
 
 const cancelRecurring = asyncHandler(async (req, res) => {
   const body = req.body || {};
-  const result = await recurringService.cancelSeries(req.params.seriesId, req.user.userId, {
-    mode: body.mode || req.query.mode || 'whole',
-    occurrenceBookingId: body.occurrenceBookingId || req.query.occurrenceBookingId || null,
-  });
-  res.json({ ...result, message: 'Đã hủy series/occurrence.' });
+  const result = await recurringService.cancelSeries(
+    req.params.seriesId,
+    req.user.userId,
+    {
+      mode: body.mode || req.query.mode || "whole",
+      occurrenceBookingId:
+        body.occurrenceBookingId || req.query.occurrenceBookingId || null,
+    },
+  );
+  res.json({ ...result, message: "Đã hủy series/occurrence." });
 });
 
 // —— Fraud score (preview) ——
@@ -204,45 +228,53 @@ const fraudPreview = asyncHandler(async (req, res) => {
 
 // —— Partner API keys (verified host only) ——
 const createApiKey = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'host' && req.user.role !== 'admin') {
-    throw new ForbiddenError('Chỉ host đã xác minh hoặc admin mới tạo API key.');
+  if (req.user.role !== "host" && req.user.role !== "admin") {
+    throw new ForbiddenError(
+      "Chỉ host đã xác minh hoặc admin mới tạo API key.",
+    );
   }
-  const hostOwnerId = req.user.role === 'admin' && req.body.hostOwnerId
-    ? req.body.hostOwnerId
-    : req.user.userId;
+  const hostOwnerId =
+    req.user.role === "admin" && req.body.hostOwnerId
+      ? req.body.hostOwnerId
+      : req.user.userId;
 
-  if (req.user.role === 'host') {
-    const HostProfile = require('../models/Host_Profile');
-    const profile = await HostProfile.findOne({ UserID: req.user.userId }).lean();
+  if (req.user.role === "host") {
+    const HostProfile = require("../models/Host_Profile");
+    const profile = await HostProfile.findOne({
+      UserID: req.user.userId,
+    }).lean();
     if (!profile?.IsVerified) {
-      throw new ForbiddenError('Host chưa được xác minh.');
+      throw new ForbiddenError("Host chưa được xác minh.");
     }
   }
 
-  const requested = Array.isArray(req.body.scopes) ? req.body.scopes : ['bookings:read', 'spaces:read'];
-  const allow = req.user.role === 'admin' ? ApiKey.ADMIN_SCOPES : ApiKey.HOST_SCOPES;
+  const requested = Array.isArray(req.body.scopes)
+    ? req.body.scopes
+    : ["bookings:read", "spaces:read"];
+  const allow =
+    req.user.role === "admin" ? ApiKey.ADMIN_SCOPES : ApiKey.HOST_SCOPES;
   let scopes = requested.filter((s) => allow.includes(s));
-  if (scopes.includes('*') && req.user.role !== 'admin') {
-    throw new ForbiddenError('Wildcard scope chỉ dành cho admin.');
+  if (scopes.includes("*") && req.user.role !== "admin") {
+    throw new ForbiddenError("Wildcard scope chỉ dành cho admin.");
   }
-  if (!scopes.length) scopes = ['bookings:read'];
+  if (!scopes.length) scopes = ["bookings:read"];
 
   let branchIds = Array.isArray(req.body.allowedBranchIds)
     ? req.body.allowedBranchIds.map(String)
     : [];
 
   if (branchIds.length) {
-    const Branch = require('../models/Branch');
+    const Branch = require("../models/Branch");
     const owned = await Branch.find({
       _id: { $in: branchIds },
       HostID: hostOwnerId,
-    }).select('_id');
+    }).select("_id");
     const ownedIds = owned.map((b) => String(b._id));
     // Reject entire request if any requested branch is unowned — never silently drop
     const missing = branchIds.filter((id) => !ownedIds.includes(String(id)));
     if (missing.length) {
       throw new ValidationError(
-        'allowedBranchIds chứa branch không thuộc host — request bị từ chối.',
+        "allowedBranchIds chứa branch không thuộc host — request bị từ chối.",
       );
     }
     branchIds = owned.map((b) => b._id);
@@ -253,19 +285,21 @@ const createApiKey = asyncHandler(async (req, res) => {
   const allBranches = req.body.allBranches === true;
   if (!allBranches && branchIds.length === 0) {
     throw new ValidationError(
-      'Phải chỉ định allBranches:true hoặc ít nhất một allowedBranchIds thuộc host.',
+      "Phải chỉ định allBranches:true hoặc ít nhất một allowedBranchIds thuộc host.",
     );
   }
 
   // Admin must target a verified host when creating keys for others
-  if (req.user.role === 'admin' && req.body.hostOwnerId) {
-    const HostProfile = require('../models/Host_Profile');
+  if (req.user.role === "admin" && req.body.hostOwnerId) {
+    const HostProfile = require("../models/Host_Profile");
     const profile = await HostProfile.findOne({ UserID: hostOwnerId }).lean();
     if (
       !profile ||
-      !(profile.IsVerified === true || profile.VerificationStatus === 'approved')
+      !(
+        profile.IsVerified === true || profile.VerificationStatus === "approved"
+      )
     ) {
-      throw new ValidationError('hostOwnerId phải là host đã xác minh.');
+      throw new ValidationError("hostOwnerId phải là host đã xác minh.");
     }
   }
 
@@ -276,7 +310,7 @@ const createApiKey = asyncHandler(async (req, res) => {
     : new Date(Date.now() + 90 * 24 * 3600000);
 
   const doc = await ApiKey.create({
-    Name: String(req.body.name || 'Partner key').slice(0, 100),
+    Name: String(req.body.name || "Partner key").slice(0, 100),
     OwnerUserID: req.user.userId,
     HostOwnerID: hostOwnerId,
     AllowedBranchIDs: allBranches ? [] : branchIds,
@@ -284,7 +318,7 @@ const createApiKey = asyncHandler(async (req, res) => {
     KeyPrefix: prefix,
     KeyHash: hash,
     Scopes: scopes,
-    Status: 'active',
+    Status: "active",
     ExpiresAt: expiresAt,
     CreatedBy: req.user.userId,
   });
@@ -300,13 +334,13 @@ const createApiKey = asyncHandler(async (req, res) => {
       expiresAt: doc.ExpiresAt,
     },
     secret: raw,
-    warning: 'Store secret securely; it will not be shown again.',
+    warning: "Store secret securely; it will not be shown again.",
   });
 });
 
 const listApiKeys = asyncHandler(async (req, res) => {
   const items = await ApiKey.find({ OwnerUserID: req.user.userId })
-    .select('-KeyHash')
+    .select("-KeyHash")
     .sort({ createdAt: -1 })
     .lean();
   res.json({ keys: items });
@@ -315,17 +349,17 @@ const listApiKeys = asyncHandler(async (req, res) => {
 const revokeApiKey = asyncHandler(async (req, res) => {
   const doc = await ApiKey.findOneAndUpdate(
     { _id: req.params.id, OwnerUserID: req.user.userId },
-    { $set: { Status: 'revoked' } },
-    { new: true }
-  ).select('-KeyHash');
-  if (!doc) throw new NotFoundError('API key not found');
+    { $set: { Status: "revoked" } },
+    { new: true },
+  ).select("-KeyHash");
+  if (!doc) throw new NotFoundError("API key not found");
   res.json({ key: doc });
 });
 
 // Partner public API (API key auth) — tenant-scoped
 const partnerListSpaces = asyncHandler(async (req, res) => {
   const filter = {
-    Status: 'available',
+    Status: "available",
     HostID: req.apiKey.HostOwnerID || req.apiKey.OwnerUserID,
   };
   // AllBranches=false + empty AllowedBranchIDs = deny all (never "all branches")
@@ -339,7 +373,7 @@ const partnerListSpaces = asyncHandler(async (req, res) => {
     filter.BranchID = { $in: req.apiKey.AllowedBranchIDs };
   }
   const spaces = await Space.find(filter)
-    .select('Name SpaceCode Category PricePerHour Capacity BranchID Status')
+    .select("Name SpaceCode Category PricePerHour Capacity BranchID Status")
     .limit(50)
     .lean();
   res.json({ spaces });
@@ -352,27 +386,33 @@ const partnerGetBooking = asyncHandler(async (req, res) => {
     HostID: hostId,
   };
   const booking = await Booking.findOne(filter)
-    .select('Status StartTime EndTime TotalAmount SpaceID HostID BranchID Snapshot.SpaceCode Snapshot.SpaceName')
+    .select(
+      "Status StartTime EndTime TotalAmount SpaceID HostID BranchID Snapshot.SpaceCode Snapshot.SpaceName",
+    )
     .lean();
-  if (!booking) throw new NotFoundError('Booking not found');
+  if (!booking) throw new NotFoundError("Booking not found");
 
   // Branch scope when key is limited
   if (req.apiKey.AllBranches === false) {
     const ids = (req.apiKey.AllowedBranchIDs || []).map(String);
-    if (!ids.length) throw new NotFoundError('Booking not found');
-    const Space = require('../models/Space');
-    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    if (!ids.length) throw new NotFoundError("Booking not found");
+    const Space = require("../models/Space");
+    const space = await Space.findById(booking.SpaceID)
+      .select("BranchID")
+      .lean();
     const branchId = booking.BranchID || space?.BranchID;
     if (!branchId || !ids.includes(String(branchId))) {
-      throw new NotFoundError('Booking not found');
+      throw new NotFoundError("Booking not found");
     }
   } else if (req.apiKey.AllowedBranchIDs?.length) {
-    const Space = require('../models/Space');
-    const space = await Space.findById(booking.SpaceID).select('BranchID').lean();
+    const Space = require("../models/Space");
+    const space = await Space.findById(booking.SpaceID)
+      .select("BranchID")
+      .lean();
     const branchId = booking.BranchID || space?.BranchID;
     const allowed = req.apiKey.AllowedBranchIDs.map(String);
     if (!branchId || !allowed.includes(String(branchId))) {
-      throw new NotFoundError('Booking not found');
+      throw new NotFoundError("Booking not found");
     }
   }
 
@@ -397,7 +437,9 @@ const listSessions = asyncHandler(async (req, res) => {
     UserID: req.user.userId,
     RevokedAt: null,
   })
-    .select('PublicSessionID UserAgent IP LastSeenAt ExpiresAt createdAt AuthMethod')
+    .select(
+      "PublicSessionID UserAgent IP LastSeenAt ExpiresAt createdAt AuthMethod",
+    )
     .sort({ LastSeenAt: -1 })
     .limit(20)
     .lean();
@@ -419,81 +461,91 @@ const listSessions = asyncHandler(async (req, res) => {
 });
 
 const revokeSession = asyncHandler(async (req, res) => {
-  const id = String(req.params.id || '');
-  const mongoose = require('mongoose');
+  const id = String(req.params.id || "");
+  const mongoose = require("mongoose");
   const base = { UserID: req.user.userId, RevokedAt: null };
   const filter =
-    mongoose.isValidObjectId(id) && String(new mongoose.Types.ObjectId(id)) === id
+    mongoose.isValidObjectId(id) &&
+    String(new mongoose.Types.ObjectId(id)) === id
       ? { ...base, $or: [{ PublicSessionID: id }, { _id: id }] }
       : { ...base, PublicSessionID: id };
   const doc = await UserSession.findOneAndUpdate(
     filter,
     { $set: { RevokedAt: new Date() } },
-    { new: true }
+    { new: true },
   );
-  if (!doc) throw new NotFoundError('Session not found');
+  if (!doc) throw new NotFoundError("Session not found");
   if (
     req.user.publicSessionId &&
     doc.PublicSessionID === req.user.publicSessionId
   ) {
-    res.clearCookie(require('../config/env').AUTH_COOKIE_NAME, {
-      path: '/',
+    res.clearCookie(require("../config/env").AUTH_COOKIE_NAME, {
+      path: "/",
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: "lax",
     });
   }
   res.json({
-    message: 'Đã thu hồi phiên.',
+    message: "Đã thu hồi phiên.",
     id: doc.PublicSessionID || String(doc._id),
   });
 });
 
 const logoutAll = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.userId);
-  if (!user) throw new NotFoundError('User not found');
+  if (!user) throw new NotFoundError("User not found");
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
   await UserSession.updateMany(
     { UserID: user._id, RevokedAt: null },
-    { $set: { RevokedAt: new Date() } }
+    { $set: { RevokedAt: new Date() } },
   );
-  res.clearCookie(require('../config/env').AUTH_COOKIE_NAME, {
-    path: '/',
+  res.clearCookie(require("../config/env").AUTH_COOKIE_NAME, {
+    path: "/",
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: "lax",
   });
-  res.json({ message: 'Đã đăng xuất tất cả thiết bị.' });
+  res.json({ message: "Đã đăng xuất tất cả thiết bị." });
 });
 
 // —— i18n ——
 const i18nBundle = asyncHandler(async (req, res) => {
   const lang = detectLang(req);
-  res.json({ lang, messages: require('../services/i18n').dictionaries[lang] || require('../services/i18n').dictionaries.vi });
+  res.json({
+    lang,
+    messages:
+      require("../services/i18n").dictionaries[lang] ||
+      require("../services/i18n").dictionaries.vi,
+  });
 });
 
 const setLang = asyncHandler(async (req, res) => {
-  const { setLangCookie } = require('../services/i18n');
-  const lang = setLangCookie(res, req.body.lang || req.query.lang || 'vi');
+  const { setLangCookie } = require("../services/i18n");
+  const lang = setLangCookie(res, req.body.lang || req.query.lang || "vi");
   // Persist on user when authenticated
   if (req.user?.userId) {
     try {
-      await User.findByIdAndUpdate(req.user.userId, { $set: { PreferredLang: lang } });
+      await User.findByIdAndUpdate(req.user.userId, {
+        $set: { PreferredLang: lang },
+      });
     } catch {
       /* ignore */
     }
   }
-  res.json({ lang, messages: require('../services/i18n').dictionaries[lang] });
+  res.json({ lang, messages: require("../services/i18n").dictionaries[lang] });
 });
 
 // —— Host external calendar feed (random rotatable token; never JWT-derived) ——
 function hashIcalToken(raw) {
-  const secret = require('../config/env').ICAL_FEED_SECRET || require('../config/env').JWT_SECRET;
-  return crypto.createHmac('sha256', secret).update(String(raw)).digest('hex');
+  const secret =
+    require("../config/env").ICAL_FEED_SECRET ||
+    require("../config/env").JWT_SECRET;
+  return crypto.createHmac("sha256", secret).update(String(raw)).digest("hex");
 }
 
 const rotateIcalToken = asyncHandler(async (req, res) => {
-  const HostProfile = require('../models/Host_Profile');
-  const raw = `ical_${crypto.randomBytes(24).toString('base64url')}`;
+  const HostProfile = require("../models/Host_Profile");
+  const raw = `ical_${crypto.randomBytes(24).toString("base64url")}`;
   const hash = hashIcalToken(raw);
   const expiresAt = new Date(Date.now() + 365 * 86400000);
   const profile = await HostProfile.findOneAndUpdate(
@@ -506,62 +558,65 @@ const rotateIcalToken = asyncHandler(async (req, res) => {
         IcalTokenRevokedAt: null,
       },
     },
-    { new: true }
+    { new: true },
   );
-  if (!profile) throw new NotFoundError('Host profile not found');
-  const base = require('../config/env').PUBLIC_BASE_URL || '';
+  if (!profile) throw new NotFoundError("Host profile not found");
+  const base = require("../config/env").PUBLIC_BASE_URL || "";
   const path = `/api/feeds/host/${req.user.userId}/calendar.ics?token=${encodeURIComponent(raw)}`;
   res.json({
     token: raw,
     prefix: profile.IcalTokenPrefix,
     expiresAt,
     feedUrl: base ? `${base}${path}` : path,
-    warning: 'Store token securely; shown once. Rotate to revoke previous.',
+    warning: "Store token securely; shown once. Rotate to revoke previous.",
   });
 });
 
 const revokeIcalToken = asyncHandler(async (req, res) => {
-  const HostProfile = require('../models/Host_Profile');
+  const HostProfile = require("../models/Host_Profile");
   const profile = await HostProfile.findOneAndUpdate(
     { UserID: req.user.userId },
     {
       $set: {
         IcalTokenHash: null,
-        IcalTokenPrefix: '',
+        IcalTokenPrefix: "",
         IcalTokenRevokedAt: new Date(),
       },
     },
-    { new: true }
+    { new: true },
   );
-  if (!profile) throw new NotFoundError('Host profile not found');
-  res.json({ message: 'iCal feed token revoked.' });
+  if (!profile) throw new NotFoundError("Host profile not found");
+  res.json({ message: "iCal feed token revoked." });
 });
 
 const hostIcalFeed = asyncHandler(async (req, res) => {
   const hostId = req.params.hostId;
   const token = req.query.token;
-  if (!token) return res.status(401).send('Invalid feed token');
+  if (!token) return res.status(401).send("Invalid feed token");
 
-  const HostProfile = require('../models/Host_Profile');
+  const HostProfile = require("../models/Host_Profile");
   const profile = await HostProfile.findOne({ UserID: hostId }).lean();
   if (!profile || !profile.IcalTokenHash || profile.IcalTokenRevokedAt) {
-    return res.status(401).send('Invalid feed token');
+    return res.status(401).send("Invalid feed token");
   }
-  if (profile.IcalTokenExpiresAt && new Date(profile.IcalTokenExpiresAt) < new Date()) {
-    return res.status(401).send('Invalid feed token');
+  if (
+    profile.IcalTokenExpiresAt &&
+    new Date(profile.IcalTokenExpiresAt) < new Date()
+  ) {
+    return res.status(401).send("Invalid feed token");
   }
   const expected = hashIcalToken(token);
   try {
     if (
       !crypto.timingSafeEqual(
         Buffer.from(expected),
-        Buffer.from(String(profile.IcalTokenHash))
+        Buffer.from(String(profile.IcalTokenHash)),
       )
     ) {
-      return res.status(401).send('Invalid feed token');
+      return res.status(401).send("Invalid feed token");
     }
   } catch {
-    return res.status(401).send('Invalid feed token');
+    return res.status(401).send("Invalid feed token");
   }
 
   const from = new Date();
@@ -573,23 +628,23 @@ const hostIcalFeed = asyncHandler(async (req, res) => {
       _id: ev.id,
       StartTime: ev.start,
       EndTime: ev.end,
-      Snapshot: { SpaceName: ev.title || 'Booking', Address: '' },
+      Snapshot: { SpaceName: ev.title || "Booking", Address: "" },
     };
     return calendarService
       .bookingToIcs(fake)
-      .replace(/BEGIN:VCALENDAR[\s\S]*?BEGIN:VEVENT/, 'BEGIN:VEVENT')
-      .replace(/END:VCALENDAR\s*$/, '');
+      .replace(/BEGIN:VCALENDAR[\s\S]*?BEGIN:VEVENT/, "BEGIN:VEVENT")
+      .replace(/END:VCALENDAR\s*$/, "");
   });
   const ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//WorkHub//EN',
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//WorkHub//EN",
     ...blocks,
-    'END:VCALENDAR',
-    '',
-  ].join('\r\n');
-  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
   res.send(ics);
 });
 
@@ -601,7 +656,7 @@ const listDeadLetters = asyncHandler(async (req, res) => {
 
 const discardDeadLetter = asyncHandler(async (req, res) => {
   const doc = await jobQueue.discardDeadLetter(req.params.id);
-  if (!doc) throw new NotFoundError('Dead letter not found');
+  if (!doc) throw new NotFoundError("Dead letter not found");
   res.json({ item: doc });
 });
 
@@ -612,26 +667,28 @@ const replayDeadLetter = asyncHandler(async (req, res) => {
 
 const retryJob = asyncHandler(async (req, res) => {
   const existing = await jobQueue.getJob(req.params.jobId);
-  if (!existing) throw new NotFoundError('Job not found');
-  const isAdmin = req.user.role === 'admin';
+  if (!existing) throw new NotFoundError("Job not found");
+  const isAdmin = req.user.role === "admin";
   const isOwner =
     existing.OwnerUserID &&
     String(existing.OwnerUserID) === String(req.user.userId);
   if (!isAdmin && !isOwner) {
-    throw new ForbiddenError('Không có quyền retry job này.');
+    throw new ForbiddenError("Không có quyền retry job này.");
   }
   // Non-admin may only retry allowlisted self-service job types
   const SELF_SERVICE = new Set([
-    'export_bookings',
-    'export_payments',
-    'export_ledger',
-    'csv_export',
-    'xlsx_export',
+    "export_bookings",
+    "export_payments",
+    "export_ledger",
+    "csv_export",
+    "xlsx_export",
   ]);
   if (!isAdmin) {
-    const t = String(existing.Type || existing.JobType || '');
+    const t = String(existing.Type || existing.JobType || "");
     if (!SELF_SERVICE.has(t)) {
-      throw new ForbiddenError('Loại job này không cho phép self-service retry.');
+      throw new ForbiddenError(
+        "Loại job này không cho phép self-service retry.",
+      );
     }
   }
   const job = await jobQueue.retryFailedJob(req.params.jobId);
@@ -639,39 +696,39 @@ const retryJob = asyncHandler(async (req, res) => {
 });
 
 const downloadJobFile = asyncHandler(async (req, res) => {
-  const path = require('path');
-  const fs = require('fs');
+  const path = require("path");
+  const fs = require("fs");
   const job = await jobQueue.getJob(req.params.jobId);
-  if (!job) throw new NotFoundError('Job not found');
+  if (!job) throw new NotFoundError("Job not found");
   if (
-    req.user.role !== 'admin' &&
+    req.user.role !== "admin" &&
     job.OwnerUserID &&
     String(job.OwnerUserID) !== String(req.user.userId)
   ) {
-    throw new ForbiddenError('Không có quyền tải file job.');
+    throw new ForbiddenError("Không có quyền tải file job.");
   }
-  if (job.Status !== 'completed' || !job.Result?.file) {
-    throw new ValidationError('Job chưa có file kết quả.');
+  if (job.Status !== "completed" || !job.Result?.file) {
+    throw new ValidationError("Job chưa có file kết quả.");
   }
-  const rel = String(job.Result.file).replace(/\\/g, '/');
-  if (rel.includes('..') || !rel.startsWith('tmp/exports/')) {
-    throw new ForbiddenError('Đường dẫn file không hợp lệ.');
+  const rel = String(job.Result.file).replace(/\\/g, "/");
+  if (rel.includes("..") || !rel.startsWith("tmp/exports/")) {
+    throw new ForbiddenError("Đường dẫn file không hợp lệ.");
   }
   const abs = path.join(process.cwd(), rel);
-  if (!fs.existsSync(abs)) throw new NotFoundError('File không còn trên đĩa.');
+  if (!fs.existsSync(abs)) throw new NotFoundError("File không còn trên đĩa.");
   res.download(abs, path.basename(abs));
 });
 
 // —— Corporate / group booking + RSVP ——
 const createGroupBooking = asyncHandler(async (req, res) => {
-  const groupBookingService = require('../services/groupBookingService');
+  const groupBookingService = require("../services/groupBookingService");
   const result = await groupBookingService.createGroupBooking({
     customerId: req.user.userId,
     spaceId: req.body.spaceId,
     startTime: req.body.startTime,
     endTime: req.body.endTime,
-    note: req.body.note || '',
-    corporateName: req.body.corporateName || '',
+    note: req.body.note || "",
+    corporateName: req.body.corporateName || "",
     attendees: req.body.attendees || [],
     addOns: req.body.addOns || [],
     couponCode: req.body.couponCode || null,
@@ -680,7 +737,7 @@ const createGroupBooking = asyncHandler(async (req, res) => {
 });
 
 const listGroupInvites = asyncHandler(async (req, res) => {
-  const groupBookingService = require('../services/groupBookingService');
+  const groupBookingService = require("../services/groupBookingService");
   const invites = await groupBookingService.listInvitesForBooking({
     bookingId: req.params.bookingId,
     userId: req.user.userId,
@@ -689,26 +746,26 @@ const listGroupInvites = asyncHandler(async (req, res) => {
 });
 
 const getGroupInvitePublic = asyncHandler(async (req, res) => {
-  const groupBookingService = require('../services/groupBookingService');
+  const groupBookingService = require("../services/groupBookingService");
   const data = await groupBookingService.getInviteByToken(req.params.token);
   res.json(data);
 });
 
 const rsvpGroupInvite = asyncHandler(async (req, res) => {
-  const groupBookingService = require('../services/groupBookingService');
+  const groupBookingService = require("../services/groupBookingService");
   const invite = await groupBookingService.rsvpByToken({
     token: req.params.token,
     status: req.body.status,
     note: req.body.note,
   });
-  res.json({ invite, message: 'Đã ghi nhận RSVP.' });
+  res.json({ invite, message: "Đã ghi nhận RSVP." });
 });
 
 // —— RUM / Web Vitals beacon (no PII; fire-and-forget) ——
 const rumBeacon = asyncHandler(async (req, res) => {
   const body = req.body || {};
   // Sample ~20% in production to limit abuse/volume
-  if (require('../config/env').isProduction && Math.random() > 0.2) {
+  if (require("../config/env").isProduction && Math.random() > 0.2) {
     return res.status(204).end();
   }
   const clamp = (n, max) => {
@@ -722,11 +779,11 @@ const rumBeacon = asyncHandler(async (req, res) => {
     cls: clamp(body.cls, 10),
     ttfb: clamp(body.ttfb, 60_000),
     fcp: clamp(body.fcp, 120_000),
-    path: String(body.path || '').slice(0, 200),
-    navType: String(body.navType || '').slice(0, 40),
+    path: String(body.path || "").slice(0, 200),
+    navType: String(body.navType || "").slice(0, 40),
   };
   try {
-    require('../utils/logger').info({ rum: metrics }, 'web-vitals');
+    require("../utils/logger").info({ rum: metrics }, "web-vitals");
   } catch {
     /* ignore */
   }
@@ -735,23 +792,27 @@ const rumBeacon = asyncHandler(async (req, res) => {
 
 // —— Reporting advanced ——
 const hostAdvancedReport = asyncHandler(async (req, res) => {
-  const paymentService = require('../services/paymentService');
+  const paymentService = require("../services/paymentService");
   const metrics = await paymentService.getHostRevenueMetrics(req.user.userId);
-  const balance = await require('../services/ledgerService').getHostBalance(req.user.userId);
+  const balance = await require("../services/ledgerService").getHostBalance(
+    req.user.userId,
+  );
   const payouts = await payoutService.listHostPayouts(req.user.userId);
   res.json({
     revenue: metrics,
     balance,
     payoutsSummary: {
       count: payouts.length,
-      paid: payouts.filter((p) => p.Status === 'paid').reduce((s, p) => s + p.Amount, 0),
+      paid: payouts
+        .filter((p) => p.Status === "paid")
+        .reduce((s, p) => s + p.Amount, 0),
     },
   });
 });
 
 // —— QR check-in / no-show ——
 const mintCheckIn = asyncHandler(async (req, res) => {
-  const checkInService = require('../services/checkInService');
+  const checkInService = require("../services/checkInService");
   const result = await checkInService.mintCheckInToken({
     bookingId: req.params.bookingId,
     actorId: req.user.userId,
@@ -761,31 +822,33 @@ const mintCheckIn = asyncHandler(async (req, res) => {
 });
 
 const scanCheckIn = asyncHandler(async (req, res) => {
-  const checkInService = require('../services/checkInService');
+  const checkInService = require("../services/checkInService");
   const booking = await checkInService.checkInWithToken({
     hostId: req.user.userId,
     token: req.body.token,
     code: req.body.code,
     hostContext: { isOwner: true, allowedBranchIds: null },
   });
-  res.json({ booking, message: 'Check-in thành công.' });
+  res.json({ booking, message: "Check-in thành công." });
 });
 
 const markNoShow = asyncHandler(async (req, res) => {
-  const checkInService = require('../services/checkInService');
+  const checkInService = require("../services/checkInService");
   const booking = await checkInService.markNoShow({
     hostId: req.user.userId,
     bookingId: req.params.bookingId,
     reason: req.body.reason,
     hostContext: { isOwner: true, allowedBranchIds: null },
   });
-  res.json({ booking, message: 'Đã đánh dấu no-show.' });
+  res.json({ booking, message: "Đã đánh dấu no-show." });
 });
 
 // —— Notification preferences ——
 const getNotifyPrefs = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.userId)
-    .select('NotifyEmail NotifyPush NotifySms MarketingOptIn PreferredLang Timezone')
+    .select(
+      "NotifyEmail NotifyPush NotifySms MarketingOptIn PreferredLang Timezone",
+    )
     .lean();
   res.json({
     prefs: {
@@ -793,45 +856,57 @@ const getNotifyPrefs = asyncHandler(async (req, res) => {
       push: user?.NotifyPush !== false,
       sms: !!user?.NotifySms,
       marketing: !!user?.MarketingOptIn,
-      lang: user?.PreferredLang || 'vi',
-      timezone: user?.Timezone || 'Asia/Ho_Chi_Minh',
+      lang: user?.PreferredLang || "vi",
+      timezone: user?.Timezone || "Asia/Ho_Chi_Minh",
     },
   });
 });
 
 const updateNotifyPrefs = asyncHandler(async (req, res) => {
   const updates = {};
-  if (typeof req.body.email === 'boolean') updates.NotifyEmail = req.body.email;
-  if (typeof req.body.push === 'boolean') updates.NotifyPush = req.body.push;
-  if (typeof req.body.sms === 'boolean') updates.NotifySms = req.body.sms;
-  if (typeof req.body.marketing === 'boolean') updates.MarketingOptIn = req.body.marketing;
+  if (typeof req.body.email === "boolean") updates.NotifyEmail = req.body.email;
+  if (typeof req.body.push === "boolean") updates.NotifyPush = req.body.push;
+  if (typeof req.body.sms === "boolean") updates.NotifySms = req.body.sms;
+  if (typeof req.body.marketing === "boolean")
+    updates.MarketingOptIn = req.body.marketing;
   if (req.body.lang) updates.PreferredLang = String(req.body.lang).slice(0, 8);
-  if (req.body.timezone) updates.Timezone = String(req.body.timezone).slice(0, 64);
-  const user = await User.findByIdAndUpdate(req.user.userId, { $set: updates }, { new: true })
-    .select('NotifyEmail NotifyPush NotifySms MarketingOptIn PreferredLang Timezone')
+  if (req.body.timezone)
+    updates.Timezone = String(req.body.timezone).slice(0, 64);
+  const user = await User.findByIdAndUpdate(
+    req.user.userId,
+    { $set: updates },
+    { new: true },
+  )
+    .select(
+      "NotifyEmail NotifyPush NotifySms MarketingOptIn PreferredLang Timezone",
+    )
     .lean();
   res.json({ prefs: user });
 });
 
 // —— System health (admin) ——
 const systemHealth = asyncHandler(async (req, res) => {
-  const mongoose = require('mongoose');
-  const pkg = require('../package.json');
+  const mongoose = require("mongoose");
+  const pkg = require("../package.json");
   const mem = process.memoryUsage();
-  let redis = { configured: Boolean(process.env.REDIS_URL), ok: false, mode: 'none' };
+  let redis = {
+    configured: Boolean(process.env.REDIS_URL),
+    ok: false,
+    mode: "none",
+  };
   if (process.env.REDIS_URL) {
     try {
-      const { getRateLimitStore } = require('../utils/rateLimitStore');
+      const { getRateLimitStore } = require("../utils/rateLimitStore");
       await getRateLimitStore(1000);
-      redis = { configured: true, ok: true, mode: 'redis_or_memory_fallback' };
+      redis = { configured: true, ok: true, mode: "redis_or_memory_fallback" };
     } catch (e) {
       redis = { configured: true, ok: false, error: e.message };
     }
   } else {
-    redis = { configured: false, ok: true, mode: 'memory' };
+    redis = { configured: false, ok: true, mode: "memory" };
   }
   res.json({
-    status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
+    status: mongoose.connection.readyState === 1 ? "ok" : "degraded",
     version: pkg.version,
     node: process.version,
     uptimeSec: Math.round(process.uptime()),
@@ -841,40 +916,46 @@ const systemHealth = asyncHandler(async (req, res) => {
       rss: mem.rss,
       heapUsed: mem.heapUsed,
     },
-    env: process.env.NODE_ENV || 'development',
+    env: process.env.NODE_ENV || "development",
     useTailwindCdn: process.env.USE_TAILWIND_CDN,
-    paymentProvider: process.env.PAYMENT_PROVIDER || 'workhub_mock',
+    paymentProvider: process.env.PAYMENT_PROVIDER || "workhub_mock",
     timestamp: new Date().toISOString(),
   });
 });
 
 // —— Customer dashboard ——
 const customerDashboard = asyncHandler(async (req, res) => {
-  const data = await require('../services/customerDashboardService').getCustomerDashboard(
-    req.user.userId
-  );
+  const data =
+    await require("../services/customerDashboardService").getCustomerDashboard(
+      req.user.userId,
+    );
   res.json(data);
 });
 
 // —— SEO redirect admin ——
 const upsertSeoRedirect = asyncHandler(async (req, res) => {
-  const SeoRedirect = require('../models/SeoRedirect');
-  const { isSafeInternalPath } = require('../utils/publicBaseUrl');
-  const from = String(req.body.fromPath || '').trim();
-  const to = String(req.body.toPath || '').trim();
-  if (!from || !to) throw new ValidationError('fromPath và toPath bắt buộc.');
+  const SeoRedirect = require("../models/SeoRedirect");
+  const { isSafeInternalPath } = require("../utils/publicBaseUrl");
+  const from = String(req.body.fromPath || "").trim();
+  const to = String(req.body.toPath || "").trim();
+  if (!from || !to) throw new ValidationError("fromPath và toPath bắt buộc.");
   if (!isSafeInternalPath(from) || !isSafeInternalPath(to)) {
     throw new ValidationError(
-      'Redirect chỉ cho phép path nội bộ (bắt đầu /, không //, không scheme).'
+      "Redirect chỉ cho phép path nội bộ (bắt đầu /, không //, không scheme).",
     );
   }
   if (from === to) {
-    throw new ValidationError('fromPath và toPath không được trùng (tránh loop).');
+    throw new ValidationError(
+      "fromPath và toPath không được trùng (tránh loop).",
+    );
   }
   // Block short redirect chains: to must not already redirect to from
-  const reverse = await SeoRedirect.findOne({ FromPath: to, Active: true }).lean();
+  const reverse = await SeoRedirect.findOne({
+    FromPath: to,
+    Active: true,
+  }).lean();
   if (reverse && reverse.ToPath === from) {
-    throw new ValidationError('Redirect tạo vòng lặp 2 bước.');
+    throw new ValidationError("Redirect tạo vòng lặp 2 bước.");
   }
   const doc = await SeoRedirect.findOneAndUpdate(
     { FromPath: from },
@@ -883,47 +964,52 @@ const upsertSeoRedirect = asyncHandler(async (req, res) => {
         ToPath: to,
         StatusCode: req.body.statusCode === 302 ? 302 : 301,
         Active: req.body.active !== false,
-        Note: req.body.note || '',
+        Note: req.body.note || "",
       },
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   res.json({ redirect: doc });
 });
 
 const listSeoRedirects = asyncHandler(async (req, res) => {
-  const SeoRedirect = require('../models/SeoRedirect');
-  res.json({ redirects: await SeoRedirect.find().sort({ FromPath: 1 }).lean() });
+  const SeoRedirect = require("../models/SeoRedirect");
+  res.json({
+    redirects: await SeoRedirect.find().sort({ FromPath: 1 }).lean(),
+  });
 });
 
 const deleteSeoRedirect = asyncHandler(async (req, res) => {
-  const SeoRedirect = require('../models/SeoRedirect');
+  const SeoRedirect = require("../models/SeoRedirect");
   const id = req.params.id;
   const fromPath = req.query?.fromPath || (req.body && req.body.fromPath);
   let doc;
   if (id && String(id).match(/^[a-f\d]{24}$/i)) {
     doc = await SeoRedirect.findByIdAndDelete(id);
   } else if (fromPath) {
-    doc = await SeoRedirect.findOneAndDelete({ FromPath: String(fromPath).trim() });
+    doc = await SeoRedirect.findOneAndDelete({
+      FromPath: String(fromPath).trim(),
+    });
   } else {
-    throw new ValidationError('Thiếu id hoặc fromPath.');
+    throw new ValidationError("Thiếu id hoặc fromPath.");
   }
-  if (!doc) throw new NotFoundError('Không tìm thấy redirect.');
+  if (!doc) throw new NotFoundError("Không tìm thấy redirect.");
   res.json({ deleted: true, redirect: doc });
 });
 
 const toggleSeoRedirect = asyncHandler(async (req, res) => {
-  const SeoRedirect = require('../models/SeoRedirect');
+  const SeoRedirect = require("../models/SeoRedirect");
   const doc = await SeoRedirect.findById(req.params.id);
-  if (!doc) throw new NotFoundError('Không tìm thấy redirect.');
-  doc.Active = typeof req.body.active === 'boolean' ? req.body.active : !doc.Active;
+  if (!doc) throw new NotFoundError("Không tìm thấy redirect.");
+  doc.Active =
+    typeof req.body.active === "boolean" ? req.body.active : !doc.Active;
   await doc.save();
   res.json({ redirect: doc });
 });
 
 // —— Alternatives / public add-ons ——
 const alternativeSlots = asyncHandler(async (req, res) => {
-  const availabilityService = require('../services/availabilityService');
+  const availabilityService = require("../services/availabilityService");
   const alts = await availabilityService.suggestAlternativeSlots({
     spaceId: req.query.spaceId || req.body.spaceId,
     startTime: req.query.startTime || req.body.startTime,
@@ -934,8 +1020,8 @@ const alternativeSlots = asyncHandler(async (req, res) => {
 });
 
 const publicAddOns = asyncHandler(async (req, res) => {
-  const AddOn = require('../models/AddOn');
-  const filter = { Status: 'active' };
+  const AddOn = require("../models/AddOn");
+  const filter = { Status: "active" };
   if (req.query.hostId) filter.HostID = req.query.hostId;
   if (req.query.branchId) filter.BranchID = req.query.branchId;
   const items = await AddOn.find(filter).limit(50).lean();
@@ -944,7 +1030,7 @@ const publicAddOns = asyncHandler(async (req, res) => {
 
 /** Public/server quote — no booking created; coupon needs auth user if provided */
 const quoteBooking = asyncHandler(async (req, res) => {
-  const bookingQuoteService = require('../services/bookingQuoteService');
+  const bookingQuoteService = require("../services/bookingQuoteService");
   const body = { ...req.body, ...req.query };
   const userId = req.user?.userId || null;
   const result = await bookingQuoteService.quoteBooking({
@@ -963,114 +1049,128 @@ const quoteBooking = asyncHandler(async (req, res) => {
 
 // —— Receipt + ledger CSV ——
 const bookingReceipt = asyncHandler(async (req, res) => {
-  const Booking = require('../models/Booking');
-  const PaymentHistory = require('../models/Payment_History');
-  const exportService = require('../services/exportService');
+  const Booking = require("../models/Booking");
+  const PaymentHistory = require("../models/Payment_History");
+  const exportService = require("../services/exportService");
   const booking = await Booking.findById(req.params.bookingId);
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   const uid = req.user.userId;
   const role = req.user.role;
   if (
-    role !== 'admin' &&
+    role !== "admin" &&
     String(booking.CustomerID) !== String(uid) &&
     String(booking.HostID) !== String(uid)
   ) {
-    throw new ForbiddenError('Không có quyền xem biên lai.');
+    throw new ForbiddenError("Không có quyền xem biên lai.");
   }
   const payments = await PaymentHistory.find({ BookingID: booking._id })
-    .select('Amount Status TransactionCode PaymentMethod createdAt')
+    .select("Amount Status TransactionCode PaymentMethod createdAt")
     .lean();
   const html = exportService.bookingReceiptHtml(booking, payments);
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html);
 });
 
 const exportLedgerCsv = asyncHandler(async (req, res) => {
-  const ledgerService = require('../services/ledgerService');
-  const exportService = require('../services/exportService');
-  const data = await ledgerService.listLedger(req.user.userId, { page: 1, limit: 500 });
+  const ledgerService = require("../services/ledgerService");
+  const exportService = require("../services/exportService");
+  const data = await ledgerService.listLedger(req.user.userId, {
+    page: 1,
+    limit: 500,
+  });
   const csv = exportService.ledgerToCsv(data.items);
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="workhub-ledger.csv"');
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="workhub-ledger.csv"',
+  );
   res.send(csv);
 });
 
 /** Large export via background job */
 const enqueueLedgerExport = asyncHandler(async (req, res) => {
-  const jobQueue = require('../services/jobQueue');
+  const jobQueue = require("../services/jobQueue");
   const job = await jobQueue.enqueue({
-    type: 'export_ledger',
-    queue: 'exports',
+    type: "export_ledger",
+    queue: "exports",
     ownerUserId: req.user.userId,
     payload: { hostId: req.user.userId },
   });
   res.status(202).json({
-    message: 'Đã xếp hàng export ledger.',
+    message: "Đã xếp hàng export ledger.",
     jobId: job._id,
     status: job.Status,
   });
 });
 
 const enqueueBookingsExport = asyncHandler(async (req, res) => {
-  const jobQueue = require('../services/jobQueue');
+  const jobQueue = require("../services/jobQueue");
   const job = await jobQueue.enqueue({
-    type: 'export_bookings',
-    queue: 'exports',
+    type: "export_bookings",
+    queue: "exports",
     ownerUserId: req.user.userId,
     payload: { hostId: req.user.userId },
   });
   res.status(202).json({
-    message: 'Đã xếp hàng export bookings.',
+    message: "Đã xếp hàng export bookings.",
     jobId: job._id,
     status: job.Status,
   });
 });
 
 const getJobStatus = asyncHandler(async (req, res) => {
-  const jobQueue = require('../services/jobQueue');
+  const jobQueue = require("../services/jobQueue");
   const job = await jobQueue.getJob(req.params.jobId);
-  if (!job) throw new NotFoundError('Job not found');
+  if (!job) throw new NotFoundError("Job not found");
   if (
-    req.user.role !== 'admin' &&
+    req.user.role !== "admin" &&
     job.OwnerUserID &&
     String(job.OwnerUserID) !== String(req.user.userId)
   ) {
-    throw new ForbiddenError('Không có quyền xem job này.');
+    throw new ForbiddenError("Không có quyền xem job này.");
   }
   res.json({ job });
 });
 
 const listMyJobs = asyncHandler(async (req, res) => {
-  const jobQueue = require('../services/jobQueue');
+  const jobQueue = require("../services/jobQueue");
   const jobs = await jobQueue.listJobsForUser(req.user.userId, { limit: 30 });
   res.json({ jobs });
 });
 
 // —— Review report / moderate / host reply ——
 const reportReview = asyncHandler(async (req, res) => {
-  const Review = require('../models/Review');
+  const Review = require("../models/Review");
   const review = await Review.findById(req.params.reviewId);
-  if (!review) throw new NotFoundError('Không tìm thấy review.');
-  const reason = String(req.body.reason || 'abuse').slice(0, 500);
+  if (!review) throw new NotFoundError("Không tìm thấy review.");
+  const reason = String(req.body.reason || "abuse").slice(0, 500);
   const reporterId = String(req.user.userId);
   // Per-user report record — no unlimited counter increments
-  const reporters = Array.isArray(review.ReportedBy) ? review.ReportedBy.map(String) : [];
+  const reporters = Array.isArray(review.ReportedBy)
+    ? review.ReportedBy.map(String)
+    : [];
   if (reporters.includes(reporterId)) {
-    return res.json({ review, message: 'Bạn đã báo cáo review này.', duplicate: true });
+    return res.json({
+      review,
+      message: "Bạn đã báo cáo review này.",
+      duplicate: true,
+    });
   }
-  review.ReportedBy = [...(review.ReportedBy || []), req.user.userId].slice(-200);
+  review.ReportedBy = [...(review.ReportedBy || []), req.user.userId].slice(
+    -200,
+  );
   review.ReportCount = (review.ReportedBy || []).length;
   review.ReportReasons = [...(review.ReportReasons || []), reason].slice(-20);
-  if (review.Status === 'published') review.Status = 'reported';
+  if (review.Status === "published") review.Status = "reported";
   await review.save();
-  res.json({ review, message: 'Đã gửi báo cáo review.' });
+  res.json({ review, message: "Đã gửi báo cáo review." });
 });
 
 const moderateReview = asyncHandler(async (req, res) => {
-  const Review = require('../models/Review');
+  const Review = require("../models/Review");
   const status = req.body.status;
-  if (!['published', 'hidden', 'removed'].includes(status)) {
-    throw new ValidationError('Status không hợp lệ.');
+  if (!["published", "hidden", "removed"].includes(status)) {
+    throw new ValidationError("Status không hợp lệ.");
   }
   const review = await Review.findByIdAndUpdate(
     req.params.reviewId,
@@ -1081,22 +1181,22 @@ const moderateReview = asyncHandler(async (req, res) => {
         ModeratedAt: new Date(),
       },
     },
-    { new: true }
+    { new: true },
   );
-  if (!review) throw new NotFoundError('Không tìm thấy review.');
+  if (!review) throw new NotFoundError("Không tìm thấy review.");
   res.json({ review });
 });
 
 const hostReplyReview = asyncHandler(async (req, res) => {
-  const Review = require('../models/Review');
-  const Space = require('../models/Space');
+  const Review = require("../models/Review");
+  const Space = require("../models/Space");
   const review = await Review.findById(req.params.reviewId);
-  if (!review) throw new NotFoundError('Không tìm thấy review.');
-  const space = await Space.findById(review.SpaceID).select('HostID');
+  if (!review) throw new NotFoundError("Không tìm thấy review.");
+  const space = await Space.findById(review.SpaceID).select("HostID");
   if (!space || String(space.HostID) !== String(req.user.userId)) {
-    throw new ValidationError('Chỉ host của listing mới được trả lời.');
+    throw new ValidationError("Chỉ host của listing mới được trả lời.");
   }
-  review.HostReply = String(req.body.reply || '').slice(0, 2000);
+  review.HostReply = String(req.body.reply || "").slice(0, 2000);
   review.HostRepliedAt = new Date();
   await review.save();
   res.json({ review });
@@ -1104,43 +1204,45 @@ const hostReplyReview = asyncHandler(async (req, res) => {
 
 // —— Public host profile (no secrets) ——
 const publicHostProfile = asyncHandler(async (req, res) => {
-  const data = await require('../services/publicHostService').getPublicHostProfile(
-    req.params.hostId
-  );
+  const data =
+    await require("../services/publicHostService").getPublicHostProfile(
+      req.params.hostId,
+    );
   res.json({ host: data });
 });
 
 // —— Booking timeline + cancel preview ——
 const bookingTimeline = asyncHandler(async (req, res) => {
-  const timeline = await require('../services/bookingTimelineService').getBookingTimeline({
-    bookingId: req.params.bookingId,
-    userId: req.user.userId,
-    role: req.user.role,
-  });
+  const timeline =
+    await require("../services/bookingTimelineService").getBookingTimeline({
+      bookingId: req.params.bookingId,
+      userId: req.user.userId,
+      role: req.user.role,
+    });
   res.json(timeline);
 });
 
 const cancelPreview = asyncHandler(async (req, res) => {
-  const Booking = require('../models/Booking');
-  const PaymentHistory = require('../models/Payment_History');
-  const cancellationPolicyService = require('../services/cancellationPolicyService');
-  const { presentBooking } = require('../presenters/bookingPresenter');
+  const Booking = require("../models/Booking");
+  const PaymentHistory = require("../models/Payment_History");
+  const cancellationPolicyService = require("../services/cancellationPolicyService");
+  const { presentBooking } = require("../presenters/bookingPresenter");
   const booking = await Booking.findById(req.params.bookingId);
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   if (
     String(booking.CustomerID) !== String(req.user.userId) &&
     String(booking.HostID) !== String(req.user.userId) &&
-    req.user.role !== 'admin'
+    req.user.role !== "admin"
   ) {
-    throw new ForbiddenError('Không có quyền.');
+    throw new ForbiddenError("Không có quyền.");
   }
   const paidAgg = await PaymentHistory.aggregate([
-    { $match: { BookingID: booking._id, Status: 'successful' } },
-    { $group: { _id: null, sum: { $sum: '$Amount' } } },
+    { $match: { BookingID: booking._id, Status: "successful" } },
+    { $group: { _id: null, sum: { $sum: "$Amount" } } },
   ]);
   const preview = cancellationPolicyService.evaluateCancellation(
     { ...booking.toObject(), _successfulPaid: paidAgg[0]?.sum || 0 },
-    { now: new Date() }
+    { now: new Date() },
   );
   res.json({
     booking: presentBooking(booking, { role: req.user.role }),
@@ -1150,16 +1252,19 @@ const cancelPreview = asyncHandler(async (req, res) => {
 
 // —— Host inbox + onboarding ——
 const hostInbox = asyncHandler(async (req, res) => {
-  const data = await require('../services/hostInboxService').listHostInbox(req.user.userId, {
-    bucket: req.query.bucket,
-    page: req.query.page,
-    limit: req.query.limit,
-  });
-  const { presentBooking } = require('../presenters/bookingPresenter');
+  const data = await require("../services/hostInboxService").listHostInbox(
+    req.user.userId,
+    {
+      bucket: req.query.bucket,
+      page: req.query.page,
+      limit: req.query.limit,
+    },
+  );
+  const { presentBooking } = require("../presenters/bookingPresenter");
   res.json({
     ...data,
     items: data.items.map((b) => ({
-      ...presentBooking(b, { role: 'host' }),
+      ...presentBooking(b, { role: "host" }),
       customer: b.CustomerID,
       space: b.SpaceID,
     })),
@@ -1167,20 +1272,24 @@ const hostInbox = asyncHandler(async (req, res) => {
 });
 
 const hostOnboarding = asyncHandler(async (req, res) => {
-  const data = await require('../services/onboardingService').getHostOnboarding(req.user.userId);
+  const data = await require("../services/onboardingService").getHostOnboarding(
+    req.user.userId,
+  );
   res.json(data);
 });
 
 // —— Host internal notes ——
 const addHostNote = asyncHandler(async (req, res) => {
-  const Booking = require('../models/Booking');
-  const body = String(req.body.body || req.body.note || '').trim().slice(0, 2000);
-  if (!body) throw new ValidationError('Ghi chú trống.');
+  const Booking = require("../models/Booking");
+  const body = String(req.body.body || req.body.note || "")
+    .trim()
+    .slice(0, 2000);
+  if (!body) throw new ValidationError("Ghi chú trống.");
   const booking = await Booking.findOne({
     _id: req.params.bookingId,
     HostID: req.user.userId,
   });
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   booking.HostInternalNotes = booking.HostInternalNotes || [];
   booking.HostInternalNotes.push({
     Body: body,
@@ -1196,102 +1305,116 @@ const addHostNote = asyncHandler(async (req, res) => {
 });
 
 const listHostNotes = asyncHandler(async (req, res) => {
-  const Booking = require('../models/Booking');
+  const Booking = require("../models/Booking");
   const booking = await Booking.findOne({
     _id: req.params.bookingId,
     HostID: req.user.userId,
   })
-    .select('HostInternalNotes')
+    .select("HostInternalNotes")
     .lean();
-  if (!booking) throw new NotFoundError('Không tìm thấy booking.');
+  if (!booking) throw new NotFoundError("Không tìm thấy booking.");
   res.json({ notes: booking.HostInternalNotes || [] });
 });
 
 // —— Host space ops: buffer / cleanup / instant ——
 const patchSpaceOps = asyncHandler(async (req, res) => {
-  const Space = require('../models/Space');
+  const Space = require("../models/Space");
   const updates = {};
   if (req.body.bufferBeforeMinutes != null) {
-    updates.BufferBeforeMinutes = Math.max(0, Math.min(180, Number(req.body.bufferBeforeMinutes) || 0));
+    updates.BufferBeforeMinutes = Math.max(
+      0,
+      Math.min(180, Number(req.body.bufferBeforeMinutes) || 0),
+    );
   }
   if (req.body.cleanupAfterMinutes != null) {
-    updates.CleanupAfterMinutes = Math.max(0, Math.min(180, Number(req.body.cleanupAfterMinutes) || 0));
+    updates.CleanupAfterMinutes = Math.max(
+      0,
+      Math.min(180, Number(req.body.cleanupAfterMinutes) || 0),
+    );
   }
-  if (typeof req.body.instantBook === 'boolean') {
+  if (typeof req.body.instantBook === "boolean") {
     updates.InstantBook = req.body.instantBook;
   }
   if (req.body.freeCancelHours != null) {
-    updates.FreeCancelHours = Math.max(0, Math.min(168, Number(req.body.freeCancelHours) || 24));
+    updates.FreeCancelHours = Math.max(
+      0,
+      Math.min(168, Number(req.body.freeCancelHours) || 24),
+    );
   }
   const space = await Space.findOneAndUpdate(
     { _id: req.params.spaceId, HostID: req.user.userId },
     { $set: updates },
-    { new: true }
+    { new: true },
   );
-  if (!space) throw new NotFoundError('Không tìm thấy space.');
+  if (!space) throw new NotFoundError("Không tìm thấy space.");
   res.json({ space });
 });
 
 // —— Marketing / consent (public policy text) ——
 const privacyPolicy = asyncHandler(async (req, res) => {
   res.json({
-    version: '2026-07',
+    version: "2026-07",
     marketingOptInDefault: false,
-    dataRetention: 'Booking/payment retained for accounting; account soft-delete supported.',
-    contact: 'privacy@workhub.local',
+    dataRetention:
+      "Booking/payment retained for accounting; account soft-delete supported.",
+    contact: "privacy@workhub.local",
   });
 });
 
 // —— Staff context ——
 const myStaffMemberships = asyncHandler(async (req, res) => {
-  const staffService = require('../services/staffService');
+  const staffService = require("../services/staffService");
   const items = await staffService.listMyMemberships(req.user.userId);
   res.json({ memberships: items });
 });
 
 const myHostPermissions = asyncHandler(async (req, res) => {
-  const staffService = require('../services/staffService');
-  const { PERMS, roleHas } = require('../policies/permissions');
-  if (req.user.role === 'host') {
+  const staffService = require("../services/staffService");
+  const { PERMS, roleHas } = require("../policies/permissions");
+  if (req.user.role === "host") {
     return res.json({
       hostOwnerId: req.user.userId,
-      staffRole: 'owner',
+      staffRole: "owner",
       permissions: PERMS.owner,
       canFinance: true,
       canPaymentVerify: true,
     });
   }
-  const preferred = req.get('x-host-owner-id') || null;
+  const preferred = req.get("x-host-owner-id") || null;
   const ctx = await staffService.resolveActingHostOwnerId(
     req.user.userId,
     req.user.role,
-    preferred
+    preferred,
   );
   res.json({
     hostOwnerId: ctx.hostOwnerId,
     staffRole: ctx.staffRole,
     permissions: PERMS[ctx.staffRole] || [],
-    canFinance: roleHas(ctx.staffRole, 'finance:view'),
-    canPaymentVerify: roleHas(ctx.staffRole, 'payment:verify'),
+    canFinance: roleHas(ctx.staffRole, "finance:view"),
+    canPaymentVerify: roleHas(ctx.staffRole, "payment:verify"),
   });
 });
 
 const staffHostInbox = asyncHandler(async (req, res) => {
-  const hostOwnerId = req.hostOwnerId || req.hostContext?.hostOwnerId || req.user.userId;
-  const staffService = require('../services/staffService');
+  const hostOwnerId =
+    req.hostOwnerId || req.hostContext?.hostOwnerId || req.user.userId;
+  const staffService = require("../services/staffService");
   const spaceFilter = await staffService.branchScopedSpaceFilter(
     req.hostContext || {
       hostOwnerId,
-      isOwner: req.user.role === 'host',
+      isOwner: req.user.role === "host",
       allowedBranchIds: null,
-    }
+    },
   );
-  const data = await require('../services/hostInboxService').listHostInbox(hostOwnerId, {
-    bucket: req.query.bucket,
-    page: req.query.page,
-    limit: req.query.limit,
-    spaceFilter,
-  });
+  const data = await require("../services/hostInboxService").listHostInbox(
+    hostOwnerId,
+    {
+      bucket: req.query.bucket,
+      page: req.query.page,
+      limit: req.query.limit,
+      spaceFilter,
+    },
+  );
   res.json(data);
 });
 
@@ -1301,19 +1424,19 @@ const staffReceptionToday = asyncHandler(async (req, res) => {
   start.setHours(0, 0, 0, 0);
   const end = new Date();
   end.setHours(23, 59, 59, 999);
-  const Booking = require('../models/Booking');
-  const { branchScopedSpaceFilter } = require('../services/staffService');
+  const Booking = require("../models/Booking");
+  const { branchScopedSpaceFilter } = require("../services/staffService");
   const spaceFilter = await branchScopedSpaceFilter(req.hostContext);
   const filter = {
     HostID: hostOwnerId,
-    Status: { $in: ['confirmed', 'in-use', 'pending', 'payment_under_review'] },
+    Status: { $in: ["confirmed", "in-use", "pending", "payment_under_review"] },
     StartTime: { $lte: end },
     EndTime: { $gte: start },
     ...(spaceFilter || {}),
   };
   const bookings = await Booking.find(filter)
-    .populate('CustomerID', 'FullName Email')
-    .populate('SpaceID', 'Name SpaceCode BranchID')
+    .populate("CustomerID", "FullName Email")
+    .populate("SpaceID", "Name SpaceCode BranchID")
     .sort({ StartTime: 1 })
     .lean();
   res.json({
@@ -1325,26 +1448,30 @@ const staffReceptionToday = asyncHandler(async (req, res) => {
 
 const staffScanCheckIn = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
-  const checkInService = require('../services/checkInService');
+  const checkInService = require("../services/checkInService");
   const booking = await checkInService.checkInWithToken({
     hostId: hostOwnerId,
     token: req.body.token,
     code: req.body.code,
     hostContext: req.hostContext,
   });
-  res.json({ booking, message: 'Check-in thành công.', hostOwnerId });
+  res.json({ booking, message: "Check-in thành công.", hostOwnerId });
 });
 
 const staffHostCalendar = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
-  const { assertBranchAccess } = require('../services/staffService');
+  const { assertBranchAccess } = require("../services/staffService");
   if (req.query.branchId) {
     assertBranchAccess(req.hostContext, req.query.branchId);
-  } else if (req.hostContext && !req.hostContext.isOwner && req.hostContext.allowedBranchIds) {
+  } else if (
+    req.hostContext &&
+    !req.hostContext.isOwner &&
+    req.hostContext.allowedBranchIds
+  ) {
     // Force first allowed branch if staff is branch-scoped and no branch provided
     req.query.branchId = req.hostContext.allowedBranchIds[0];
   }
-  const calendarService = require('../services/calendarService');
+  const calendarService = require("../services/calendarService");
   const data = await calendarService.getHostCalendar({
     hostId: hostOwnerId,
     from: req.query.from,
@@ -1361,80 +1488,91 @@ const staffHostCalendar = asyncHandler(async (req, res) => {
 
 const staffConfirmBooking = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
-  const bookingService = require('../services/bookingService');
-  const Booking = require('../models/Booking');
+  const bookingService = require("../services/bookingService");
+  const Booking = require("../models/Booking");
   const bookingDoc = await Booking.findOne({
     _id: req.params.bookingId,
     HostID: hostOwnerId,
-  }).select('SpaceID');
+  }).select("SpaceID");
   if (!bookingDoc) {
-    const { NotFoundError } = require('../utils/errors');
-    throw new NotFoundError('Booking not found');
+    const { NotFoundError } = require("../utils/errors");
+    throw new NotFoundError("Booking not found");
   }
-  if (req.hostContext && !req.hostContext.isOwner && req.hostContext.allowedBranchIds) {
-    const Space = require('../models/Space');
-    const space = await Space.findById(bookingDoc.SpaceID).select('BranchID').lean();
-    const { assertBranchAccess } = require('../services/staffService');
+  if (
+    req.hostContext &&
+    !req.hostContext.isOwner &&
+    req.hostContext.allowedBranchIds
+  ) {
+    const Space = require("../models/Space");
+    const space = await Space.findById(bookingDoc.SpaceID)
+      .select("BranchID")
+      .lean();
+    const { assertBranchAccess } = require("../services/staffService");
     assertBranchAccess(req.hostContext, space?.BranchID);
   }
-  const booking = await bookingService.confirmBooking(hostOwnerId, req.params.bookingId);
-  res.json({ booking, message: 'Đã xác nhận booking.', hostOwnerId });
+  const booking = await bookingService.confirmBooking(
+    hostOwnerId,
+    req.params.bookingId,
+  );
+  res.json({ booking, message: "Đã xác nhận booking.", hostOwnerId });
 });
 
 const staffNoShow = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
-  const checkInService = require('../services/checkInService');
+  const checkInService = require("../services/checkInService");
   const booking = await checkInService.markNoShow({
     hostId: hostOwnerId,
     bookingId: req.params.bookingId,
     reason: req.body.reason,
     hostContext: req.hostContext,
   });
-  res.json({ booking, message: 'Đã đánh dấu no-show.', hostOwnerId });
+  res.json({ booking, message: "Đã đánh dấu no-show.", hostOwnerId });
 });
 
 // —— Web Push ——
 const pushVapidPublic = asyncHandler(async (req, res) => {
-  const pushService = require('../services/pushService');
+  const pushService = require("../services/pushService");
   res.json({ publicKey: pushService.publicVapidKey() });
 });
 
 const pushSubscribe = asyncHandler(async (req, res) => {
-  const pushService = require('../services/pushService');
+  const pushService = require("../services/pushService");
   const sub = await pushService.saveSubscription({
     userId: req.user.userId,
     endpoint: req.body.endpoint,
     keys: req.body.keys || {},
-    userAgent: req.get('user-agent'),
+    userAgent: req.get("user-agent"),
   });
-  res.status(201).json({ subscription: { id: sub._id, endpoint: sub.Endpoint } });
+  res
+    .status(201)
+    .json({ subscription: { id: sub._id, endpoint: sub.Endpoint } });
 });
 
 const pushUnsubscribe = asyncHandler(async (req, res) => {
-  const pushService = require('../services/pushService');
+  const pushService = require("../services/pushService");
   await pushService.revokeSubscription({
     userId: req.user.userId,
     endpoint: req.body.endpoint,
   });
-  res.json({ message: 'Đã hủy đăng ký push.' });
+  res.json({ message: "Đã hủy đăng ký push." });
 });
 
 // —— Admin force logout ——
 const adminForceLogout = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.userId);
-  if (!user) throw new NotFoundError('User not found');
+  if (!user) throw new NotFoundError("User not found");
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
   try {
-    const UserSession = require('../models/Session');
+    const UserSession = require("../models/Session");
     await UserSession.updateMany(
       { UserID: user._id, RevokedAt: null },
-      { $set: { RevokedAt: new Date() } }
+      { $set: { RevokedAt: new Date() } },
     );
   } catch {
     /* ignore */
   }
-  res.json({ message: 'Đã force logout user (tokenVersion bumped).' });
+  res.json({ message: "Đã force logout user (tokenVersion bumped)." });
 });
 
 module.exports = {

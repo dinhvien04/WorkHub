@@ -634,6 +634,7 @@ async function createBooking({
 }
 
 async function confirmBooking(hostId, bookingId) {
+  const outboxService = require("./outboxService");
   return withOptionalTransaction(async (session) => {
     const opts = { returnDocument: "after", runValidators: true };
     if (session) opts.session = session;
@@ -661,24 +662,20 @@ async function confirmBooking(hostId, bookingId) {
       throw new ValidationError("Đơn hàng không ở trạng thái chờ xác nhận.");
     }
 
-    // Do not auto-mark all payments; host verifies payments explicitly
-    await logActivity(
-      hostId,
-      "CONFIRM_BOOKING",
-      "Booking",
-      booking._id,
-      "Chủ cơ sở xác nhận đơn",
-      "success",
+    // Side effects only via outbox (after commit by worker)
+    await outboxService.enqueueAudit(
+      {
+        userId: hostId,
+        action: "CONFIRM_BOOKING",
+        entityType: "Booking",
+        entityId: booking._id,
+        message: "Chủ cơ sở xác nhận đơn",
+        level: "success",
+      },
+      { session, idempotencyKey: `booking:${booking._id}:audit-confirm` },
     );
-
-    try {
-      const User = require("../models/User");
-      const emailService = require("./emailService");
-      const { notifyUser } = require("./notificationService");
-      const customer = await User.findById(booking.CustomerID)
-        .select("Email FullName NotifyEmail")
-        .lean();
-      await notifyUser({
+    await outboxService.enqueueNotification(
+      {
         userId: booking.CustomerID,
         title: "Booking đã xác nhận",
         body: booking.Snapshot?.SpaceName || String(booking._id),
@@ -686,20 +683,25 @@ async function confirmBooking(hostId, bookingId) {
         entityType: "Booking",
         entityId: booking._id,
         link: "/dashboard",
-      });
-      if (customer?.Email && customer.NotifyEmail !== false) {
-        emailService.safeSendTemplate("booking_confirmed", {
-          to: customer.Email,
-          customerName: customer.FullName,
+      },
+      { session, idempotencyKey: `booking:${booking._id}:notify-confirm` },
+    );
+    await outboxService.enqueueEmailTemplate(
+      {
+        template: "booking_confirmed",
+        to: null,
+        data: {
+          customerId: booking.CustomerID,
           spaceName: booking.Snapshot?.SpaceName,
           startTime: booking.StartTime,
           endTime: booking.EndTime,
           bookingId: booking._id,
-        });
-      }
-    } catch {
-      /* ignore */
-    }
+        },
+        entityType: "Booking",
+        entityId: booking._id,
+      },
+      { session, idempotencyKey: `booking:${booking._id}:email-confirm` },
+    );
 
     return booking;
   });
@@ -735,28 +737,44 @@ async function checkInBooking(hostId, bookingId) {
 }
 
 async function cancelBookingByHost(hostId, bookingId) {
-  const booking = await Booking.findOne({ _id: bookingId, HostID: hostId });
-  if (!booking) throw new NotFoundError("Không tìm thấy đơn hàng.");
-  assertTransition(booking.Status, "cancelled");
+  const outboxService = require("./outboxService");
+  return withOptionalTransaction(async (session) => {
+    const findQ = Booking.findOne({ _id: bookingId, HostID: hostId });
+    if (session) findQ.session(session);
+    const booking = await findQ;
+    if (!booking) throw new NotFoundError("Không tìm thấy đơn hàng.");
+    assertTransition(booking.Status, "cancelled");
 
-  booking.Status = "cancelled";
-  await booking.save();
-  await BookingSlot.deleteMany({ BookingID: booking._id });
+    booking.Status = "cancelled";
+    if (session) await booking.save({ session });
+    else await booking.save();
 
-  await PaymentHistory.updateMany(
-    { BookingID: bookingId, HostID: hostId, Status: "pending" },
-    { $set: { Status: "failed", FailureReason: "Booking cancelled by host" } },
-  );
+    const del = BookingSlot.deleteMany({ BookingID: booking._id });
+    if (session) del.session(session);
+    await del;
 
-  await logActivity(
-    hostId,
-    "CANCEL_BOOKING",
-    "Booking",
-    booking._id,
-    "Chủ cơ sở hủy đơn",
-    "danger",
-  );
-  return booking;
+    const payU = PaymentHistory.updateMany(
+      { BookingID: bookingId, HostID: hostId, Status: "pending" },
+      {
+        $set: { Status: "failed", FailureReason: "Booking cancelled by host" },
+      },
+    );
+    if (session) payU.session(session);
+    await payU;
+
+    await outboxService.enqueueAudit(
+      {
+        userId: hostId,
+        action: "CANCEL_BOOKING",
+        entityType: "Booking",
+        entityId: booking._id,
+        message: "Chủ cơ sở hủy đơn",
+        level: "danger",
+      },
+      { session, idempotencyKey: `booking:${booking._id}:audit-cancel-host` },
+    );
+    return booking;
+  });
 }
 
 async function cancelBookingByCustomer(customerId, bookingId, reason = "") {
@@ -802,17 +820,20 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = "") {
       },
     },
   );
-  await logActivity(
-    customerId,
-    "CANCEL_BOOKING",
-    "Booking",
-    booking._id,
-    "Khách hàng hủy đơn",
-    "warning",
+  const outboxService = require("./outboxService");
+  await outboxService.enqueueAudit(
+    {
+      userId: customerId,
+      action: "CANCEL_BOOKING",
+      entityType: "Booking",
+      entityId: booking._id,
+      message: "Khách hàng hủy đơn",
+      level: "warning",
+    },
+    { idempotencyKey: `booking:${booking._id}:audit-cancel-customer` },
   );
-  try {
-    const { notifyUser } = require("./notificationService");
-    await notifyUser({
+  await outboxService.enqueueNotification(
+    {
       userId: booking.HostID,
       title: "Khách hủy booking",
       body: booking.Snapshot?.SpaceName || String(booking._id),
@@ -820,38 +841,38 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = "") {
       entityType: "Booking",
       entityId: booking._id,
       link: "/host/bookings",
-    });
-  } catch {
-    /* ignore */
-  }
+    },
+    { idempotencyKey: `booking:${booking._id}:notify-cancel-host` },
+  );
   try {
-    const User = require("../models/User");
-    const emailService = require("./emailService");
-    const [customer, host] = await Promise.all([
-      User.findById(customerId).select("Email FullName NotifyEmail").lean(),
-      User.findById(booking.HostID).select("Email FullName NotifyEmail").lean(),
-    ]);
     const payload = {
       spaceName: booking.Snapshot?.SpaceName,
       startTime: booking.StartTime,
       reason: booking.CancelReason,
       bookingId: booking._id,
+      customerId,
+      hostId: booking.HostID,
     };
-    if (customer?.Email && customer.NotifyEmail !== false) {
-      emailService.safeSendTemplate("booking_cancelled", {
-        to: customer.Email,
-        customerName: customer.FullName,
-        ...payload,
-      });
-    }
-    if (host?.Email && host.NotifyEmail !== false) {
-      emailService.safeSendTemplate("booking_cancelled", {
-        to: host.Email,
-        customerName: host.FullName,
-        ...payload,
-        reason: payload.reason || "customer_cancelled",
-      });
-    }
+    await outboxService.enqueueEmailTemplate(
+      {
+        template: "booking_cancelled",
+        to: null,
+        data: { ...payload, customerId },
+        entityType: "Booking",
+        entityId: booking._id,
+      },
+      { idempotencyKey: `booking:${booking._id}:email-cancel-customer` },
+    );
+    await outboxService.enqueueEmailTemplate(
+      {
+        template: "booking_cancelled",
+        to: null,
+        data: { ...payload, hostId: booking.HostID },
+        entityType: "Booking",
+        entityId: booking._id,
+      },
+      { idempotencyKey: `booking:${booking._id}:email-cancel-host` },
+    );
   } catch {
     /* ignore */
   }

@@ -11,6 +11,7 @@ const {
   ValidationError,
   NotFoundError,
   ForbiddenError,
+  ConflictError,
 } = require("../utils/errors");
 
 function parseHm(hm) {
@@ -172,18 +173,42 @@ function buildOccurrences(series, maxCap = 52, timeZone = "Asia/Ho_Chi_Minh") {
 }
 
 async function resolveBranchTimezone(spaceId) {
+  const Space = require("../models/Space");
+  const Branch = require("../models/Branch");
+  let space;
+  let branch;
   try {
-    const Space = require("../models/Space");
-    const Branch = require("../models/Branch");
-    const space = await Space.findById(spaceId).select("BranchID").lean();
-    if (!space?.BranchID) return "Asia/Ho_Chi_Minh";
-    const branch = await Branch.findById(space.BranchID)
-      .select("Timezone")
-      .lean();
-    return branch?.Timezone || "Asia/Ho_Chi_Minh";
-  } catch {
-    return "Asia/Ho_Chi_Minh";
+    space = await Space.findById(spaceId).select("BranchID").lean();
+  } catch (err) {
+    const e = new Error("Không đọc được space timezone (DB). Thử lại sau.");
+    e.statusCode = 503;
+    e.isOperational = true;
+    e.cause = err;
+    throw e;
   }
+  if (!space?.BranchID) return "Asia/Ho_Chi_Minh";
+  try {
+    branch = await Branch.findById(space.BranchID).select("Timezone").lean();
+  } catch (err) {
+    const e = new Error("Không đọc được branch timezone (DB). Thử lại sau.");
+    e.statusCode = 503;
+    e.isOperational = true;
+    e.cause = err;
+    throw e;
+  }
+  const tz = branch?.Timezone || "Asia/Ho_Chi_Minh";
+  // Validate IANA timezone when runtime supports it
+  try {
+    if (typeof Intl.supportedValuesOf === "function") {
+      const all = Intl.supportedValuesOf("timeZone");
+      if (all && !all.includes(tz)) {
+        throw new ValidationError(`Timezone không hợp lệ: ${tz}`);
+      }
+    }
+  } catch (err) {
+    if (err.statusCode) throw err;
+  }
+  return tz;
 }
 
 async function previewSeries({
@@ -280,29 +305,61 @@ async function createSeries({
   if (!startTimeOfDay || !durationMinutes) {
     throw new ValidationError("Thiếu thời gian lặp.");
   }
+  if (!idempotencyKey) {
+    throw new ValidationError(
+      "Idempotency-Key là bắt buộc cho recurring series creation.",
+    );
+  }
 
+  const crypto = require("crypto");
   const RecurringOccurrence = require("../models/RecurringOccurrence");
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(
+      [
+        String(customerId),
+        String(spaceId),
+        String(frequency),
+        String(interval || 1),
+        JSON.stringify(daysOfWeek || []),
+        String(startTimeOfDay),
+        String(durationMinutes),
+        String(seriesStart),
+        String(seriesEnd || ""),
+        String(occurrenceCount || 8),
+      ].join("|"),
+    )
+    .digest("hex");
 
-  if (idempotencyKey) {
-    const existing = await RecurringSeries.findOne({
-      IdempotencyKey: idempotencyKey,
-      CustomerID: customerId,
-    });
-    if (existing) {
-      // Resume incomplete series instead of returning partial as done
-      if (
-        ["draft", "creating", "partial", "failed"].includes(existing.Status)
-      ) {
-        return resumeSeriesCreation(existing);
-      }
-      return {
-        series: existing,
-        createdCount: (existing.BookingIDs || []).length,
-        failed: [],
-        bookingIds: existing.BookingIDs || [],
-        duplicate: true,
-      };
+  // Scope client key by customer
+  const scopedKey = crypto
+    .createHash("sha256")
+    .update(`recurring:${customerId}:${idempotencyKey}`)
+    .digest("hex");
+
+  const existing = await RecurringSeries.findOne({
+    IdempotencyKey: scopedKey,
+    CustomerID: customerId,
+  });
+  if (existing) {
+    if (
+      existing.Meta?.fingerprint &&
+      existing.Meta.fingerprint !== fingerprint
+    ) {
+      throw new ConflictError(
+        "Idempotency-Key đã dùng với request fingerprint khác.",
+      );
     }
+    if (["draft", "creating", "partial", "failed"].includes(existing.Status)) {
+      return resumeSeriesCreation(existing);
+    }
+    return {
+      series: existing,
+      createdCount: (existing.BookingIDs || []).length,
+      failed: [],
+      bookingIds: existing.BookingIDs || [],
+      duplicate: true,
+    };
   }
 
   const timeZone = await resolveBranchTimezone(spaceId);
@@ -325,15 +382,21 @@ async function createSeries({
       OccurrenceCount: wanted,
       Status: "creating",
       BookingIDs: [],
-      IdempotencyKey: idempotencyKey || undefined,
+      IdempotencyKey: scopedKey,
       Timezone: timeZone,
+      Meta: { fingerprint, clientKey: String(idempotencyKey).slice(0, 80) },
     });
   } catch (err) {
-    if (err.code === 11000 && idempotencyKey) {
+    if (err.code === 11000) {
       const again = await RecurringSeries.findOne({
-        IdempotencyKey: idempotencyKey,
+        IdempotencyKey: scopedKey,
       });
       if (again) {
+        if (again.Meta?.fingerprint && again.Meta.fingerprint !== fingerprint) {
+          throw new ConflictError(
+            "Idempotency-Key đã dùng với request fingerprint khác.",
+          );
+        }
         if (["draft", "creating", "partial", "failed"].includes(again.Status)) {
           return resumeSeriesCreation(again);
         }
@@ -410,6 +473,10 @@ async function resumeSeriesCreation(series) {
   const created = [...(series.BookingIDs || []).map(String)];
   const failed = [];
 
+  const workerId = `recurring-${process.pid}-${Date.now()}`;
+  const leaseMs = 120_000;
+  const now = new Date();
+
   for (const row of plan) {
     if (row.Status === "created" && row.BookingID) {
       if (!created.includes(String(row.BookingID))) {
@@ -417,13 +484,58 @@ async function resumeSeriesCreation(series) {
       }
       continue;
     }
-    if (row.Status === "cancelled") continue;
+    if (row.Status === "cancelled" || row.Status === "failed_terminal")
+      continue;
 
-    try {
+    // Repair: existing booking with same occurrence key
+    const orphan = await Booking.findOne({
+      SeriesID: series._id,
+      OccurrenceKey: row.OccurrenceKey,
+    })
+      .select("_id")
+      .lean();
+    if (orphan) {
       await RecurringOccurrence.updateOne(
         { _id: row._id },
-        { $inc: { Attempts: 1 } },
+        {
+          $set: {
+            Status: "created",
+            BookingID: orphan._id,
+            FailureCode: "",
+            ProcessingBy: "",
+            LeaseUntil: null,
+          },
+        },
       );
+      if (!created.includes(String(orphan._id)))
+        created.push(String(orphan._id));
+      continue;
+    }
+
+    // CAS claim occurrence
+    const claimed = await RecurringOccurrence.findOneAndUpdate(
+      {
+        _id: row._id,
+        Status: { $in: ["pending", "failed", "failed_retryable"] },
+        $or: [
+          { LeaseUntil: null },
+          { LeaseUntil: { $lte: now } },
+          { Status: { $ne: "processing" } },
+        ],
+      },
+      {
+        $set: {
+          Status: "processing",
+          ProcessingBy: workerId,
+          LeaseUntil: new Date(now.getTime() + leaseMs),
+        },
+        $inc: { Attempts: 1 },
+      },
+      { new: true },
+    );
+    if (!claimed) continue; // another worker holds lease
+
+    try {
       const booking = await bookingService.createBooking({
         customerId: series.CustomerID,
         spaceId: series.SpaceID,
@@ -441,26 +553,39 @@ async function resumeSeriesCreation(series) {
         },
       );
       await RecurringOccurrence.updateOne(
-        { _id: row._id },
+        {
+          _id: row._id,
+          Status: "processing",
+          ProcessingBy: workerId,
+        },
         {
           $set: {
             Status: "created",
             BookingID: booking._id,
             FailureCode: "",
+            ProcessingBy: "",
+            LeaseUntil: null,
           },
         },
       );
       created.push(String(booking._id));
     } catch (err) {
+      const terminal = (claimed.Attempts || 0) >= 5;
       await RecurringOccurrence.updateOne(
-        { _id: row._id },
+        {
+          _id: row._id,
+          Status: "processing",
+          ProcessingBy: workerId,
+        },
         {
           $set: {
-            Status: "failed",
+            Status: terminal ? "failed_terminal" : "failed_retryable",
             FailureCode: String(err.code || err.message || "error").slice(
               0,
               100,
             ),
+            ProcessingBy: "",
+            LeaseUntil: null,
           },
         },
       );

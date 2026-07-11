@@ -70,12 +70,19 @@ async function attachUserFromToken(token) {
       .createHash("sha256")
       .update(String(sid))
       .digest("hex");
-    // Support legacy rows that still stored plaintext Sid during migration
-    const sess = await UserSession.findOne({
-      UserID: userId,
-      RevokedAt: null,
-      $or: [{ SidHash: sidHash }, { Sid: String(sid) }],
-    }).lean();
+    // Legacy plaintext Sid only until cutoff (default: non-production only)
+    const legacyUntil = process.env.SESSION_ALLOW_LEGACY_PLAINTEXT_UNTIL;
+    const allowLegacyPlaintext = legacyUntil
+      ? Date.now() < new Date(legacyUntil).getTime()
+      : !env.isProduction;
+    const filter = allowLegacyPlaintext
+      ? {
+          UserID: userId,
+          RevokedAt: null,
+          $or: [{ SidHash: sidHash }, { Sid: String(sid) }],
+        }
+      : { UserID: userId, RevokedAt: null, SidHash: sidHash };
+    const sess = await UserSession.findOne(filter).lean();
     if (!sess) {
       throw new UnauthorizedError(
         "Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.",

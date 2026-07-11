@@ -40,12 +40,38 @@ async function postEntry(
 
   const externalSession = opts.session !== undefined ? opts.session : undefined;
 
+  const crypto = require("crypto");
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(
+      [
+        String(hostId),
+        String(customerId || ""),
+        String(bookingId || ""),
+        String(paymentId || ""),
+        String(type),
+        String(direction),
+        String(amt),
+        String(meta.currency || "VND"),
+      ].join("|"),
+    )
+    .digest("hex");
+
   async function run(session) {
     if (idempotencyKey) {
       const existingQ = LedgerEntry.findOne({ IdempotencyKey: idempotencyKey });
       if (session) existingQ.session(session);
       const existing = await existingQ;
-      if (existing) return existing;
+      if (existing) {
+        const prev = existing.Meta?.requestFingerprint;
+        if (prev && prev !== fingerprint) {
+          const { ConflictError } = require("../utils/errors");
+          throw new ConflictError(
+            "Ledger Idempotency-Key đã dùng với fingerprint khác.",
+          );
+        }
+        return existing;
+      }
     }
 
     const createOpts = session ? { session } : {};
@@ -63,7 +89,7 @@ async function postEntry(
             Direction: direction,
             Status: "posted",
             IdempotencyKey: idempotencyKey || undefined,
-            Meta: meta,
+            Meta: { ...meta, requestFingerprint: fingerprint },
             Description: description,
           },
         ],
@@ -74,7 +100,17 @@ async function postEntry(
       if (err.code === 11000 && idempotencyKey) {
         const againQ = LedgerEntry.findOne({ IdempotencyKey: idempotencyKey });
         if (session) againQ.session(session);
-        return againQ;
+        const again = await againQ;
+        if (again) {
+          const prev = again.Meta?.requestFingerprint;
+          if (prev && prev !== fingerprint) {
+            const { ConflictError } = require("../utils/errors");
+            throw new ConflictError(
+              "Ledger Idempotency-Key đã dùng với fingerprint khác.",
+            );
+          }
+          return again;
+        }
       }
       throw err;
     }

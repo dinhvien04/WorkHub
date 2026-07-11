@@ -197,6 +197,7 @@ describe("P0 Refund atomicity — failure leaves no mutation", () => {
       actorId: host._id,
       approve: true,
       role: "host",
+      transferReference: "TEST-OFFLINE-REF",
     });
     const fresh = await PaymentHistory.findById(pay._id);
     expect(fresh.RefundedAmount).toBe(50000);
@@ -229,12 +230,7 @@ describe("P0 Refund atomicity — failure leaves no mutation", () => {
       },
     });
     await expect(
-      refundService.processRefund({
-        refundId: refund._id,
-        actorId: host._id,
-        approve: true,
-        role: "host",
-      }),
+      refundService.processRefund({ refundId: refund._id, actorId: host._id, approve: true, role: "host", transferReference: "TEST-OFFLINE-REF", }),
     ).rejects.toThrow(/injected/);
 
     const fresh = await PaymentHistory.findById(pay._id);
@@ -265,12 +261,7 @@ describe("P0 Refund atomicity — failure leaves no mutation", () => {
       },
     });
     await expect(
-      refundService.processRefund({
-        refundId: refund._id,
-        actorId: host._id,
-        approve: true,
-        role: "host",
-      }),
+      refundService.processRefund({ refundId: refund._id, actorId: host._id, approve: true, role: "host", transferReference: "TEST-OFFLINE-REF", }),
     ).rejects.toThrow(/injected/);
 
     // Without multi-doc txn, compensation may leave ledger; invariant: failed refund
@@ -303,18 +294,8 @@ describe("P0 Refund atomicity — failure leaves no mutation", () => {
       idempotencyKey: "ref-c2",
     });
     const results = await Promise.allSettled([
-      refundService.processRefund({
-        refundId: r1._id,
-        actorId: host._id,
-        approve: true,
-        role: "host",
-      }),
-      refundService.processRefund({
-        refundId: r2._id,
-        actorId: host._id,
-        approve: true,
-        role: "host",
-      }),
+      refundService.processRefund({ refundId: r1._id, actorId: host._id, approve: true, role: "host", transferReference: "TEST-OFFLINE-REF", }),
+      refundService.processRefund({ refundId: r2._id, actorId: host._id, approve: true, role: "host", transferReference: "TEST-OFFLINE-REF", }),
     ]);
     const payments = await PaymentHistory.find({ BookingID: booking._id });
     const refunded = payments.reduce(

@@ -73,6 +73,7 @@ async function ensureBalanceProjection(hostId, session = null) {
  * Production requires Mongo transactions (ENABLE_TRANSACTIONS).
  */
 async function requestPayout({ hostId, amount, idempotencyKey }) {
+  const crypto = require("crypto");
   const amt = Math.round(Number(amount));
   if (!amt || amt < 50000) {
     throw new ValidationError("Số tiền rút tối thiểu 50.000đ.");
@@ -81,9 +82,27 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
     throw new ValidationError("Idempotency-Key là bắt buộc cho payout.");
   }
 
-  const existing = await Payout.findOne({ IdempotencyKey: idempotencyKey });
+  // Host-scoped hashed key — never store raw client key globally unique alone
+  const clientKeyHash = crypto
+    .createHash("sha256")
+    .update(`payout:${hostId}:${idempotencyKey}`)
+    .digest("hex");
+  const requestFingerprint = crypto
+    .createHash("sha256")
+    .update(`${hostId}|${amt}|VND|payout`)
+    .digest("hex");
+  const scopedIdempotencyKey = clientKeyHash;
+
+  const existing = await Payout.findOne({
+    IdempotencyKey: scopedIdempotencyKey,
+  });
   if (existing) {
-    if (existing.Amount !== amt || String(existing.HostID) !== String(hostId)) {
+    if (
+      existing.Amount !== amt ||
+      String(existing.HostID) !== String(hostId) ||
+      (existing.Meta?.requestFingerprint &&
+        existing.Meta.requestFingerprint !== requestFingerprint)
+    ) {
       throw new ConflictError("Idempotency key đã dùng cho payout khác.");
     }
     return existing;
@@ -139,7 +158,12 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
                     Status: "requested",
                     BankName: profile?.BankName || "",
                     BankNumberMasked: masked,
-                    IdempotencyKey: idempotencyKey,
+                    IdempotencyKey: scopedIdempotencyKey,
+                    Meta: {
+                      clientKeyHash,
+                      requestFingerprint,
+                      operation: "payout",
+                    },
                   },
                 ],
                 { session },
@@ -150,13 +174,18 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
                 Status: "requested",
                 BankName: profile?.BankName || "",
                 BankNumberMasked: masked,
-                IdempotencyKey: idempotencyKey,
+                IdempotencyKey: scopedIdempotencyKey,
+                Meta: {
+                  clientKeyHash,
+                  requestFingerprint,
+                  operation: "payout",
+                },
               });
           payout = session ? created[0] : created;
         } catch (err) {
           if (err.code === 11000) {
             const again = await Payout.findOne({
-              IdempotencyKey: idempotencyKey,
+              IdempotencyKey: scopedIdempotencyKey,
             });
             if (again) {
               // Release our reserve — concurrent winner owns it
@@ -220,7 +249,9 @@ async function requestPayout({ hostId, amount, idempotencyKey }) {
       // hooks tests inject after create — compensate if payout exists without ledger
     }
     if (err.code === 11000) {
-      const again = await Payout.findOne({ IdempotencyKey: idempotencyKey });
+      const again = await Payout.findOne({
+        IdempotencyKey: scopedIdempotencyKey,
+      });
       if (again) return again;
       throw new ConflictError("Payout trùng lặp.");
     }
@@ -422,14 +453,21 @@ async function listHostPayouts(hostId) {
  * Credit host balance projection when ledger payment credit posts.
  * Prefer ledgerService.postEntry which already updates projection.
  */
+/**
+ * @deprecated Direct balance credit is forbidden — use ledgerService.postEntry.
+ * Kept as thin wrapper that posts a ledger credit for compatibility.
+ */
 async function creditAvailable(hostId, amount) {
   const amt = Math.round(Math.abs(amount));
-  await ensureBalanceProjection(hostId);
-  await HostBalance.findOneAndUpdate(
-    { HostID: hostId },
-    { $inc: { AvailableBalance: amt, Version: 1 } },
-    { upsert: true },
-  );
+  return ledgerService.postEntry({
+    hostId,
+    type: "payment",
+    amount: amt,
+    direction: "credit",
+    description: "creditAvailable compatibility wrapper",
+    idempotencyKey: `compat-credit:${hostId}:${amt}:${Date.now()}`,
+    meta: { via: "creditAvailable_deprecated" },
+  });
 }
 
 module.exports = {

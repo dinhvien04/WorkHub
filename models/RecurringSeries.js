@@ -1,12 +1,25 @@
-'use strict';
-const mongoose = require('mongoose');
+"use strict";
+const mongoose = require("mongoose");
 
 const recurringSeriesSchema = new mongoose.Schema(
   {
-    CustomerID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    SpaceID: { type: mongoose.Schema.Types.ObjectId, ref: 'Space', required: true },
-    HostID: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    Frequency: { type: String, enum: ['daily', 'weekly'], required: true },
+    CustomerID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    SpaceID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Space",
+      required: true,
+    },
+    HostID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    Frequency: { type: String, enum: ["daily", "weekly"], required: true },
     Interval: { type: Number, default: 1, min: 1 },
     DaysOfWeek: [{ type: Number, min: 0, max: 6 }],
     StartTimeOfDay: { type: String, required: true }, // HH:mm
@@ -17,22 +30,23 @@ const recurringSeriesSchema = new mongoose.Schema(
     Status: {
       type: String,
       enum: [
-        'draft',
-        'creating',
-        'active',
-        'partial',
-        'failed',
-        'paused',
-        'cancelling',
-        'cancelled',
+        "draft",
+        "creating",
+        "active",
+        "partial",
+        "failed",
+        "paused",
+        "cancelling",
+        "cancelled",
       ],
-      default: 'draft',
+      default: "draft",
     },
-    BookingIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
+    BookingIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Booking" }],
     IdempotencyKey: { type: String, sparse: true, unique: true },
-    Timezone: { type: String, default: 'Asia/Ho_Chi_Minh' },
+    Timezone: { type: String, default: "Asia/Ho_Chi_Minh" },
+    Meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
-  { collection: 'recurring_series', timestamps: true }
+  { collection: "recurring_series", timestamps: true },
 );
 
-module.exports = mongoose.model('RecurringSeries', recurringSeriesSchema);
+module.exports = mongoose.model("RecurringSeries", recurringSeriesSchema);

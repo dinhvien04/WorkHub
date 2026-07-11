@@ -1,12 +1,12 @@
-'use strict';
+"use strict";
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const recurringOccurrenceSchema = new mongoose.Schema(
   {
     SeriesID: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'RecurringSeries',
+      ref: "RecurringSeries",
       required: true,
       index: true,
     },
@@ -15,24 +15,37 @@ const recurringOccurrenceSchema = new mongoose.Schema(
     EndTime: { type: Date, required: true },
     Status: {
       type: String,
-      enum: ['pending', 'created', 'failed', 'cancelled'],
-      default: 'pending',
+      enum: [
+        "pending",
+        "processing",
+        "created",
+        "failed",
+        "failed_retryable",
+        "failed_terminal",
+        "cancelled",
+      ],
+      default: "pending",
       index: true,
     },
     BookingID: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Booking',
+      ref: "Booking",
       default: null,
     },
     Attempts: { type: Number, default: 0 },
-    FailureCode: { type: String, default: '' },
+    FailureCode: { type: String, default: "" },
+    ProcessingBy: { type: String, default: "" },
+    LeaseUntil: { type: Date, default: null },
   },
-  { collection: 'recurring_occurrences', timestamps: true }
+  { collection: "recurring_occurrences", timestamps: true },
 );
 
 recurringOccurrenceSchema.index(
   { SeriesID: 1, OccurrenceKey: 1 },
-  { unique: true }
+  { unique: true },
 );
 
-module.exports = mongoose.model('RecurringOccurrence', recurringOccurrenceSchema);
+module.exports = mongoose.model(
+  "RecurringOccurrence",
+  recurringOccurrenceSchema,
+);

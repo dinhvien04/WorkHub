@@ -285,12 +285,44 @@ async function compensateAllocations(compensation, refundId) {
   await RefundAllocation.deleteMany({ RefundID: refundId });
 }
 
-async function processRefund({ refundId, actorId, approve, role }) {
+async function processRefund({
+  refundId,
+  actorId,
+  approve,
+  role,
+  transferReference = null,
+  evidence = "",
+  submitProvider = true,
+}) {
   const refund = await Refund.findById(refundId);
   if (!refund) throw new NotFoundError("Không tìm thấy refund.");
   if (role !== "admin" && String(refund.HostID) !== String(actorId)) {
     throw new ForbiddenError("Không có quyền xử lý refund.");
   }
+
+  // Provider settle / manual confirm entry points
+  if (
+    approve &&
+    [
+      "provider_pending",
+      "provider_submitted",
+      "manual_action_required",
+    ].includes(refund.Status)
+  ) {
+    const providerRefundService = require("./providerRefundService");
+    if (transferReference) {
+      return providerRefundService.confirmManualRefund({
+        refundId,
+        actorId,
+        transferReference,
+        evidence,
+      });
+    }
+    if (submitProvider) {
+      return providerRefundService.submitProviderRefunds(refundId);
+    }
+  }
+
   if (refund.Status !== "requested" && refund.Status !== "approved") {
     throw new ValidationError("Refund không ở trạng thái xử lý được.");
   }
@@ -368,7 +400,29 @@ async function processRefund({ refundId, actorId, approve, role }) {
         return pendQ;
       }
 
-      // Offline/manual (bank_transfer/cash): settle internally with audit
+      // Offline/manual (bank_transfer/cash): require transfer evidence
+      if (!transferReference || !String(transferReference).trim()) {
+        // Allocate + hold as manual_refund_required until evidence provided
+        await allocateRefundToPayments(claimed, session);
+        const manQ = Refund.findOneAndUpdate(
+          { _id: claimed._id, Status: "processing" },
+          {
+            $set: {
+              Status: "manual_refund_required",
+              ProcessedBy: actorId,
+              Meta: {
+                ...(claimed.Meta || {}),
+                channel: "manual_offline",
+                needsTransferReference: true,
+              },
+            },
+          },
+          { new: true },
+        );
+        if (session) manQ.session(session);
+        return manQ;
+      }
+
       await allocateRefundToPayments(claimed, session);
 
       await ledgerService.postEntry(
@@ -381,7 +435,12 @@ async function processRefund({ refundId, actorId, approve, role }) {
           direction: "debit",
           description: `Refund ${claimed._id}`,
           idempotencyKey: `refund:${claimed._id}:debit`,
-          meta: { refundId: claimed._id, channel: "manual_offline" },
+          meta: {
+            refundId: claimed._id,
+            channel: "manual_offline",
+            transferReference: String(transferReference).slice(0, 200),
+            evidence: String(evidence || "").slice(0, 500),
+          },
         },
         { session },
       );
@@ -395,9 +454,11 @@ async function processRefund({ refundId, actorId, approve, role }) {
             Status: "completed",
             ProcessedAt: new Date(),
             ProcessedBy: actorId,
+            TransferReference: String(transferReference).slice(0, 200),
             Meta: {
               ...(claimed.Meta || {}),
               channel: "manual_offline",
+              evidence: String(evidence || "").slice(0, 500),
             },
           },
         },
@@ -468,13 +529,35 @@ async function processRefund({ refundId, actorId, approve, role }) {
     throw err;
   }
 
+  // After provider_pending: submit provider refunds outside the txn
+  if (completed && completed.Status === "provider_pending" && submitProvider) {
+    try {
+      const providerRefundService = require("./providerRefundService");
+      completed = await providerRefundService.submitProviderRefunds(
+        completed._id,
+      );
+    } catch (err) {
+      // Leave provider_pending; ops can retry
+      completed.FailureReason = String(err.message || "provider submit").slice(
+        0,
+        300,
+      );
+      await completed.save().catch(() => {});
+    }
+  }
+
   // Outbox only — worker delivers (no direct notify)
   try {
     const outboxService = require("./outboxService");
     const title =
-      completed.Status === "provider_pending"
-        ? "Hoàn tiền đang chờ nhà cung cấp"
-        : "Hoàn tiền đã xử lý";
+      completed.Status === "completed"
+        ? "Hoàn tiền đã xử lý"
+        : completed.Status === "provider_pending" ||
+            completed.Status === "provider_submitted"
+          ? "Hoàn tiền đang chờ nhà cung cấp"
+          : completed.Status === "manual_refund_required"
+            ? "Hoàn tiền cần bằng chứng chuyển khoản"
+            : "Hoàn tiền đang xử lý";
     await outboxService.enqueueNotification(
       {
         userId: completed.CustomerID,
