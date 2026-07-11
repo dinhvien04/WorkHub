@@ -285,6 +285,7 @@ describe("P0.9 Partial refund allocation", () => {
       actorId: host._id,
       approve: true,
       role: "host",
+      transferReference: "TEST-PARTIAL-REF",
     });
 
     const fresh = await PaymentHistory.findById(pay._id);

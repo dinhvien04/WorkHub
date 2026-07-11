@@ -217,6 +217,7 @@ describe("P1.6 Recurring cancel releases slots", () => {
       durationMinutes: 60,
       seriesStart,
       occurrenceCount: 3,
+      idempotencyKey: `recurring-cancel-slots-${customer._id}`,
     });
     expect(bookingIds.length).toBeGreaterThan(0);
     const slotsBefore = await BookingSlot.countDocuments({

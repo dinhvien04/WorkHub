@@ -124,12 +124,30 @@ describe("P1 Per-session revoke", () => {
     expect(list.body.sessions.length).toBeGreaterThanOrEqual(2);
 
     const other = list.body.sessions.find((s) => !s.current) || list.body.sessions[0];
-    const csrf = await getCsrfPair(app);
-    const rev = await withCsrf(
-      request(app).delete(`/api/sessions/${other.id}`),
-      csrf,
-      cookie1,
-    );
+    // CSRF must be issued while authenticated so token binds to JWT sid
+    const csrfRes = await request(app)
+      .get("/api/auth/csrf")
+      .set("Cookie", cookie1);
+    expect(csrfRes.status).toBe(200);
+    const setCookie = csrfRes.headers["set-cookie"] || [];
+    let csrfToken = csrfRes.body.csrfToken;
+    let csrfCookie = `csrfToken=${csrfToken}`;
+    let preSession = "";
+    for (const c of setCookie) {
+      const m = c.match(/^csrfToken=([^;]+)/);
+      if (m) {
+        csrfToken = decodeURIComponent(m[1]);
+        csrfCookie = `csrfToken=${csrfToken}`;
+      }
+      const p = c.match(/^csrfPreSession=([^;]+)/);
+      if (p) preSession = decodeURIComponent(p[1]);
+    }
+    const csrfParts = [cookie1, csrfCookie];
+    if (preSession) csrfParts.push(`csrfPreSession=${preSession}`);
+    const rev = await request(app)
+      .delete(`/api/sessions/${other.id}`)
+      .set("Cookie", csrfParts.join("; "))
+      .set("X-CSRF-Token", csrfToken);
     expect(rev.status).toBe(200);
 
     // Current session still works

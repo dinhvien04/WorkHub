@@ -126,6 +126,7 @@ describe('Refund + ledger', () => {
       actorId: host._id,
       approve: true,
       role: 'host',
+      transferReference: 'TEST-PLATFORM-REF',
     });
     expect(done.Status).toBe('completed');
   });

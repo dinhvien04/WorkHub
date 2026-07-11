@@ -197,16 +197,13 @@ async function resolveBranchTimezone(spaceId) {
     throw e;
   }
   const tz = branch?.Timezone || "Asia/Ho_Chi_Minh";
-  // Validate IANA timezone when runtime supports it
+  // Validate via DateTimeFormat (supportedValuesOf is incomplete on some runtimes)
   try {
-    if (typeof Intl.supportedValuesOf === "function") {
-      const all = Intl.supportedValuesOf("timeZone");
-      if (all && !all.includes(tz)) {
-        throw new ValidationError(`Timezone không hợp lệ: ${tz}`);
-      }
-    }
+    // Throws RangeError if tz is not a valid IANA zone
+    new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(new Date());
   } catch (err) {
-    if (err.statusCode) throw err;
+    if (err && err.statusCode) throw err;
+    throw new ValidationError(`Timezone không hợp lệ: ${tz}`);
   }
   return tz;
 }
