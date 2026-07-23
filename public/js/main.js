@@ -1,6 +1,7 @@
 // ==========================================
 // SHARED CONFIGURATION & STATE
 // ==========================================
+/* global IntersectionObserver */
 const menus = {
   guest: [],
   customer: [
@@ -157,13 +158,28 @@ function closeModal(id) {
   __modalFocusReturn = null;
 }
 
-function showToast(msg) {
+function showToast(msg, type) {
   const t = document.getElementById('success-toast');
   const m = document.getElementById('toast-msg');
   if (t && m) {
     m.innerText = msg;
-    t.classList.remove('hidden');
-    setTimeout(() => t.classList.add('hidden'), 2000);
+    // Apply type-specific styling
+    t.className = t.className.replace(/bg-\S+/g, '');
+    if (type === 'error') {
+      t.classList.add('bg-red-600');
+    } else if (type === 'warning') {
+      t.classList.add('bg-amber-500');
+    } else {
+      t.classList.add('bg-teal-600');
+    }
+    t.classList.remove('hidden', 'toast-exit');
+    t.classList.add('toast-enter');
+    clearTimeout(t._toastTimer);
+    t._toastTimer = setTimeout(() => {
+      t.classList.remove('toast-enter');
+      t.classList.add('toast-exit');
+      setTimeout(() => t.classList.add('hidden'), 300);
+    }, 2500);
   }
 }
 
@@ -295,9 +311,11 @@ function renderMenu(currentRole) {
   if (!c) return;
   c.textContent = '';
 
-  (menus[currentRole] || []).forEach((i) => {
+  (menus[currentRole] || []).forEach((i, idx) => {
     const d = document.createElement('div');
     d.className = 'nav-item cursor-pointer';
+    d.style.opacity = '0';
+    d.style.animation = `fadeInLeft 0.3s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) ${idx * 40}ms both`;
 
     let expectedPath = '/' + i.id;
     if (i.id === 'home') expectedPath = '/';
@@ -320,7 +338,16 @@ function renderMenu(currentRole) {
 
 function toggleUserMenu() {
   const dropdown = document.getElementById('dropdown-menu');
-  if (dropdown) dropdown.classList.toggle('hidden');
+  if (dropdown) {
+    const isHidden = dropdown.classList.contains('hidden');
+    if (isHidden) {
+      dropdown.classList.remove('hidden');
+      dropdown.classList.add('dropdown-enter');
+    } else {
+      dropdown.classList.add('hidden');
+      dropdown.classList.remove('dropdown-enter');
+    }
+  }
 }
 
 async function logout() {
@@ -408,4 +435,50 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+});
+
+// ==========================================
+// SCROLL-REVEAL OBSERVER (IntersectionObserver)
+// ==========================================
+(function initScrollReveal() {
+  if (typeof IntersectionObserver === 'undefined') return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+  );
+  function observe() {
+    document.querySelectorAll('.wh-reveal:not(.is-visible)').forEach((el) => observer.observe(el));
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', observe);
+  } else {
+    observe();
+  }
+  window.WorkHubReveal = { observe };
+})();
+
+// ==========================================
+// ANIMATE PAGE CONTENT ON LOAD
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  const main = document.getElementById('main-content');
+  if (main) {
+    main.style.opacity = '0';
+    main.style.animation = 'fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both';
+  }
+  // Active mobile bottom nav item
+  const path = window.location.pathname;
+  document.querySelectorAll('.mob-nav-item').forEach((item) => {
+    const href = item.getAttribute('href');
+    if (href === path || (href !== '/' && path.startsWith(href))) {
+      item.classList.add('active');
+    }
+  });
 });

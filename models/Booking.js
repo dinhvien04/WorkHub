@@ -115,6 +115,10 @@ bookingSchema.index({ SpaceID: 1, StartTime: 1, EndTime: 1 });
 bookingSchema.index({ CustomerID: 1, createdAt: -1 });
 bookingSchema.index({ HostID: 1, createdAt: -1 });
 bookingSchema.index({ Status: 1, EndTime: 1 });
+// Accelerate host dashboard stats queries (filter by host + status + time range)
+bookingSchema.index({ HostID: 1, Status: 1, StartTime: 1 });
+// Accelerate hold-expiry job (finds hold bookings with expired HoldExpiresAt)
+bookingSchema.index({ Status: 1, HoldExpiresAt: 1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
 

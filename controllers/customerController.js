@@ -6,6 +6,7 @@ const Review = require('../models/Review');
 const Branch = require('../models/Branch');
 const Space = require('../models/Space');
 const logActivity = require('../utils/auditLogger');
+const logger = require('../utils/logger');
 const bookingService = require('../services/bookingService');
 const paymentService = require('../services/paymentService');
 const { safeRegexQuery } = require('../utils/escapeRegex');
@@ -25,7 +26,7 @@ cloudinary.config({
 // HÀM HỖ TRỢ CHUNG
 // ==========================================
 function sendServerError(res, error) {
-  console.error("Lỗi Controller:", error);
+  logger.error("Lỗi Controller:", error);
   return res.status(500).json({ error: 'Lỗi máy chủ, vui lòng thử lại sau.' });
 }
 
@@ -231,10 +232,10 @@ async function updateMyProfile(req, res) {
              if (matches && matches[1]) {
                  // Gọi lệnh tiêu diệt file cũ tận gốc trên mây
                  await cloudinary.uploader.destroy(matches[1]);
-                 console.log("✅ Đã dọn dẹp Avatar Khách hàng cũ trên Cloudinary:", matches[1]);
+                 logger.info("Đã dọn dẹp Avatar Khách hàng cũ trên Cloudinary:", matches[1]);
              }
          } catch (cloudErr) {
-             console.warn("⚠️ Bỏ qua lỗi xóa Avatar cũ trên Cloudinary:", cloudErr.message);
+             logger.warn("Bỏ qua lỗi xóa Avatar cũ trên Cloudinary:", cloudErr.message);
          }
       }
     }
@@ -812,7 +813,7 @@ async function getPaymentHistoryPage(req, res) {
             scripts: '<script src="/js/customer-main.js"></script>'
         });
     } catch (error) {
-        console.error("Lỗi payment_history Controller:", error);
+        logger.error("Lỗi payment_history Controller:", error);
         res.status(500).send("Lỗi kết nối CSDL: " + error.message);
     }
 }

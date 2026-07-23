@@ -5,7 +5,9 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { verifyToken, requireAdmin } = require('../middlewares/authMiddleware');
 const { requireAdmin2faIfEnabled } = require('../middlewares/admin2fa');
+const { globalApiLimiter } = require('../middlewares/rateLimiters');
 
+router.use(globalApiLimiter);
 router.use(verifyToken, requireAdmin, requireAdmin2faIfEnabled);
 
 router.get('/stats', adminController.getAdminDashboard);

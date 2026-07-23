@@ -20,14 +20,14 @@ router.use(verifyToken, authorizeRole('host'), requireVerifiedHost);
 router.get('/dashboard-stats', hostController.getDashboardStatsAPI);
 router.get('/profile', hostController.getProfileAPI);
 // Cập nhật profile (vẫn dùng single LogoFile vì logo chỉ có 1 ảnh)
-router.put('/profile', upload.single('LogoFile'), hostController.updateProfileAPI);
+router.put('/profile', ...upload.singleWithMagic('LogoFile'), hostController.updateProfileAPI);
 
 // ====================================================================
 // 2. QUẢN LÝ CƠ SỞ (BRANCHES) - Tích hợp upload nhiều ảnh của Minh-Hiếu
 // ====================================================================
 router.get('/branches', hostController.getHostBranches);
-router.post('/branches', upload.array('image', 10), hostController.createBranch);
-router.put('/branches/:branchId', upload.array('image', 10), hostController.updateBranch);
+router.post('/branches', ...upload.arrayWithMagic('image', 10), hostController.createBranch);
+router.put('/branches/:branchId', ...upload.arrayWithMagic('image', 10), hostController.updateBranch);
 router.post('/branches/:branchId/delete-image', hostController.deleteBranchImage);
 router.put('/branches/:branchId/images/reorder', hostController.reorderBranchImages);
 
@@ -36,13 +36,13 @@ router.put('/branches/:branchId/images/reorder', hostController.reorderBranchIma
 // ====================================================================
 router.get('/spaces', hostController.getHostSpaces);
 router.get('/branches/:branchId/spaces', hostController.getBranchSpaces);
-router.post('/branches/:branchId/spaces', upload.array('image', 10), hostController.createSpace);
-router.put('/spaces/:spaceId', upload.array('image', 10), hostController.updateSpace);
+router.post('/branches/:branchId/spaces', ...upload.arrayWithMagic('image', 10), hostController.createSpace);
+router.put('/spaces/:spaceId', ...upload.arrayWithMagic('image', 10), hostController.updateSpace);
 router.post('/spaces/:spaceId/delete-image', hostController.deleteSpaceImage);
 router.put('/spaces/:spaceId/images/reorder', hostController.reorderSpaceImages);
 
 // Route gộp đặc biệt cho Wizard thêm mới (Của HEAD) - Đổi thành /wizard để không bị trùng
-router.post('/branches/wizard', upload.array('image', 10), hostController.createBranchAndSpaces);
+router.post('/branches/wizard', ...upload.arrayWithMagic('image', 10), hostController.createBranchAndSpaces);
 
 // ====================================================================
 // 4. QUẢN LÝ ĐƠN HÀNG (BOOKINGS) (HEAD)

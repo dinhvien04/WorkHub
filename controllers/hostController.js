@@ -11,6 +11,7 @@ const { extractPublicId, imageInResource } = require('../utils/cloudinaryHelper'
 const { parsePagination, paginationMeta } = require('../utils/pagination');
 const socketService = require('../services/socketService');
 
+const logger = require('../utils/logger');
 const cloudinary = require('cloudinary').v2;
 
 if (process.env.CLOUDINARY_CLOUD_NAME) {
@@ -22,7 +23,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
 }
 
 const sendServerError = (res, error) => {
-  console.error(error);
+  logger.error(error);
   return res.status(500).json({ error: 'Lỗi máy chủ, vui lòng thử lại sau.' });
 };
 
@@ -70,7 +71,7 @@ async function renderDashboardView(req, res) {
   try {
     return res.render('host/dashboard', { scripts: '<script src="/js/host-spaces.js"></script>' });
   } catch (error) {
-    console.error("Lỗi renderDashboardView:", error);
+    logger.error("Lỗi renderDashboardView:", error);
     return res.status(500).send("Lỗi tải trang bảng điều hành.");
   }
 }
@@ -210,7 +211,7 @@ async function getDashboardStatsAPI(req, res) {
       chartData,
     });
   } catch (error) {
-    console.error('Lỗi getDashboardStatsAPI:', error);
+    logger.error('Lỗi getDashboardStatsAPI:', error);
     return res.status(500).json({ error: 'Lỗi hệ thống khi tải số liệu thống kê!' });
   }
 }
@@ -237,7 +238,7 @@ async function getProfileAPI(req, res) {
       profile: { CompanyName: profile.CompanyName, Hotline: profile.Hotline, TaxCode: profile.TaxCode, BankName: profile.BankName, BankNumber: profile.BankNumber, Logo: profile.Logo }
     });
   } catch (error) {
-    console.error("Lỗi getProfileAPI:", error);
+    logger.error("Lỗi getProfileAPI:", error);
     return res.status(500).json({ error: 'Lỗi hệ thống khi lấy thông tin hồ sơ.' });
   }
 }
@@ -270,10 +271,10 @@ async function updateProfileAPI(req, res) {
              const matches = oldProfile.Logo.match(/\/v\d+\/(.+?)\.[a-zA-Z0-9]+$/);
              if (matches && matches[1]) {
                  await cloudinary.uploader.destroy(matches[1]);
-                 console.log("✅ Đã dọn dẹp Logo cũ trên Cloudinary:", matches[1]);
+                 logger.info("Đã dọn dẹp Logo cũ trên Cloudinary:", matches[1]);
              }
          } catch (cloudErr) {
-             console.warn("⚠️ Bỏ qua lỗi xóa Logo cũ trên Cloudinary:", cloudErr.message);
+             logger.warn("Bỏ qua lỗi xóa Logo cũ trên Cloudinary:", cloudErr.message);
          }
       }
     }
@@ -287,7 +288,7 @@ async function updateProfileAPI(req, res) {
     
     return res.json({ success: true, message: 'Đã cập nhật hồ sơ thành công!' });
   } catch (error) {
-    console.error("❌ Lỗi updateProfileAPI:", error);
+    logger.error("Lỗi updateProfileAPI:", error);
     return res.status(500).json({ error: 'Lỗi hệ thống khi cập nhật hồ sơ' });
   }
 }

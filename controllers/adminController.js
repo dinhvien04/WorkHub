@@ -8,9 +8,10 @@ const PaymentHistory = require('../models/Payment_History');
 const logActivity = require('../utils/auditLogger');
 const AuditLog = require('../models/AuditLog');
 const Review = require('../models/Review'); // ĐÃ THÊM: Thiếu model Review
+const logger = require('../utils/logger');
 
 function sendServerError(res, error) {
-  console.error(error);
+  logger.error(error);
   return res.status(500).json({ error: 'Lỗi máy chủ, vui lòng thử lại sau.' });
 }
 
@@ -510,7 +511,7 @@ async function getEntityDetail(req, res) {
         return res.json({ type: entityType, data });
 
     } catch (error) {
-        console.error("Lỗi getEntityDetail:", error);
+        logger.error("Lỗi getEntityDetail:", error);
         return res.status(500).json({ error: 'Lỗi máy chủ khi lấy dữ liệu chi tiết.' });
     }
 }
@@ -531,7 +532,7 @@ async function moderateListing(req, res) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: error.message, code: error.code });
     }
-    console.error('moderateListing:', error);
+    logger.error('moderateListing:', error);
     return res.status(500).json({ error: 'Lỗi moderation.' });
   }
 }
@@ -544,7 +545,7 @@ async function listFlaggedListings(req, res) {
     });
     return res.json(data);
   } catch (error) {
-    console.error('listFlaggedListings:', error);
+    logger.error('listFlaggedListings:', error);
     return res.status(500).json({ error: 'Lỗi tải queue moderation.' });
   }
 }

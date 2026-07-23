@@ -37,8 +37,9 @@ const auditLogSchema = new mongoose.Schema({
 });
 
 
-auditLogSchema.index({ createdAt: -1 });
 auditLogSchema.index({ ActorID: 1 });
+// Single TTL index (ascending) — used both for expiry and sorting (DESC queries use IXSCAN with hint if needed)
+// Removed conflicting { createdAt: -1 } index; TTL index on ascending createdAt handles expiry correctly.
 auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

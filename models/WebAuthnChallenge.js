@@ -10,7 +10,7 @@ const webAuthnChallengeSchema = new mongoose.Schema(
     Purpose: { type: String, enum: ['register', 'login'], required: true },
     ExpectedRpId: { type: String, default: '' },
     ExpectedOrigin: { type: String, default: '' },
-    ExpiresAt: { type: Date, required: true, index: true },
+    ExpiresAt: { type: Date, required: true },
     ConsumedAt: { type: Date, default: null },
   },
   { collection: 'webauthn_challenges', timestamps: true }

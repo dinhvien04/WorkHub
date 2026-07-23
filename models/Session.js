@@ -37,7 +37,7 @@ const sessionSchema = new mongoose.Schema(
       default: 'unknown',
     },
     LastSeenAt: { type: Date, default: Date.now },
-    ExpiresAt: { type: Date, default: null, index: true },
+    ExpiresAt: { type: Date, default: null },
     RevokedAt: { type: Date, default: null },
   },
   { collection: 'user_sessions', timestamps: true }
@@ -45,5 +45,7 @@ const sessionSchema = new mongoose.Schema(
 
 sessionSchema.index({ UserID: 1, createdAt: -1 });
 sessionSchema.index({ UserID: 1, RevokedAt: 1, ExpiresAt: 1 });
+// Auto-purge expired sessions via MongoDB TTL
+sessionSchema.index({ ExpiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('UserSession', sessionSchema);
