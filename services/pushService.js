@@ -1,11 +1,72 @@
 "use strict";
 
+const dns = require("dns").promises;
+const ipaddr = require("ipaddr.js");
 const PushSubscription = require("../models/PushSubscription");
 const { ValidationError } = require("../utils/errors");
 const logger = require("../utils/logger");
 
+function isBlockedIp(ip) {
+  try {
+    let addr = ipaddr.parse(ip);
+    if (addr.kind() === "ipv6" && addr.isIPv4MappedAddress()) {
+      addr = addr.toIPv4Address();
+    }
+    const range = addr.range();
+    const blockedRanges = [
+      "unspecified",
+      "broadcast",
+      "multicast",
+      "linkLocal",
+      "loopback",
+      "carrierGradeNat",
+      "private",
+      "reserved",
+      "uniqueLocal",
+    ];
+    return blockedRanges.includes(range);
+  } catch (err) {
+    return true;
+  }
+}
+
+async function validateEndpoint(endpoint) {
+  if (!endpoint) {
+    throw new ValidationError("Thiếu endpoint push.");
+  }
+  let url;
+  try {
+    url = new URL(endpoint);
+  } catch (err) {
+    throw new ValidationError("Endpoint không hợp lệ.");
+  }
+  if (url.protocol !== "https:") {
+    throw new ValidationError("Endpoint phải sử dụng giao thức https.");
+  }
+  const hostname = url.hostname;
+  if (!hostname) {
+    throw new ValidationError("Endpoint không hợp lệ.");
+  }
+  let addresses = [];
+  try {
+    const lookupResult = await dns.lookup(hostname, { all: true });
+    addresses = lookupResult.map((r) => r.address);
+  } catch (err) {
+    throw new ValidationError("Không thể phân giải tên miền của endpoint.");
+  }
+  if (addresses.length === 0) {
+    throw new ValidationError("Không thể phân giải tên miền của endpoint.");
+  }
+  for (const ip of addresses) {
+    if (isBlockedIp(ip)) {
+      throw new ValidationError("Endpoint không hợp lệ (SSRF prevented).");
+    }
+  }
+}
+
 async function saveSubscription({ userId, endpoint, keys, userAgent }) {
-  if (!endpoint) throw new ValidationError("Thiếu endpoint push.");
+  await validateEndpoint(endpoint);
+
   const doc = await PushSubscription.findOneAndUpdate(
     { UserID: userId, Endpoint: endpoint },
     {
@@ -20,6 +81,21 @@ async function saveSubscription({ userId, endpoint, keys, userAgent }) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
+
+  const activeSubs = await PushSubscription.find({
+    UserID: userId,
+    Status: "active",
+  }).sort({ createdAt: 1 });
+
+  if (activeSubs.length > 10) {
+    const toRevokeCount = activeSubs.length - 10;
+    const toRevoke = activeSubs.slice(0, toRevokeCount);
+    for (const sub of toRevoke) {
+      sub.Status = "revoked";
+      await sub.save();
+    }
+  }
+
   return doc;
 }
 
@@ -59,11 +135,16 @@ async function notifyPush(userId, payload) {
     );
     return { sent: 0, mode: "vapid-configured-no-package" };
   }
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:ops@workhub.local",
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY,
-  );
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || "mailto:ops@workhub.local",
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY,
+    );
+  } catch (err) {
+    logger.error(`Failed to set VAPID details: ${err.message}`);
+    return { sent: 0, mode: "vapid-config-error", error: err.message };
+  }
   const body = JSON.stringify({
     title: payload?.title || "WorkHub",
     body: payload?.body || "",

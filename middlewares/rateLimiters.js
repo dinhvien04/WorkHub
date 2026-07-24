@@ -146,6 +146,13 @@ const staffInviteAcceptLimiter = makeLimiter({
   prefix: "staff-accept",
 });
 
+const pushSubscriptionLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  message: "Quá nhiều yêu cầu push subscription. Thử lại sau.",
+  prefix: "push-sub",
+});
+
 /**
  * Global catch-all API limiter — applied to all /api/ routes.
  * Protects unauthenticated endpoints (admin, host management, etc.) from scanning.
@@ -172,5 +179,6 @@ module.exports = {
   checkInLimiter,
   icalLimiter,
   staffInviteAcceptLimiter,
+  pushSubscriptionLimiter,
   globalApiLimiter,
 };

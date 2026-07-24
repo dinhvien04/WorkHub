@@ -1,55 +1,62 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const reviewSchema = new mongoose.Schema({
+const reviewSchema = new mongoose.Schema(
+  {
     // 1. LIÊN KẾT (RELATIONSHIPS)
     SpaceID: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Space',
-        required: true,
-        index: true 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Space",
+      required: true,
+      index: true,
     },
     CustomerID: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        index: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
     BookingID: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Booking',
-        required: true,
-        unique: true 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      required: true,
+      unique: true,
     },
 
     // 2. NỘI DUNG ĐÁNH GIÁ (CONTENT)
     Rating: {
-        type: Number,
-        required: true,
-        min: 1,
-        max: 5
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
     },
     Comment: {
-        type: String,
-        trim: true,
-        default: ""
+      type: String,
+      trim: true,
+      default: "",
     },
     Status: {
-        type: String,
-        enum: ['published', 'reported', 'hidden', 'removed'],
-        default: 'published',
-        index: true,
+      type: String,
+      enum: ["published", "reported", "hidden", "removed"],
+      default: "published",
+      index: true,
     },
     ReportCount: { type: Number, default: 0, min: 0 },
     ReportReasons: [{ type: String, maxlength: 500 }],
-    ReportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    HostReply: { type: String, default: '', maxlength: 2000 },
+    ReportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    HostReply: { type: String, default: "", maxlength: 2000 },
     HostRepliedAt: { type: Date, default: null },
-    ModeratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    ModeratedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     ModeratedAt: { type: Date, default: null },
-}, {
-    collection: 'reviews',
-    timestamps: true 
-});
+  },
+  {
+    collection: "reviews",
+    timestamps: true,
+  },
+);
 
 // 3. CHỈ MỤC PHỨC HỢP
 reviewSchema.index({ CustomerID: 1, SpaceID: 1 });
@@ -57,53 +64,56 @@ reviewSchema.index({ CustomerID: 1, SpaceID: 1 });
 // ==========================================
 // 4. THUẬT TOÁN TÍNH ĐIỂM TRUNG BÌNH CỦA CHI NHÁNH
 // ==========================================
-reviewSchema.statics.calcAverageRatings = async function(spaceId) {
-    try {
-        const Space = mongoose.model('Space');
-        const Branch = mongoose.model('Branch');
+reviewSchema.statics.calcAverageRatings = async function (spaceId) {
+  try {
+    const Space = mongoose.model("Space");
+    const Branch = mongoose.model("Branch");
 
-        // Bước 1: Tìm Space để biết nó thuộc Branch nào
-        const space = await Space.findById(spaceId);
-        if (!space || !space.BranchID) return;
+    // Bước 1: Tìm Space để biết nó thuộc Branch nào
+    const space = await Space.findById(spaceId);
+    if (!space || !space.BranchID) return;
 
-        const branchId = space.BranchID;
+    const branchId = space.BranchID;
 
-        // Bước 2: Lấy TẤT CẢ các Space thuộc Branch này
-        const spacesInBranch = await Space.find({ BranchID: branchId }).select('_id');
-        const spaceIds = spacesInBranch.map(s => s._id);
+    // Bước 2: Lấy TẤT CẢ các Space thuộc Branch này
+    const spacesInBranch = await Space.find({ BranchID: branchId }).select(
+      "_id",
+    );
+    const spaceIds = spacesInBranch.map((s) => s._id);
 
-        // Bước 3: Gom tất cả Review của tập hợp các Space trên và tính trung bình
-        const branchStats = await this.aggregate([
-            { $match: { SpaceID: { $in: spaceIds } } },
-            { $group: {
-                _id: null,
-                avgRating: { $avg: '$Rating' } // Hàm $avg cộng tổng và chia đều
-            }}
-        ]);
+    // Bước 3: Gom tất cả Review của tập hợp các Space trên và tính trung bình
+    const branchStats = await this.aggregate([
+      { $match: { SpaceID: { $in: spaceIds }, Status: "published" } },
+      {
+        $group: {
+          _id: null,
+          avgRating: { $avg: "$Rating" }, // Hàm $avg cộng tổng và chia đều
+        },
+      },
+    ]);
 
-        // Bước 4: Lưu vào RatingAvg của bảng Branch
-        if (branchStats.length > 0) {
-            // Giữ lại 1 số thập phân (Ví dụ: (4 + 5) / 2 = 4.5)
-            const newBranchAvg = Math.round(branchStats[0].avgRating * 10) / 10;
-            await Branch.findByIdAndUpdate(branchId, { RatingAvg: newBranchAvg });
-        } else {
-            // Nếu không có đánh giá nào thì trả về 0
-            await Branch.findByIdAndUpdate(branchId, { RatingAvg: 0 });
-        }
-
-        // TÙY CHỌN: Cập nhật luôn RatingAvg cho từng Space riêng lẻ (nếu cần hiển thị)
-        const spaceStats = await this.aggregate([
-            { $match: { SpaceID: spaceId } },
-            { $group: { _id: null, avgRating: { $avg: '$Rating' } } }
-        ]);
-        if (spaceStats.length > 0) {
-            const spaceAvg = Math.round(spaceStats[0].avgRating * 10) / 10;
-            await Space.findByIdAndUpdate(spaceId, { RatingAvg: spaceAvg });
-        }
-
-    } catch (error) {
-        console.error("Lỗi khi tính toán RatingAvg cho Branch:", error);
+    // Bước 4: Lưu vào RatingAvg của bảng Branch
+    if (branchStats.length > 0) {
+      // Giữ lại 1 số thập phân (Ví dụ: (4 + 5) / 2 = 4.5)
+      const newBranchAvg = Math.round(branchStats[0].avgRating * 10) / 10;
+      await Branch.findByIdAndUpdate(branchId, { RatingAvg: newBranchAvg });
+    } else {
+      // Nếu không có đánh giá nào thì trả về 0
+      await Branch.findByIdAndUpdate(branchId, { RatingAvg: 0 });
     }
+
+    // TÙY CHỌN: Cập nhật luôn RatingAvg cho từng Space riêng lẻ (nếu cần hiển thị)
+    const spaceStats = await this.aggregate([
+      { $match: { SpaceID: spaceId, Status: "published" } },
+      { $group: { _id: null, avgRating: { $avg: "$Rating" } } },
+    ]);
+    if (spaceStats.length > 0) {
+      const spaceAvg = Math.round(spaceStats[0].avgRating * 10) / 10;
+      await Space.findByIdAndUpdate(spaceId, { RatingAvg: spaceAvg });
+    }
+  } catch (error) {
+    console.error("Lỗi khi tính toán RatingAvg cho Branch:", error);
+  }
 };
 
 // ==========================================
@@ -111,20 +121,22 @@ reviewSchema.statics.calcAverageRatings = async function(spaceId) {
 // ==========================================
 
 // Kích hoạt khi lưu mới Review
-reviewSchema.post('save', function() {
-    this.constructor.calcAverageRatings(this.SpaceID);
+reviewSchema.post("save", function () {
+  this.constructor.calcAverageRatings(this.SpaceID);
 });
 
 // Kích hoạt khi khách hàng cập nhật (sửa) Review
-reviewSchema.pre(/^findOneAnd/, async function(next) {
-    this.docToUpdate = await this.model.findOne(this.getQuery());
-    next();
+reviewSchema.pre(/^findOneAnd/, async function (next) {
+  this.docToUpdate = await this.model.findOne(this.getQuery());
+  next();
 });
 
-reviewSchema.post(/^findOneAnd/, async function() {
-    if (this.docToUpdate) {
-        await this.docToUpdate.constructor.calcAverageRatings(this.docToUpdate.SpaceID);
-    }
+reviewSchema.post(/^findOneAnd/, async function () {
+  if (this.docToUpdate) {
+    await this.docToUpdate.constructor.calcAverageRatings(
+      this.docToUpdate.SpaceID,
+    );
+  }
 });
 
-module.exports = mongoose.model('Review', reviewSchema);
+module.exports = mongoose.model("Review", reviewSchema);

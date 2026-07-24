@@ -35,7 +35,7 @@ async function ratingBreakdownForSpaces(spaceIds) {
     {
       $match: {
         SpaceID: { $in: ids },
-        Status: { $in: ["published", "reported"] },
+        Status: "published",
       },
     },
     {
@@ -99,7 +99,7 @@ async function getBranchReviewsPayload(
     ratingBreakdownForSpaces(spaceIds),
     Review.find({
       SpaceID: { $in: spaceIds },
-      Status: { $in: ["published", "reported"] },
+      Status: "published",
     })
       .sort({ createdAt: -1 })
       .skip(Math.max(0, Number(skip) || 0))

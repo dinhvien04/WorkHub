@@ -10,12 +10,16 @@ function buildPolicySnapshot({
   refundAfterStartPercent = 0,
   currency = "VND",
 } = {}) {
+  const normalizedHours =
+    freeCancelHours !== undefined && freeCancelHours !== null
+      ? freeCancelHours
+      : 24;
   return {
-    freeCancelHours,
+    freeCancelHours: normalizedHours,
     refundBeforeStartPercent,
     refundAfterStartPercent,
     currency,
-    summary: `Hủy miễn phí trước ${freeCancelHours}h so với giờ bắt đầu; sau đó hoàn ${refundAfterStartPercent}%.`,
+    summary: `Hủy miễn phí trước ${normalizedHours}h so với giờ bắt đầu; sau đó hoàn ${refundAfterStartPercent}%.`,
   };
 }
 
@@ -26,7 +30,11 @@ function evaluateCancellation(booking, { now = new Date() } = {}) {
   const policy = booking.CancellationPolicy || buildPolicySnapshot();
   const start = new Date(booking.StartTime);
   const msBefore = start - now;
-  const freeMs = (policy.freeCancelHours || 24) * 3600000;
+  const freeCancelHours =
+    policy.freeCancelHours !== undefined && policy.freeCancelHours !== null
+      ? policy.freeCancelHours
+      : 24;
+  const freeMs = freeCancelHours * 3600000;
   const withinFree = msBefore >= freeMs;
   const started = now >= start;
 

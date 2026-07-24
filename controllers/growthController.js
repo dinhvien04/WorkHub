@@ -1236,18 +1236,23 @@ const hostReplyReview = asyncHandler(async (req, res) => {
 const listHostReviews = asyncHandler(async (req, res) => {
   const Review = require("../models/Review");
   const Space = require("../models/Space");
-  const spaces = await Space.find({ HostID: req.user.userId }).select("_id").lean();
+  const spaces = await Space.find({ HostID: req.user.userId })
+    .select("_id")
+    .lean();
   const spaceIds = spaces.map((s) => s._id);
   if (!spaceIds.length) return res.json({ reviews: [] });
   const filter = { SpaceID: { $in: spaceIds } };
   if (req.query.status) filter.Status = String(req.query.status);
   if (req.query.unreplied === "1") {
-    filter.$or = [{ HostReply: { $in: [null, ""] } }, { HostReply: { $exists: false } }];
+    filter.$or = [
+      { HostReply: { $in: [null, ""] } },
+      { HostReply: { $exists: false } },
+    ];
   }
   const reviews = await Review.find(filter)
     .sort({ createdAt: -1 })
     .limit(Math.min(Number(req.query.limit) || 50, 100))
-    .populate("CustomerID", "FullName Email")
+    .populate("CustomerID", "FullName")
     .populate("SpaceID", "Name SpaceCode")
     .lean();
   res.json({ reviews });
@@ -1265,7 +1270,7 @@ const listAdminReviews = asyncHandler(async (req, res) => {
   const reviews = await Review.find(filter)
     .sort({ ReportCount: -1, createdAt: -1 })
     .limit(Math.min(Number(req.query.limit) || 50, 100))
-    .populate("CustomerID", "FullName Email")
+    .populate("CustomerID", "FullName")
     .populate("SpaceID", "Name HostID")
     .lean();
   res.json({ reviews });
@@ -1354,23 +1359,29 @@ const addHostNote = asyncHandler(async (req, res) => {
     .trim()
     .slice(0, 2000);
   if (!body) throw new ValidationError("Ghi chú trống.");
-  const booking = await Booking.findOne({
-    _id: req.params.bookingId,
-    HostID: req.user.userId,
-  });
+  const booking = await Booking.findOneAndUpdate(
+    {
+      _id: req.params.bookingId,
+      HostID: req.user.userId,
+    },
+    {
+      $push: {
+        HostInternalNotes: {
+          $each: [
+            {
+              Body: body,
+              AuthorID: req.user.userId,
+              CreatedAt: new Date(),
+            },
+          ],
+          $slice: -50,
+        },
+      },
+    },
+    { new: true, runValidators: true },
+  );
   if (!booking) throw new NotFoundError("Không tìm thấy booking.");
-  booking.HostInternalNotes = booking.HostInternalNotes || [];
-  booking.HostInternalNotes.push({
-    Body: body,
-    AuthorID: req.user.userId,
-    CreatedAt: new Date(),
-  });
-  // Keep last 50 notes
-  if (booking.HostInternalNotes.length > 50) {
-    booking.HostInternalNotes = booking.HostInternalNotes.slice(-50);
-  }
-  await booking.save();
-  res.status(201).json({ notes: booking.HostInternalNotes });
+  res.status(201).json({ notes: booking.HostInternalNotes || [] });
 });
 
 const listHostNotes = asyncHandler(async (req, res) => {
@@ -1612,9 +1623,7 @@ const pushSubscribe = asyncHandler(async (req, res) => {
     keys: req.body.keys || {},
     userAgent: req.get("user-agent"),
   });
-  res
-    .status(201)
-    .json({ subscription: { id: sub._id, endpoint: sub.Endpoint } });
+  res.status(201).json({ subscription: { id: sub._id } });
 });
 
 const pushUnsubscribe = asyncHandler(async (req, res) => {

@@ -410,38 +410,75 @@ const listTickets = asyncHandler(async (req, res) => {
 
 // —— Incidents ——
 const createIncident = asyncHandler(async (req, res) => {
+  // 1. Validation
+  const allowedTypes = ["damage", "late_checkout", "violation", "other"];
+  if (!req.body.type || !allowedTypes.includes(req.body.type)) {
+    throw new ValidationError("Loại sự cố không hợp lệ hoặc thiếu.");
+  }
+
+  const description = req.body.description;
+  if (
+    !description ||
+    typeof description !== "string" ||
+    !description.trim() ||
+    description.length >= 3000
+  ) {
+    throw new ValidationError(
+      "Mô tả sự cố phải là chuỗi không trống và dưới 3000 ký tự.",
+    );
+  }
+
   if (!req.body.bookingId) {
     throw new ValidationError("bookingId là bắt buộc.");
   }
+
+  const hostOwnerId = req.hostOwnerId;
+  if (!hostOwnerId) {
+    throw new ForbiddenError("Không tìm thấy thông tin hostOwnerId.");
+  }
+
+  // Verify staff permission 'incident:create'
+  const { roleHas } = require("../policies/permissions");
+  const role = req.hostContext?.staffRole || "owner";
+  if (!roleHas(role, "incident:create")) {
+    throw new ForbiddenError("Thiếu quyền: incident:create");
+  }
+
+  // 2. Retrieve Booking and check ownership using hostOwnerId
   const booking = await Booking.findOne({
     _id: req.body.bookingId,
-    HostID: req.user.userId,
+    HostID: hostOwnerId,
   }).select("_id HostID SpaceID");
   if (!booking) {
     throw new NotFoundError("Booking không thuộc host hiện tại.");
   }
-  // Staff branch scope when acting under host context
-  if (req.hostContext?.isStaff && req.hostContext.allowedBranchIds) {
-    const space = await Space.findById(booking.SpaceID)
-      .select("BranchID")
-      .lean();
-    const branchId = space?.BranchID ? String(space.BranchID) : null;
-    const allowed = (req.hostContext.allowedBranchIds || []).map(String);
-    if (branchId && allowed.length && !allowed.includes(branchId)) {
-      throw new ForbiddenError(
-        "Staff không có quyền trên branch của booking này.",
-      );
+
+  // 3. Verify staff branch restrictions correctly using req.hostContext properties
+  const space = await Space.findById(booking.SpaceID).select("BranchID").lean();
+  const branchId = space?.BranchID ? String(space.BranchID) : null;
+
+  if (req.hostContext && !req.hostContext.isOwner) {
+    if (req.hostContext.allowedBranchIds !== null) {
+      const allowed = (req.hostContext.allowedBranchIds || []).map(String);
+      if (!branchId || !allowed.includes(branchId)) {
+        throw new ForbiddenError(
+          "Staff không có quyền trên branch của booking này.",
+        );
+      }
     }
   }
+
+  // 4. Create Incident
   const doc = await Incident.create({
     BookingID: booking._id,
-    HostID: req.user.userId,
+    HostID: hostOwnerId,
     ReportedBy: req.user.userId,
-    Type: req.body.type || "other",
-    Description: req.body.description,
+    Type: req.body.type,
+    Description: description,
     InternalNote: req.body.internalNote || "",
     CustomerNote: req.body.customerNote || "",
   });
+
   res.status(201).json({ incident: doc });
 });
 

@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-23T16:55:24.731Z",
+    "timestamp": "2026-07-24T02:44:12.480Z",
     "component": {
       "type": "application",
       "name": "workhubmvc",
@@ -1603,6 +1603,14 @@
     },
     {
       "type": "library",
+      "name": "asn1.js",
+      "version": "5.4.1",
+      "purl": "pkg:npm/asn1.js@5.4.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "asn1js",
       "version": "3.0.10",
       "purl": "pkg:npm/asn1js@3.0.10",
@@ -1822,6 +1830,14 @@
       "name": "bluebird",
       "version": "3.4.7",
       "purl": "pkg:npm/bluebird@3.4.7",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "bn.js",
+      "version": "4.12.5",
+      "purl": "pkg:npm/bn.js@4.12.5",
       "dev": false,
       "license": "MIT"
     },
@@ -3240,6 +3256,14 @@
     },
     {
       "type": "library",
+      "name": "http_ece",
+      "version": "1.2.0",
+      "purl": "pkg:npm/http_ece@1.2.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "http-errors",
       "version": "2.0.1",
       "purl": "pkg:npm/http-errors@2.0.1",
@@ -4333,6 +4357,14 @@
       "purl": "pkg:npm/mimic-fn@2.1.0",
       "dev": true,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "minimalistic-assert",
+      "version": "1.0.1",
+      "purl": "pkg:npm/minimalistic-assert@1.0.1",
+      "dev": false,
+      "license": "ISC"
     },
     {
       "type": "library",
@@ -6028,6 +6060,14 @@
       "purl": "pkg:npm/walker@1.0.8",
       "dev": true,
       "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "web-push",
+      "version": "3.6.7",
+      "purl": "pkg:npm/web-push@3.6.7",
+      "dev": false,
+      "license": "MPL-2.0"
     },
     {
       "type": "library",

@@ -4,6 +4,7 @@ const Dispute = require("../models/Dispute");
 const Booking = require("../models/Booking");
 const refundService = require("./refundService");
 const { notifyUser } = require("./notificationService");
+const { withTransaction } = require("../utils/mongoTransaction");
 const {
   ValidationError,
   NotFoundError,
@@ -71,51 +72,59 @@ async function resolveDispute({
   refundAmount = 0,
   reject = false,
 }) {
-  const d = await Dispute.findById(disputeId);
-  if (!d) throw new NotFoundError("Không tìm thấy dispute.");
-  if (!["open", "under_review", "appealed"].includes(d.Status)) {
-    throw new ValidationError("Dispute không thể resolve.");
-  }
-  if (reject) {
-    d.Status = "rejected";
-    d.Resolution = resolution || "Rejected";
+  return withTransaction(async (session) => {
+    const findQ = Dispute.findById(disputeId);
+    if (session) findQ.session(session);
+    const d = await findQ;
+    if (!d) throw new NotFoundError("Không tìm thấy dispute.");
+    if (!["open", "under_review", "appealed"].includes(d.Status)) {
+      throw new ValidationError("Dispute không thể resolve.");
+    }
+    if (reject) {
+      d.Status = "rejected";
+      d.Resolution = resolution || "Rejected";
+      d.ResolvedBy = adminId;
+      d.ResolvedAt = new Date();
+      await d.save(session ? { session } : undefined);
+      return d;
+    }
+    d.Status = "resolved";
+    d.Resolution = resolution || "Resolved";
+    d.RefundAmount = Math.max(0, Number(refundAmount) || 0);
     d.ResolvedBy = adminId;
     d.ResolvedAt = new Date();
-    await d.save();
-    return d;
-  }
-  d.Status = "resolved";
-  d.Resolution = resolution || "Resolved";
-  d.RefundAmount = Math.max(0, Number(refundAmount) || 0);
-  d.ResolvedBy = adminId;
-  d.ResolvedAt = new Date();
-  await d.save();
+    await d.save(session ? { session } : undefined);
 
-  if (d.RefundAmount > 0) {
-    await refundService.requestRefund({
-      bookingId: d.BookingID,
-      userId: adminId,
-      role: "admin",
-      amount: d.RefundAmount,
-      reason: `Dispute ${d._id}: ${d.Resolution}`,
-      idempotencyKey: `dispute-refund-${d._id}`,
-    });
-    const refund = await RefundLatest(d.BookingID);
-    if (refund) {
-      await refundService.processRefund({
-        refundId: refund._id,
-        actorId: adminId,
-        approve: true,
+    if (d.RefundAmount > 0) {
+      await refundService.requestRefund({
+        bookingId: d.BookingID,
+        userId: adminId,
         role: "admin",
+        amount: d.RefundAmount,
+        reason: `Dispute ${d._id}: ${d.Resolution}`,
+        idempotencyKey: `dispute-refund-${d._id}`,
+        session,
       });
+      const refund = await RefundLatest(d.BookingID, session);
+      if (refund) {
+        await refundService.processRefund({
+          refundId: refund._id,
+          actorId: adminId,
+          approve: true,
+          role: "admin",
+          session,
+        });
+      }
     }
-  }
-  return d;
+    return d;
+  });
 }
 
-async function RefundLatest(bookingId) {
+async function RefundLatest(bookingId, session = null) {
   const Refund = require("../models/Refund");
-  return Refund.findOne({ BookingID: bookingId }).sort({ createdAt: -1 });
+  const q = Refund.findOne({ BookingID: bookingId }).sort({ createdAt: -1 });
+  if (session) q.session(session);
+  return q;
 }
 
 module.exports = { openDispute, listDisputes, resolveDispute };

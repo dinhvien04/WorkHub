@@ -351,7 +351,10 @@ async function createBooking({
   const initialStatus = isInstant ? "confirmed" : "pending";
   const cancellationPolicyService = require("./cancellationPolicyService");
   const cancellationPolicy = cancellationPolicyService.buildPolicySnapshot({
-    freeCancelHours: space.FreeCancelHours || 24,
+    freeCancelHours:
+      space.FreeCancelHours !== undefined && space.FreeCancelHours !== null
+        ? space.FreeCancelHours
+        : 24,
   });
 
   const holdMs =

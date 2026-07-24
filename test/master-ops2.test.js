@@ -63,6 +63,32 @@ describe('Cancellation policy', () => {
     expect(res.status).toBe(200);
     expect(res.body.cancelPreview.policy).toBeTruthy();
   });
+
+  test('snapshot on create + cancel preview with freeCancelHours = 0', async () => {
+    const host = await createUser({ email: 'hpol0@test.com', role: 'host' });
+    const customer = await createUser({ email: 'cpol0@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+
+    // Explicitly update Space to have FreeCancelHours = 0
+    space.FreeCancelHours = 0;
+    await space.save();
+
+    const { start, end } = futureRange(1, 2); // 1h ahead (less than 24h)
+    const booking = await bookingService.createBooking({
+      customerId: customer._id,
+      spaceId: space._id,
+      startTime: start,
+      endTime: end,
+    });
+    expect(booking.CancellationPolicy).toBeTruthy();
+    expect(booking.CancellationPolicy.freeCancelHours).toBe(0);
+
+    const preview = cancellationPolicyService.evaluateCancellation(booking.toObject(), {
+      now: new Date(),
+    });
+    expect(preview.canCancel).toBe(true);
+    expect(preview.withinFreeWindow).toBe(true);
+  });
 });
 
 describe('Timeline + inbox + onboarding', () => {
