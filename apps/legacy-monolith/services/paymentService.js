@@ -272,6 +272,25 @@ async function verifyPayment(hostId, paymentId) {
     /* ignore */
   }
 
+  // Publish Payment Succeeded integration event
+  try {
+    const integrationOutboxService = require("./integrationOutboxService");
+    await integrationOutboxService.enqueue(
+      "billing.payment-succeeded.v1",
+      updated.BookingID,
+      {
+        bookingId: String(updated.BookingID),
+        amount: updated.Amount,
+        paymentId: String(updated._id),
+        customerId: String(updated.CustomerID),
+        hostId: String(updated.HostID)
+      },
+      { idempotencyKey: `payment:${updated._id}:integration-success` }
+    );
+  } catch (err) {
+    /* ignore */
+  }
+
   // Notify customer: payment verified
   try {
     const User = require("../models/User");
@@ -434,6 +453,20 @@ async function verifyManualPaymentAndPostLedger({
           idempotencyKey: `payment:${updated._id}:metrics`,
         },
         { session },
+      );
+
+      const integrationOutboxService = require("./integrationOutboxService");
+      await integrationOutboxService.enqueue(
+        "billing.payment-succeeded.v1",
+        updated.BookingID,
+        {
+          bookingId: String(updated.BookingID),
+          amount: updated.Amount,
+          paymentId: String(updated._id),
+          customerId: String(updated.CustomerID),
+          hostId: String(updated.HostID)
+        },
+        { session, idempotencyKey: `payment:${updated._id}:integration-success` }
       );
 
       return { payment: updated, ledgerEntry: entry, duplicate: false };

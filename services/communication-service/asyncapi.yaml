@@ -1,0 +1,165 @@
+asyncapi: 3.0.0
+info:
+  title: Communication Service Consumer Events
+  version: 1.1.0
+  description: Messaging topology and incoming events consumed by the Communication Service.
+channels:
+  userEvents:
+    address: workhub.events
+    messages:
+      userCreated:
+        payload:
+          type: object
+          required:
+            - eventId
+            - eventType
+            - data
+          properties:
+            eventId:
+              type: string
+              format: uuid
+            eventType:
+              type: string
+              enum: [identity.user-created.v1]
+            data:
+              type: object
+              required:
+                - userId
+                - email
+                - fullName
+                - role
+                - status
+              properties:
+                userId:
+                  type: string
+                email:
+                  type: string
+                fullName:
+                  type: string
+                role:
+                  type: string
+                status:
+                  type: string
+      userUpdated:
+        payload:
+          type: object
+          required:
+            - eventId
+            - eventType
+            - data
+          properties:
+            eventId:
+              type: string
+              format: uuid
+            eventType:
+              type: string
+              enum: [identity.user-updated.v1]
+            data:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                email:
+                  type: string
+                fullName:
+                  type: string
+                role:
+                  type: string
+                status:
+                  type: string
+  domainEvents:
+    address: workhub.events
+    messages:
+      bookingConfirmed:
+        payload:
+          type: object
+          required:
+            - eventId
+            - eventType
+            - data
+          properties:
+            eventId:
+              type: string
+              format: uuid
+            eventType:
+              type: string
+              enum: [booking.confirmed.v1]
+            data:
+              type: object
+              required:
+                - bookingId
+                - spaceId
+                - customerId
+                - hostId
+                - paidAmount
+                - spaceName
+                - startTime
+                - endTime
+              properties:
+                bookingId:
+                  type: string
+                spaceId:
+                  type: string
+                customerId:
+                  type: string
+                hostId:
+                  type: string
+                paidAmount:
+                  type: number
+                spaceName:
+                  type: string
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+      bookingCancelled:
+        payload:
+          type: object
+          required:
+            - eventId
+            - eventType
+            - data
+          properties:
+            eventId:
+              type: string
+              format: uuid
+            eventType:
+              type: string
+              enum: [booking.cancelled.v1]
+            data:
+              type: object
+              required:
+                - bookingId
+                - spaceId
+                - customerId
+                - hostId
+                - spaceName
+                - startTime
+                - endTime
+                - cancelledBy
+              properties:
+                bookingId:
+                  type: string
+                spaceId:
+                  type: string
+                customerId:
+                  type: string
+                hostId:
+                  type: string
+                spaceName:
+                  type: string
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                reason:
+                  type: string
+                cancelledBy:
+                  type: string
+                  enum: [host, customer]

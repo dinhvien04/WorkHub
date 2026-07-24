@@ -312,6 +312,20 @@ async function settleInternalRefund(
         { session },
       );
 
+      const integrationOutboxService = require("./integrationOutboxService");
+      await integrationOutboxService.enqueue(
+        "billing.refund-completed.v1",
+        refund.BookingID,
+        {
+          refundId: String(refund._id),
+          bookingId: String(refund.BookingID),
+          refundAmount: refund.Amount,
+          customerId: String(refund.CustomerID),
+          hostId: String(refund.HostID)
+        },
+        { session, idempotencyKey: `refund:${refund._id}:integration-success` }
+      );
+
       return refund;
     },
     { required: env.isProduction },

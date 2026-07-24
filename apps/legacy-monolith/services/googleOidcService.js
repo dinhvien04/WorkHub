@@ -213,6 +213,24 @@ async function upsertGoogleUser(profile) {
     EmailVerifiedAt: new Date(),
     tokenVersion: 0,
   });
+
+  const integrationOutboxService = require("./integrationOutboxService");
+  await integrationOutboxService.enqueue(
+    "identity.user-created.v1",
+    user._id,
+    {
+      userId: String(user._id),
+      email: user.Email,
+      fullName: user.FullName,
+      role: user.Role,
+      status: user.Status,
+      tokenVersion: user.tokenVersion || 0
+    },
+    {
+      idempotencyKey: `google-register:${user._id}:user-created-event`,
+    }
+  );
+
   try {
     const CustomerProfile = require("../models/Customer_Profile");
     await CustomerProfile.create({

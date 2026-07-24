@@ -590,6 +590,23 @@ async function processRefund({
       },
       { idempotencyKey: `refund:${completed._id}:notify-done`, session },
     );
+
+    // Enqueue refund completed integration event if status is completed
+    if (completed.Status === "completed") {
+      const integrationOutboxService = require("./integrationOutboxService");
+      await integrationOutboxService.enqueue(
+        "billing.refund-completed.v1",
+        completed.BookingID,
+        {
+          refundId: String(completed._id),
+          bookingId: String(completed.BookingID),
+          refundAmount: completed.Amount,
+          customerId: String(completed.CustomerID),
+          hostId: String(completed.HostID)
+        },
+        { session, idempotencyKey: `refund:${completed._id}:integration-success` }
+      );
+    }
   } catch {
     /* non-fatal */
   }

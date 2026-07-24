@@ -272,6 +272,21 @@ async function toggleUserStatus(req, res) {
     // Invalidate all existing JWTs immediately
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+
+    const integrationOutboxService = require("../services/integrationOutboxService");
+    await integrationOutboxService.enqueue(
+      "identity.user-updated.v1",
+      user._id,
+      {
+        userId: String(user._id),
+        status: user.Status,
+        tokenVersion: user.tokenVersion
+      },
+      {
+        idempotencyKey: `user-status-toggle:${user._id}:${user.tokenVersion}`,
+      }
+    );
+
     const severity = user.Status === 'banned' ? 'danger' : 'success';
     await logActivity(req.user.userId, user.Status === 'banned' ? 'BAN_USER' : 'UNBAN_USER', 'User', user._id, `Admin đã ${user.Status === 'banned' ? 'khóa' : 'mở khóa'} tài khoản của người dùng`, severity);
     return res.json({ message: `Đã ${user.Status === 'banned' ? 'khóa' : 'mở khóa'} tài khoản thành công!`, status: user.Status });

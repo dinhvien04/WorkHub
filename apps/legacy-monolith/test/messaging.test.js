@@ -292,7 +292,13 @@ describe("Phase M3 Messaging Foundation Integration & Crash Recovery Tests", () 
       aggregateId: "agg-payment-001",
       aggregateVersion: 1,
       correlationId: correlationId,
-      data: { paymentId: "pay-101", bookingId: "d3b07384-d113-4886-a511-2b02a2e0a2c6", amount: 150000 },
+      data: {
+        paymentId: "pay-101",
+        bookingId: "d3b07384-d113-4886-a511-2b02a2e0a2c6",
+        amount: 150000,
+        customerId: "d3b07384-d113-4886-a511-2b02a2e0a2c7",
+        hostId: "d3b07384-d113-4886-a511-2b02a2e0a2c8"
+      },
     };
 
     // Stub handler that simulates a processing crash by throwing an error *before* acking

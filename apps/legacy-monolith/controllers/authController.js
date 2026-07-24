@@ -212,6 +212,24 @@ const registerUser = asyncHandler(async (req, res) => {
         }
       );
 
+      const integrationOutboxService = require("../services/integrationOutboxService");
+      await integrationOutboxService.enqueue(
+        "identity.user-created.v1",
+        createdUser._id,
+        {
+          userId: String(createdUser._id),
+          email: createdUser.Email,
+          fullName: createdUser.FullName,
+          role: createdUser.Role,
+          status: createdUser.Status,
+          tokenVersion: createdUser.tokenVersion || 0
+        },
+        {
+          session,
+          idempotencyKey: `register:${createdUser._id}:user-created-event`,
+        }
+      );
+
       return { user: createdUser, rawVerify };
     });
 

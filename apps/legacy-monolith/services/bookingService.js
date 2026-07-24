@@ -706,6 +706,23 @@ async function confirmBooking(hostId, bookingId) {
       { session, idempotencyKey: `booking:${booking._id}:email-confirm` },
     );
 
+    const integrationOutboxService = require("./integrationOutboxService");
+    await integrationOutboxService.enqueue(
+      "booking.confirmed.v1",
+      booking._id,
+      {
+        bookingId: String(booking._id),
+        spaceId: String(booking.SpaceID),
+        customerId: String(booking.CustomerID),
+        hostId: String(booking.HostID),
+        paidAmount: booking.TotalAmount,
+        spaceName: booking.Snapshot?.SpaceName || "",
+        startTime: booking.StartTime.toISOString(),
+        endTime: booking.EndTime.toISOString()
+      },
+      { session, idempotencyKey: `booking:${booking._id}:integration-confirm` }
+    );
+
     return booking;
   });
 }
@@ -776,6 +793,25 @@ async function cancelBookingByHost(hostId, bookingId) {
       },
       { session, idempotencyKey: `booking:${booking._id}:audit-cancel-host` },
     );
+
+    const integrationOutboxService = require("./integrationOutboxService");
+    await integrationOutboxService.enqueue(
+      "booking.cancelled.v1",
+      booking._id,
+      {
+        bookingId: String(booking._id),
+        spaceId: String(booking.SpaceID),
+        customerId: String(booking.CustomerID),
+        hostId: String(booking.HostID),
+        spaceName: booking.Snapshot?.SpaceName || "",
+        startTime: booking.StartTime.toISOString(),
+        endTime: booking.EndTime.toISOString(),
+        reason: "Cancelled by host",
+        cancelledBy: "host"
+      },
+      { session, idempotencyKey: `booking:${booking._id}:integration-cancel-host` }
+    );
+
     return booking;
   });
 }
@@ -875,6 +911,24 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = "") {
         entityId: booking._id,
       },
       { idempotencyKey: `booking:${booking._id}:email-cancel-host` },
+    );
+
+    const integrationOutboxService = require("./integrationOutboxService");
+    await integrationOutboxService.enqueue(
+      "booking.cancelled.v1",
+      booking._id,
+      {
+        bookingId: String(booking._id),
+        spaceId: String(booking.SpaceID),
+        customerId: String(booking.CustomerID),
+        hostId: String(booking.HostID),
+        spaceName: booking.Snapshot?.SpaceName || "",
+        startTime: booking.StartTime.toISOString(),
+        endTime: booking.EndTime.toISOString(),
+        reason: booking.CancelReason,
+        cancelledBy: "customer"
+      },
+      { idempotencyKey: `booking:${booking._id}:integration-cancel-customer` }
     );
   } catch {
     /* ignore */

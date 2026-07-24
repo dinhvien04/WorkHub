@@ -1,0 +1,154 @@
+openapi: 3.0.3
+info:
+  title: WorkHub Communication Service API
+  version: 1.1.0
+  description: API endpoints for managing Web Push subscriptions, notifications, and preferences.
+servers:
+  - url: http://localhost:3002
+    description: Local development server
+paths:
+  /api/push/vapid-public-key:
+    get:
+      summary: Get VAPID Public Key
+      description: Retrieve the server VAPID public key to configure the client's PushManager subscription.
+      responses:
+        '200':
+          description: VAPID Public Key retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicKey:
+                    type: string
+  /api/push/subscribe:
+    post:
+      summary: Save push subscription credentials
+      description: Upserts a push subscription endpoint bound to the logged-in user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - endpoint
+                - keys
+              properties:
+                endpoint:
+                  type: string
+                userAgent:
+                  type: string
+                keys:
+                  type: object
+                  required:
+                    - p256dh
+                    - auth
+                  properties:
+                    p256dh:
+                      type: string
+                    auth:
+                      type: string
+      responses:
+        '201':
+          description: Subscription saved successfully.
+  /api/push/unsubscribe:
+    post:
+      summary: Revoke a push subscription
+      description: Revokes the designated endpoint subscription, setting its status to revoked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - endpoint
+              properties:
+                endpoint:
+                  type: string
+      responses:
+        '200':
+          description: Subscription revoked successfully.
+  /api/notifications:
+    get:
+      summary: List user notifications
+      description: Returns a paginated list of inbox notifications.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: unreadOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Notifications feed retrieved successfully.
+  /api/notifications/{id}/read:
+    patch:
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification marked read.
+  /api/notifications/read-all:
+    post:
+      summary: Mark all notifications as read
+      responses:
+        '200':
+          description: All user notifications marked read.
+  /api/notifications/{id}:
+    delete:
+      summary: Delete a notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification deleted.
+  /api/notifications/preferences:
+    get:
+      summary: Get user notification preferences
+      responses:
+        '200':
+          description: Preference settings retrieved.
+    put:
+      summary: Update user notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notifyEmail:
+                  type: boolean
+                notifyPush:
+                  type: boolean
+                preferredLang:
+                  type: string
+                timezone:
+                  type: string
+      responses:
+        '200':
+          description: Preference settings updated.

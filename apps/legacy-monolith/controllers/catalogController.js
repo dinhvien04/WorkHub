@@ -116,6 +116,24 @@ const hostReplyReview = asyncHandler(async (req, res) => {
   review.HostReply = String(req.body.reply || "").slice(0, 2000);
   review.HostRepliedAt = new Date();
   await review.save();
+
+  const integrationOutboxService = require("../services/integrationOutboxService");
+  await integrationOutboxService.enqueue(
+    "catalog.review-replied.v1",
+    review._id,
+    {
+      reviewId: String(review._id),
+      spaceId: String(review.SpaceID),
+      customerId: String(review.CustomerID),
+      hostId: String(req.user.userId),
+      replyText: review.HostReply,
+      repliedAt: review.HostRepliedAt.toISOString()
+    },
+    {
+      idempotencyKey: `review-reply:${review._id}:${Date.now()}`,
+    }
+  );
+
   res.json({ review });
 });
 
