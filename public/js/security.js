@@ -1,4 +1,5 @@
 'use strict';
+/* global Notification */
 
 document.addEventListener('DOMContentLoaded', () => {
   const list = document.getElementById('session-list');

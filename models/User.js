@@ -76,4 +76,7 @@ const userSchema = new mongoose.Schema({
     timestamps: true // Tự động sinh ra CreatedAt và UpdatedAt
 });
 
+// Compound index for admin queries filtering by role + status (e.g. list active hosts)
+userSchema.index({ Role: 1, Status: 1 });
+
 module.exports = mongoose.model('User', userSchema);

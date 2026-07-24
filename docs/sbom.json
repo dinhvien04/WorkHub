@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-10T14:50:54.597Z",
+    "timestamp": "2026-07-24T02:44:12.480Z",
     "component": {
       "type": "application",
       "name": "workhubmvc",
@@ -1603,6 +1603,14 @@
     },
     {
       "type": "library",
+      "name": "asn1.js",
+      "version": "5.4.1",
+      "purl": "pkg:npm/asn1.js@5.4.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "asn1js",
       "version": "3.0.10",
       "purl": "pkg:npm/asn1js@3.0.10",
@@ -1827,6 +1835,14 @@
     },
     {
       "type": "library",
+      "name": "bn.js",
+      "version": "4.12.5",
+      "purl": "pkg:npm/bn.js@4.12.5",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "body-parser",
       "version": "2.2.2",
       "purl": "pkg:npm/body-parser@2.2.2",
@@ -2042,16 +2058,8 @@
     {
       "type": "library",
       "name": "cloudinary",
-      "version": "1.41.3",
-      "purl": "pkg:npm/cloudinary@1.41.3",
-      "dev": false,
-      "license": "MIT"
-    },
-    {
-      "type": "library",
-      "name": "cloudinary-core",
-      "version": "2.14.1",
-      "purl": "pkg:npm/cloudinary-core@2.14.1",
+      "version": "2.10.0",
+      "purl": "pkg:npm/cloudinary@2.10.0",
       "dev": false,
       "license": "MIT"
     },
@@ -2205,14 +2213,6 @@
       "version": "2.1.4",
       "purl": "pkg:npm/cookiejar@2.1.4",
       "dev": true,
-      "license": "MIT"
-    },
-    {
-      "type": "library",
-      "name": "core-js",
-      "version": "3.49.0",
-      "purl": "pkg:npm/core-js@3.49.0",
-      "dev": false,
       "license": "MIT"
     },
     {
@@ -2522,8 +2522,8 @@
     {
       "type": "library",
       "name": "engine.io",
-      "version": "6.6.8",
-      "purl": "pkg:npm/engine.io@6.6.8",
+      "version": "6.6.9",
+      "purl": "pkg:npm/engine.io@6.6.9",
       "dev": false,
       "license": "MIT"
     },
@@ -2738,8 +2738,8 @@
     {
       "type": "library",
       "name": "exceljs>uuid",
-      "version": "8.3.2",
-      "purl": "pkg:npm/exceljs%3Euuid@8.3.2",
+      "version": "11.1.1",
+      "purl": "pkg:npm/exceljs%3Euuid@11.1.1",
       "dev": false,
       "license": "MIT"
     },
@@ -3252,6 +3252,14 @@
       "version": "2.0.2",
       "purl": "pkg:npm/html-escaper@2.0.2",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "http_ece",
+      "version": "1.2.0",
+      "purl": "pkg:npm/http_ece@1.2.0",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -4352,6 +4360,14 @@
     },
     {
       "type": "library",
+      "name": "minimalistic-assert",
+      "version": "1.0.1",
+      "purl": "pkg:npm/minimalistic-assert@1.0.1",
+      "dev": false,
+      "license": "ISC"
+    },
+    {
+      "type": "library",
       "name": "minimatch",
       "version": "3.1.5",
       "purl": "pkg:npm/minimatch@3.1.5",
@@ -4561,16 +4577,8 @@
     {
       "type": "library",
       "name": "multer",
-      "version": "2.1.1",
-      "purl": "pkg:npm/multer@2.1.1",
-      "dev": false,
-      "license": "MIT"
-    },
-    {
-      "type": "library",
-      "name": "multer-storage-cloudinary",
-      "version": "4.0.0",
-      "purl": "pkg:npm/multer-storage-cloudinary@4.0.0",
+      "version": "2.2.0",
+      "purl": "pkg:npm/multer@2.2.0",
       "dev": false,
       "license": "MIT"
     },
@@ -5016,6 +5024,30 @@
     },
     {
       "type": "library",
+      "name": "playwright",
+      "version": "1.61.1",
+      "purl": "pkg:npm/playwright@1.61.1",
+      "dev": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "playwright-core",
+      "version": "1.61.1",
+      "purl": "pkg:npm/playwright-core@1.61.1",
+      "dev": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "playwright>fsevents",
+      "version": "2.3.2",
+      "purl": "pkg:npm/playwright%3Efsevents@2.3.2",
+      "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "prelude-ls",
       "version": "1.2.1",
       "purl": "pkg:npm/prelude-ls@1.2.1",
@@ -5120,17 +5152,9 @@
     },
     {
       "type": "library",
-      "name": "q",
-      "version": "1.5.1",
-      "purl": "pkg:npm/q@1.5.1",
-      "dev": false,
-      "license": "MIT"
-    },
-    {
-      "type": "library",
       "name": "qs",
-      "version": "6.15.1",
-      "purl": "pkg:npm/qs@6.15.1",
+      "version": "6.15.3",
+      "purl": "pkg:npm/qs@6.15.3",
       "dev": false,
       "license": "BSD-3-Clause"
     },
@@ -5385,8 +5409,8 @@
     {
       "type": "library",
       "name": "side-channel",
-      "version": "1.1.0",
-      "purl": "pkg:npm/side-channel@1.1.0",
+      "version": "1.1.1",
+      "purl": "pkg:npm/side-channel@1.1.1",
       "dev": false,
       "license": "MIT"
     },
@@ -5457,8 +5481,8 @@
     {
       "type": "library",
       "name": "socket.io-adapter",
-      "version": "2.5.7",
-      "purl": "pkg:npm/socket.io-adapter@2.5.7",
+      "version": "2.5.8",
+      "purl": "pkg:npm/socket.io-adapter@2.5.8",
       "dev": false,
       "license": "MIT"
     },
@@ -5666,6 +5690,14 @@
       "name": "strip-json-comments",
       "version": "5.0.3",
       "purl": "pkg:npm/strip-json-comments@5.0.3",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "stripe",
+      "version": "17.7.0",
+      "purl": "pkg:npm/stripe@17.7.0",
       "dev": false,
       "license": "MIT"
     },
@@ -6031,6 +6063,14 @@
     },
     {
       "type": "library",
+      "name": "web-push",
+      "version": "3.6.7",
+      "purl": "pkg:npm/web-push@3.6.7",
+      "dev": false,
+      "license": "MPL-2.0"
+    },
+    {
+      "type": "library",
       "name": "web-streams-polyfill",
       "version": "3.3.3",
       "purl": "pkg:npm/web-streams-polyfill@3.3.3",
@@ -6120,8 +6160,8 @@
     {
       "type": "library",
       "name": "ws",
-      "version": "8.20.1",
-      "purl": "pkg:npm/ws@8.20.1",
+      "version": "8.21.0",
+      "purl": "pkg:npm/ws@8.21.0",
       "dev": false,
       "license": "MIT"
     },

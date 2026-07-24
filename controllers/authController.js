@@ -80,7 +80,7 @@ const registerUser = asyncHandler(async (req, res) => {
   const existingUser = await User.findOne({ Email: normalizedEmail });
   if (existingUser) throw new ValidationError('Email này đã được đăng ký!');
 
-  const passwordHash = await bcrypt.hash(String(password), 10);
+  const passwordHash = await bcrypt.hash(String(password), 12);
   const initialStatus = 'inactive';
   const EmailVerificationToken = require('../models/EmailVerificationToken');
   const { withTransaction } = require('../utils/mongoTransaction');
@@ -560,6 +560,15 @@ const confirmEmailVerification = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
+  // Revoke the session record in DB (best-effort — never fail the logout on DB error)
+  try {
+    if (req.user?.sid) {
+      const sidHash = crypto.createHash('sha256').update(req.user.sid).digest('hex');
+      const UserSession = require('../models/Session');
+      await UserSession.updateOne({ SidHash: sidHash }, { $set: { RevokedAt: new Date() } });
+    }
+  } catch (_) { /* best-effort: always complete logout */ }
+
   res.clearCookie(env.AUTH_COOKIE_NAME, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
@@ -600,7 +609,7 @@ const changePassword = asyncHandler(async (req, res) => {
   const isMatch = await bcrypt.compare(String(oldPassword), user.PasswordHash);
   if (!isMatch) throw new ValidationError('Mật khẩu cũ không chính xác!');
 
-  const newPasswordHash = await bcrypt.hash(String(newPassword), 10);
+  const newPasswordHash = await bcrypt.hash(String(newPassword), 12);
   user.PasswordHash = newPasswordHash;
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
@@ -707,7 +716,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new ValidationError('Mã xác nhận không hợp lệ hoặc đã hết hạn.');
   }
 
-  const passwordHash = await bcrypt.hash(String(newPassword), 10);
+  const passwordHash = await bcrypt.hash(String(newPassword), 12);
   const user = await User.findById(record.UserID);
   if (!user) throw new NotFoundError('Tài khoản không tồn tại.');
 

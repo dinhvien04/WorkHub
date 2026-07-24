@@ -12,22 +12,6 @@ async function maintenanceMode(req, res, next) {
     const envOn =
       process.env.MAINTENANCE_MODE === "1" ||
       process.env.MAINTENANCE_MODE === "true";
-    if (!envOn) {
-      // cheap skip if no flag likely — still check flag for kill switch
-      const path = req.path || "";
-      if (
-        path.startsWith("/health") ||
-        path === "/api/rum" ||
-        path === "/api/gateway/webhook" ||
-        path.startsWith("/api/auth/") ||
-        path.startsWith("/api/admin") ||
-        req.method === "GET" ||
-        req.method === "HEAD" ||
-        req.method === "OPTIONS"
-      ) {
-        // still allow GET; only block writes when maintenance
-      }
-    }
 
     const flagOn = await featureFlagService.isEnabled("kill_switch_platform", {
       userId: req.user?.userId,

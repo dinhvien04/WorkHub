@@ -170,3 +170,140 @@ describe('Host reply still works with breakdown path', () => {
     expect(list.body.reviews[0].hostReply).toBe('Thanks!');
   });
 });
+
+describe('Review status filtering and privacy', () => {
+  test('excludes non-published reviews from average rating calculations and stats', async () => {
+    const host = await createUser({ email: 'h_status@test.com', role: 'host' });
+    const customer = await createUser({ email: 'c_status@test.com', role: 'customer' });
+    const { space, branch } = await seedHostSpace(host);
+
+    const day = new Date();
+    day.setDate(day.getDate() + 5);
+    day.setHours(0, 0, 0, 0);
+
+    async function completedBooking(startH, endH) {
+      const { start, end } = absoluteRange(day, startH, 0, endH, 0);
+      const booking = await bookingService.createBooking({
+        customerId: customer._id,
+        spaceId: space._id,
+        startTime: start,
+        endTime: end,
+      });
+      booking.Status = 'completed';
+      await booking.save();
+      return booking;
+    }
+
+    // 1. Create a published review with rating 5
+    const b1 = await completedBooking(9, 10);
+    const r1 = await Review.create({
+      SpaceID: space._id,
+      CustomerID: customer._id,
+      BookingID: b1._id,
+      Rating: 5,
+      Comment: 'Excellent',
+      Status: 'published',
+    });
+
+    // 2. Create a reported review with rating 1 (should be excluded)
+    const b2 = await completedBooking(11, 12);
+    await Review.create({
+      SpaceID: space._id,
+      CustomerID: customer._id,
+      BookingID: b2._id,
+      Rating: 1,
+      Comment: 'Reported issue',
+      Status: 'reported',
+    });
+
+    // 3. Create a hidden review with rating 2 (should be excluded)
+    const b3 = await completedBooking(13, 14);
+    await Review.create({
+      SpaceID: space._id,
+      CustomerID: customer._id,
+      BookingID: b3._id,
+      Rating: 2,
+      Comment: 'Hidden review',
+      Status: 'hidden',
+    });
+
+    // Recalculate average ratings
+    await Review.calcAverageRatings(space._id);
+
+    // Fetch the updated space & branch and verify average is 5 (since only published review counts)
+    const SpaceModel = require('../models/Space');
+    const BranchModel = require('../models/Branch');
+    const updatedSpace = await SpaceModel.findById(space._id);
+    const updatedBranch = await BranchModel.findById(branch._id);
+
+    expect(updatedSpace.RatingAvg).toBe(5);
+    expect(updatedBranch.RatingAvg).toBe(5);
+
+    // Test review stats service / controller responses
+    const res = await request(app).get(`/api/customers/branch/${branch._id}/reviews`);
+    expect(res.status).toBe(200);
+    // Should only return 1 review (the published one)
+    expect(res.body.reviews.length).toBe(1);
+    expect(res.body.reviews[0]._id.toString()).toBe(r1._id.toString());
+    // Breakdown should only count the published one
+    expect(res.body.breakdown.total).toBe(1);
+    expect(res.body.breakdown.average).toBe(5);
+    expect(res.body.breakdown.counts[5]).toBe(1);
+    expect(res.body.breakdown.counts[1]).toBe(0);
+    expect(res.body.breakdown.counts[2]).toBe(0);
+  });
+
+  test('does not expose customer email in listHostReviews and listAdminReviews APIs', async () => {
+    const host = await createUser({ email: 'h_privacy@test.com', role: 'host', hostVerified: true });
+    const admin = await createUser({ email: 'admin_privacy@test.com', role: 'admin' });
+    const customer = await createUser({ email: 'c_privacy@test.com', role: 'customer' });
+    const { space } = await seedHostSpace(host);
+
+    const day = new Date();
+    day.setDate(day.getDate() + 5);
+    day.setHours(0, 0, 0, 0);
+    const { start, end } = absoluteRange(day, 9, 0, 10, 0);
+
+    const booking = await bookingService.createBooking({
+      customerId: customer._id,
+      spaceId: space._id,
+      startTime: start,
+      endTime: end,
+    });
+    booking.Status = 'completed';
+    await booking.save();
+
+    await Review.create({
+      SpaceID: space._id,
+      CustomerID: customer._id,
+      BookingID: booking._id,
+      Rating: 4,
+      Comment: 'good',
+      Status: 'reported', // set as reported so it shows up in default admin listing too
+    });
+
+    // 1. Check host review list API
+    const hostAuth = agentWithAuth(app, host);
+    const hostRes = await request(app)
+      .get('/api/host/reviews')
+      .set('Cookie', `authToken=${hostAuth.token}`);
+    expect(hostRes.status).toBe(200);
+    expect(hostRes.body.reviews.length).toBeGreaterThanOrEqual(1);
+    expect(hostRes.body.reviews[0].CustomerID).toBeTruthy();
+    expect(hostRes.body.reviews[0].CustomerID.FullName).toBe('Test User');
+    // Ensure email is not exposed
+    expect(hostRes.body.reviews[0].CustomerID.Email).toBeUndefined();
+
+    // 2. Check admin review list API
+    const adminAuth = agentWithAuth(app, admin);
+    const adminRes = await request(app)
+      .get('/api/admin/reviews')
+      .set('Cookie', `authToken=${adminAuth.token}`);
+    expect(adminRes.status).toBe(200);
+    expect(adminRes.body.reviews.length).toBeGreaterThanOrEqual(1);
+    expect(adminRes.body.reviews[0].CustomerID).toBeTruthy();
+    expect(adminRes.body.reviews[0].CustomerID.FullName).toBe('Test User');
+    // Ensure email is not exposed
+    expect(adminRes.body.reviews[0].CustomerID.Email).toBeUndefined();
+  });
+});

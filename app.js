@@ -37,6 +37,8 @@ const meExtraRoutes = require("./routes/meExtraRoutes");
 const platformRoutes = require("./routes/platformRoutes");
 const growthRoutes = require("./routes/growthRoutes");
 const { getHostReportsPage } = require("./controllers/hostController");
+// Module-level require to avoid repeated require() cache lookups per request
+const funnelService = require("./services/funnelService");
 
 const { detectLang, t } = require("./services/i18n");
 
@@ -98,10 +100,24 @@ function createApp() {
           "child-src": ["'self'", "https://www.openstreetmap.org"],
         },
       },
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
       crossOriginEmbedderPolicy: false,
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     }),
   );
+
+  // Permissions-Policy header (not set by Helmet automatically)
+  app.use((req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(self), payment=(), usb=()",
+    );
+    next();
+  });
+
+  // Global API rate limiter — protects all /api/ routes including admin/host
+  const { globalApiLimiter } = require("./middlewares/rateLimiters");
+  app.use("/api/", globalApiLimiter);
 
   // Webhooks need exact raw body BEFORE JSON parser (Stripe/MoMo signature)
   app.post(
@@ -188,20 +204,19 @@ function createApp() {
   // Funnel page views (server-side hint counters)
   app.use((req, res, next) => {
     try {
-      const funnel = require("./services/funnelService");
       if (
         req.method === "GET" &&
         !req.path.startsWith("/api/") &&
         !req.path.startsWith("/css") &&
         !req.path.startsWith("/js")
       ) {
-        if (req.path === "/" || req.path === "") funnel.track("landing");
-        else if (req.path.startsWith("/search")) funnel.track("search");
+        if (req.path === "/" || req.path === "") funnelService.track("landing");
+        else if (req.path.startsWith("/search")) funnelService.track("search");
         else if (
           req.path.startsWith("/detail") ||
           req.path.startsWith("/branch")
         )
-          funnel.track("detail");
+          funnelService.track("detail");
       }
     } catch {
       /* ignore */

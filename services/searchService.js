@@ -41,7 +41,7 @@ async function searchBranches(query = {}) {
     maxLimit: 50,
   });
 
-  const filter = { Status: "active" };
+  const filter = { Status: "active", PublishStatus: "published" };
   if (city) filter.CitySlug = String(city).toLowerCase();
   if (district) filter.DistrictSlug = String(district).toLowerCase();
   if (ratingMin) filter.RatingAvg = { $gte: Number(ratingMin) || 0 };

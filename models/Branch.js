@@ -19,7 +19,7 @@ const branchSchema = new mongoose.Schema({
         type: String,
         trim: true,
         lowercase: true,
-        index: true,
+        unique: true,
         sparse: true,
     },
     CitySlug: {
@@ -142,7 +142,6 @@ const branchSchema = new mongoose.Schema({
 
 branchSchema.index({ Status: 1, CitySlug: 1, DistrictSlug: 1 });
 branchSchema.index({ HostID: 1, Status: 1 });
-branchSchema.index({ Slug: 1 }, { unique: true, sparse: true });
 branchSchema.index({ Location: '2dsphere' }, { sparse: true });
 
 // Keep Location in sync when lat/lng set (mongoose 9 async middleware)

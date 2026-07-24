@@ -4,6 +4,30 @@ const crypto = require("crypto");
 const FeatureFlag = require("../models/FeatureFlag");
 const env = require("../config/env");
 
+// ── In-process TTL cache (30s) to avoid per-request DB hits ──────────────────
+/** @type {Map<string, { value: boolean, expiresAt: number }>} */
+const _flagCache = new Map();
+const FLAG_CACHE_TTL_MS = 30_000; // 30 seconds
+
+function _getCached(cacheKey) {
+  const entry = _flagCache.get(cacheKey);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    _flagCache.delete(cacheKey);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function _setCached(cacheKey, value) {
+  _flagCache.set(cacheKey, { value, expiresAt: Date.now() + FLAG_CACHE_TTL_MS });
+}
+
+function clearFlagCache() {
+  _flagCache.clear();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function bucket(userId, key) {
   const h = crypto
     .createHash("sha256")
@@ -14,25 +38,37 @@ function bucket(userId, key) {
 
 /**
  * Evaluate whether a flag is on for a given context.
+ * Cached for FLAG_CACHE_TTL_MS to avoid a DB round-trip on every request.
  */
 async function isEnabled(key, { userId = null, role = null } = {}) {
-  const flag = await FeatureFlag.findOne({ Key: key }).lean();
-  if (!flag) return false;
-  if (!flag.Enabled) return false;
+  const cacheKey = `${key}:${userId || "anon"}:${role || ""}`;
+  const cached = _getCached(cacheKey);
+  if (cached !== undefined) return cached;
 
-  if (flag.Environments?.length) {
-    const cur = env.NODE_ENV || "development";
-    if (!flag.Environments.includes(cur) && !flag.Environments.includes("*")) {
-      return false;
+  const flag = await FeatureFlag.findOne({ Key: key }).lean();
+  let result = false;
+
+  if (flag && flag.Enabled) {
+    let pass = true;
+    if (flag.Environments?.length) {
+      const cur = env.NODE_ENV || "development";
+      if (!flag.Environments.includes(cur) && !flag.Environments.includes("*")) {
+        pass = false;
+      }
+    }
+    if (pass && flag.Roles?.length && role && !flag.Roles.includes(role)) {
+      pass = false;
+    }
+    if (pass) {
+      const pct = typeof flag.Percentage === "number" ? flag.Percentage : 100;
+      if (pct >= 100) result = true;
+      else if (pct <= 0) result = false;
+      else result = bucket(userId, key) < pct;
     }
   }
-  if (flag.Roles?.length && role && !flag.Roles.includes(role)) {
-    return false;
-  }
-  const pct = typeof flag.Percentage === "number" ? flag.Percentage : 100;
-  if (pct >= 100) return true;
-  if (pct <= 0) return false;
-  return bucket(userId, key) < pct;
+
+  _setCached(cacheKey, result);
+  return result;
 }
 
 async function listPublicFlags(context = {}) {
@@ -52,6 +88,8 @@ async function upsertFlag({
   roles = [],
   environments = [],
 }) {
+  // Invalidate entire cache on any flag change
+  clearFlagCache();
   return FeatureFlag.findOneAndUpdate(
     { Key: key },
     {
@@ -77,4 +115,5 @@ module.exports = {
   upsertFlag,
   listAllFlags,
   bucket,
+  clearFlagCache,
 };

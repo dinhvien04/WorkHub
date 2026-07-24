@@ -44,6 +44,7 @@ function makeLimiter({ windowMs, max, message, prefix }) {
     legacyHeaders: false,
     store,
     message: { error: message, code: "RATE_LIMITED" },
+    validate: { singleCount: false },
   });
 }
 
@@ -145,6 +146,24 @@ const staffInviteAcceptLimiter = makeLimiter({
   prefix: "staff-accept",
 });
 
+const pushSubscriptionLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  message: "Quá nhiều yêu cầu push subscription. Thử lại sau.",
+  prefix: "push-sub",
+});
+
+/**
+ * Global catch-all API limiter — applied to all /api/ routes.
+ * Protects unauthenticated endpoints (admin, host management, etc.) from scanning.
+ */
+const globalApiLimiter = makeLimiter({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
+  prefix: "global",
+});
+
 module.exports = {
   loginLimiter,
   registerLimiter,
@@ -160,4 +179,6 @@ module.exports = {
   checkInLimiter,
   icalLimiter,
   staffInviteAcceptLimiter,
+  pushSubscriptionLimiter,
+  globalApiLimiter,
 };
