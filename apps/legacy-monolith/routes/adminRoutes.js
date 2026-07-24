@@ -31,4 +31,9 @@ router.get('/entity-detail', adminController.getEntityDetail);
 router.get('/listings/flagged', adminController.listFlaggedListings);
 router.post('/listings/moderate', adminController.moderateListing);
 
+// DLQ APIs
+router.get('/dlq', adminController.getDlqList);
+router.post('/dlq/:id/retry', adminController.retryDlqMessage);
+router.post('/dlq/:id/discard', adminController.discardDlqMessage);
+
 module.exports = router;

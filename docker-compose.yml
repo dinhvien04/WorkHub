@@ -34,7 +34,26 @@ services:
     volumes:
       - workhub_clamav:/var/lib/clamav
 
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: workhub-rabbitmq
+    restart: unless-stopped
+    ports:
+      - '5672:5672'     # AMQP Protocol Port
+      - '15672:15672'   # Web Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - workhub_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   workhub_mongo:
   workhub_redis:
   workhub_clamav:
+  workhub_rabbitmq:

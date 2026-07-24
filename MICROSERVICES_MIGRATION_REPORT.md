@@ -8,7 +8,7 @@
 
 ## Current phase
 CURRENT_PHASE: M3
-STATUS: IN_PROGRESS
+STATUS: VERIFIED
 
 ## Phase status
 | Phase | Status | Evidence | Blockers |
@@ -18,7 +18,7 @@ STATUS: IN_PROGRESS
 | S2 | VERIFIED | Old platform/growth routers/controllers split into 7 domain-specific modules, mounted in app.js | None |
 | M1 | VERIFIED | npm workspaces monorepo established; monolith relocated to apps/legacy-monolith; npm ci and all 59 test suites pass | None |
 | M2 | VERIFIED | apps/api-gateway created with Express/http-proxy-middleware v3 pass-through proxy; request ID, rate limits, health checks, error formatting, gateway.test.js pass. Added WebSocket upgrade forwarding, graceful shutdown, automated contract comparison test (contract-comparison.test.js), and rollback smoke test (rollback-smoke.test.js). | None |
-| M3 | IN_PROGRESS | Setting up RabbitMQ and Transactional Outbox/Inbox messaging foundation | None |
+| M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms and automatic retry delay backoffs. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage). OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js) successfully cover all 8 required scenarios. | None |
 | M4 | NOT_STARTED | | |
 | M5 | NOT_STARTED | | |
 | M6 | NOT_STARTED | | |
@@ -53,6 +53,7 @@ STATUS: IN_PROGRESS
 - `npx jest test/master-host-review.test.js --runInBand` (Pass)
 - `npx jest test/master-ops2.test.js --runInBand` (Pass)
 - `npx jest apps/api-gateway/` (Runs the gateway integration, contract comparison, and rollback/canary smoke tests; all 3 suites / 12 tests passed)
+- `npx jest apps/legacy-monolith/test/messaging.test.js --runInBand` (Runs the RabbitMQ integration and crash-recovery test suite; all 7 tests covering all 8 required scenarios passed)
 
 ## CI status
 - GitHub Actions CI workflow configured at `.github/workflows/ci.yml` is active and verifies all code checks on push/PR.
@@ -85,4 +86,4 @@ STATUS: IN_PROGRESS
 - Legacy controllers like `growthController.js` and `platformController.js` are God Controllers.
 
 ## Next actions
-- Execute M3: Setting up RabbitMQ and Transactional Outbox/Inbox messaging foundation.
+- Execute M4: Extraction of first microservice (e.g. catalog or communication boundary).

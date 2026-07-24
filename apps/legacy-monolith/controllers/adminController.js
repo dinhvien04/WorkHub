@@ -550,6 +550,113 @@ async function listFlaggedListings(req, res) {
   }
 }
 
+// DLQ administration endpoints
+async function getDlqList(req, res) {
+  try {
+    const ConsumerDeadLetter = require('../models/ConsumerDeadLetter');
+    const { page = 1, limit = 50, status = 'pending' } = req.query;
+    const limitNum = parseInt(limit) || 50;
+    const pageNum = parseInt(page) || 1;
+    const skipIndex = (pageNum - 1) * limitNum;
+
+    const query = { Status: status };
+
+    const [messages, total] = await Promise.all([
+      ConsumerDeadLetter.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skipIndex)
+        .limit(limitNum)
+        .lean(),
+      ConsumerDeadLetter.countDocuments(query),
+    ]);
+
+    return res.json({
+      messages,
+      pagination: {
+        total,
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function retryDlqMessage(req, res) {
+  try {
+    const ConsumerDeadLetter = require('../models/ConsumerDeadLetter');
+    const { id } = req.params;
+    const dlDoc = await ConsumerDeadLetter.findById(id);
+    if (!dlDoc) {
+      return res.status(404).json({ error: 'Không tìm thấy thông điệp dead letter.' });
+    }
+
+    if (dlDoc.Status !== 'pending') {
+      return res.status(400).json({ error: 'Chỉ có thể phát lại thông điệp ở trạng thái pending.' });
+    }
+
+    const { messaging } = require('@workhub/observability');
+    const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+    const connection = await messaging.connect(RABBITMQ_URL);
+    const channel = await messaging.createConfirmChannel(connection);
+
+    try {
+      const content = Buffer.from(JSON.stringify(dlDoc.Payload));
+      const headers = dlDoc.Headers || {};
+      headers['x-retry-count'] = 0; // reset retry counter
+
+      const publishPromise = new Promise((resolve, reject) => {
+        channel.publish(
+          'workhub.events',
+          dlDoc.RoutingKey,
+          content,
+          {
+            persistent: true,
+            messageId: dlDoc.MessageID,
+            headers: headers,
+          },
+          (err, ok) => {
+            if (err) reject(err);
+            else resolve(ok);
+          }
+        );
+      });
+
+      await publishPromise;
+
+      dlDoc.Status = 'replayed';
+      await dlDoc.save();
+    } finally {
+      await channel.close();
+      await connection.close();
+    }
+
+    return res.json({ message: 'Phát lại thông điệp thành công!', status: dlDoc.Status });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
+async function discardDlqMessage(req, res) {
+  try {
+    const ConsumerDeadLetter = require('../models/ConsumerDeadLetter');
+    const { id } = req.params;
+    const dlDoc = await ConsumerDeadLetter.findById(id);
+    if (!dlDoc) {
+      return res.status(404).json({ error: 'Không tìm thấy thông điệp dead letter.' });
+    }
+
+    dlDoc.Status = 'discarded';
+    await dlDoc.save();
+
+    return res.json({ message: 'Đã hủy bỏ thông điệp thành công!', status: dlDoc.Status });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+}
+
 module.exports = {
   getAlerts,
   getPaymentReconExport,
@@ -567,4 +674,7 @@ module.exports = {
   listHostsVerification,
   mintHostDocAccess,
   redeemHostDocAccess,
+  getDlqList,
+  retryDlqMessage,
+  discardDlqMessage,
 };

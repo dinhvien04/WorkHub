@@ -1,6 +1,7 @@
 "use strict";
 
 const { trace } = require("@opentelemetry/api");
+const messaging = require("./messaging");
 
 /**
  * Get tracer instance for the service.
@@ -30,4 +31,5 @@ function formatStructuredLog({ service, version, env, reqId, traceId, spanId, co
 module.exports = {
   getTracer,
   formatStructuredLog,
+  messaging,
 };

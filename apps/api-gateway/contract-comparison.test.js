@@ -47,22 +47,6 @@ afterAll(async () => {
   await stopMemoryMongo();
 });
 
-function cleanHeaders(headers) {
-  const cleaned = { ...headers };
-  const transient = [
-    "x-request-id",
-    "date",
-    "connection",
-    "keep-alive",
-    "transfer-encoding",
-    "content-length",
-    "etag",
-    "set-cookie" // Cookies can contain dynamically generated IDs/tokens, compared separately
-  ];
-  transient.forEach((h) => delete cleaned[h]);
-  return cleaned;
-}
-
 function cleanBody(body) {
   if (!body || typeof body !== "object") return body;
   const cleaned = JSON.parse(JSON.stringify(body));

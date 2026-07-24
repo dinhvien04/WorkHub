@@ -589,6 +589,12 @@ function createApp() {
       scripts: res.locals.scriptsFrom(["/js/admin-cms.js"]),
     }),
   );
+  app.get("/admin/dlq", requireAdminPage, (req, res) =>
+    res.render("admin/dlq", {
+      pageTitle: "DLQ — Admin",
+      scripts: res.locals.scriptsFrom(["/js/admin-dlq.js"]),
+    }),
+  );
   app.get("/huong-dan/:slug", async (req, res, next) => {
     try {
       const cmsService = require("./services/cmsService");
