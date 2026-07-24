@@ -23,7 +23,17 @@ async function subscribe(req, res, next) {
       userAgent: userAgent || req.get("user-agent"),
     });
 
-    return res.status(201).json({ message: "Đăng ký push thành công", subscription: doc });
+    // Sanitize DTO to avoid leaking endpoints/keys in HTTP responses
+    const sanitized = {
+      _id: doc._id,
+      UserID: doc.UserID,
+      Status: doc.Status,
+      UserAgent: doc.UserAgent,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt
+    };
+
+    return res.status(201).json({ message: "Đăng ký push thành công", subscription: sanitized });
   } catch (err) {
     next(err);
   }

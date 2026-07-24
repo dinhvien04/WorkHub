@@ -97,7 +97,7 @@ describe("Communication Service E2E Scenario Tests", () => {
         triggered = true;
       };
 
-      await mongoose.model("ProcessedMessage").create({
+      await ProcessedMessage.create({
         EventID: event.eventId,
         ConsumerName: "communication-service",
         Status: "completed",

@@ -192,6 +192,17 @@ function checkVapidReady() {
   return false;
 }
 
+function sanitizeErrorMessage(errMsg, endpoint) {
+  if (!errMsg) return "";
+  let sanitized = errMsg;
+  if (endpoint) {
+    sanitized = sanitized.split(endpoint).join("[REDACTED_ENDPOINT]");
+  }
+  // Strip potential URL passwords
+  sanitized = sanitized.replace(/:([^@:]+)@/g, ':xxxxxx@');
+  return sanitized;
+}
+
 async function notifyPush(userId, payload) {
   const subs = await listSubscriptions(userId);
   if (!subs.length) return { sent: 0 };
@@ -227,7 +238,7 @@ async function notifyPush(userId, payload) {
         body
       );
 
-      // Log success delivery
+      // Log success delivery without secrets
       await PushDelivery.create({
         UserID: userId,
         SubscriptionID: s._id,
@@ -238,16 +249,17 @@ async function notifyPush(userId, payload) {
 
       sent += 1;
     } catch (err) {
-      console.warn(`[PushService] Push send failed to endpoint: ${err.message}`);
+      const cleanErrMessage = sanitizeErrorMessage(err.message, s.Endpoint);
+      console.warn(`[PushService] Push send failed: ${cleanErrMessage}`);
 
-      // Log failure delivery
+      // Log failure delivery without leaking credentials/endpoints
       await PushDelivery.create({
         UserID: userId,
         SubscriptionID: s._id,
         Payload: payload,
         Status: "failed",
         StatusCode: err.statusCode,
-        Error: err.message,
+        Error: cleanErrMessage,
       });
 
       // Standard Push Error Handling

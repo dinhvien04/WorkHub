@@ -7,7 +7,7 @@ const path = require("path");
 dotenv.config({ path: path.join(__dirname, "../../../.env") });
 dotenv.config();
 
-async function runBackfill() {
+async function runBackfill(lastSyncTime = null) {
   const legacyUri = process.env.MONGODB_URI;
   const targetUri = process.env.MONGODB_COMMUNICATION_URI;
 
@@ -19,14 +19,13 @@ async function runBackfill() {
   const legacyConn = await mongoose.createConnection(legacyUri).asPromise();
   const targetConn = await mongoose.createConnection(targetUri).asPromise();
 
-  // Monolith models/schemas
+  // Schemas
   const monolithUserSchema = new mongoose.Schema({}, { strict: false });
   const MonolithUser = legacyConn.model("User", monolithUserSchema, "users");
 
   const monolithPushSchema = new mongoose.Schema({}, { strict: false });
   const MonolithPush = legacyConn.model("PushSubscription", monolithPushSchema, "push_subscriptions");
 
-  // Communication Service target models/schemas
   const userCacheSchema = new mongoose.Schema({
     Email: String,
     FullName: String,
@@ -56,12 +55,30 @@ async function runBackfill() {
   }, { strict: false });
   const TargetPush = targetConn.model("PushSubscription", pushSubscriptionSchema, "push_subscriptions");
 
-  console.log("[Backfill] Fetching users from legacy monolith database...");
-  const users = await MonolithUser.find({}).lean();
-  let userCount = 0;
+  // 1. Reconciliation Phase: Count records before backfill
+  const sourceUserCount = await MonolithUser.countDocuments({});
+  const sourcePushCountBefore = await MonolithPush.countDocuments({ Status: "active" });
+
+  const targetUserCountBefore = await TargetUserCache.countDocuments({});
+  const targetPushCountBefore = await TargetPush.countDocuments({ Status: "active" });
+
+  console.log("[Reconciliation] Pre-migration Statistics:");
+  console.log(`- Monolith User count: ${sourceUserCount}`);
+  console.log(`- Target UserCache count: ${targetUserCountBefore}`);
+  console.log(`- Monolith Active Push Subscriptions: ${sourcePushCountBefore}`);
+  console.log(`- Target Active Push Subscriptions: ${targetPushCountBefore}`);
+
+  // 2. Migration Phase: Sync Users
+  const userFilter = {};
+  if (lastSyncTime) {
+    userFilter.updatedAt = { $gt: new Date(lastSyncTime) };
+    console.log(`[Backfill] Processing user deltas updated after: ${lastSyncTime}`);
+  }
+
+  const users = await MonolithUser.find(userFilter).lean();
+  let userSyncCount = 0;
 
   for (const u of users) {
-    // 1. Sync local UserCache read model
     await TargetUserCache.findByIdAndUpdate(
       u._id,
       {
@@ -76,7 +93,6 @@ async function runBackfill() {
       { upsert: true }
     );
 
-    // 2. Sync notification preferences (maps old settings or defaults them)
     await TargetPreference.findOneAndUpdate(
       { UserID: u._id },
       {
@@ -91,16 +107,22 @@ async function runBackfill() {
       },
       { upsert: true }
     );
-    userCount++;
+    userSyncCount++;
   }
-  console.log(`[Backfill] Successfully backfilled ${userCount} User read-models & preferences.`);
 
-  console.log("[Backfill] Fetching active push subscriptions from legacy database...");
-  const subscriptions = await MonolithPush.find({ Status: "active" }).lean();
-  let pushCount = 0;
+  // 3. Migration Phase: Sync Push Subscriptions (Deltas supported)
+  const pushFilter = { Status: "active" };
+  if (lastSyncTime) {
+    pushFilter.updatedAt = { $gt: new Date(lastSyncTime) };
+    console.log(`[Backfill] Processing push subscription deltas updated after: ${lastSyncTime}`);
+  }
+
+  const subscriptions = await MonolithPush.find(pushFilter).lean();
+  let pushSyncCount = 0;
 
   for (const s of subscriptions) {
     if (!s.Endpoint || !s.Keys || !s.Keys.p256dh || !s.Keys.auth) {
+      // Redact Endpoint and Keys in warnings to avoid secrets leaks
       console.warn(`[Backfill] Skipping invalid push subscription ID: ${s._id}`);
       continue;
     }
@@ -119,17 +141,39 @@ async function runBackfill() {
       },
       { upsert: true }
     );
-    pushCount++;
+    pushSyncCount++;
   }
-  console.log(`[Backfill] Successfully backfilled ${pushCount} Push subscriptions.`);
+
+  // 4. Reconciliation Phase: Count records after backfill and compare
+  const targetUserCountAfter = await TargetUserCache.countDocuments({});
+  const targetPushCountAfter = await TargetPush.countDocuments({ Status: "active" });
+
+  console.log("[Reconciliation] Post-migration Statistics:");
+  console.log(`- Target UserCache count after: ${targetUserCountAfter} (Synced in this run: ${userSyncCount})`);
+  console.log(`- Target Active Push Subscriptions after: ${targetPushCountAfter} (Synced in this run: ${pushSyncCount})`);
+
+  // Verify counts match source of truth
+  const isUserMatch = targetUserCountAfter === sourceUserCount;
+  const isPushMatch = targetPushCountAfter === sourcePushCountBefore;
+
+  console.log("[Reconciliation] Verification Summary:");
+  console.log(`- Users Sync match: ${isUserMatch ? "SUCCESS (Counts match)" : "MISMATCH"}`);
+  console.log(`- Push Subscriptions Sync match: ${isPushMatch ? "SUCCESS (Counts match)" : "MISMATCH"}`);
 
   await legacyConn.close();
   await targetConn.close();
-  console.log("[Backfill] Databases closed. Done.");
+  console.log("[Backfill] Data reconciliation complete.");
+
+  return {
+    usersSynced: userSyncCount,
+    pushSynced: pushSyncCount,
+    verified: isUserMatch && isPushMatch,
+  };
 }
 
 if (require.main === module) {
-  runBackfill().catch(console.error);
+  const syncTime = process.env.LAST_SYNC_TIME || null;
+  runBackfill(syncTime).catch(console.error);
 }
 
 module.exports = { runBackfill };

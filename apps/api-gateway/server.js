@@ -7,6 +7,7 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 
 const PORT = Number(process.env.PORT) || 3000;
 const LEGACY_MONOLITH_URL = process.env.LEGACY_MONOLITH_URL || "http://localhost:3001";
@@ -14,8 +15,16 @@ const COMMUNICATION_SERVICE_URL = process.env.COMMUNICATION_SERVICE_URL || "http
 const COMMUNICATION_SERVICE_ENABLED = process.env.COMMUNICATION_SERVICE_ENABLED === "true";
 const COMMUNICATION_CANARY_PERCENT = Number(process.env.COMMUNICATION_CANARY_PERCENT) || 0;
 const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
+const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
 
 const app = express();
+
+// Sanitize identity headers globally from incoming client requests
+app.use((req, res, next) => {
+  delete req.headers["x-user-id"];
+  delete req.headers["x-user-role"];
+  next();
+});
 
 // Coarse rate limiter for edge protection
 const edgeLimiter = rateLimit({
@@ -82,22 +91,8 @@ const proxyOptions = {
   }
 };
 
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonStr = Buffer.from(base64, "base64").toString("utf8");
-    return JSON.parse(jsonStr);
-  } catch (err) {
-    return null;
-  }
-}
-
 function shouldRouteToCommunication(req) {
   if (!COMMUNICATION_SERVICE_ENABLED) return false;
-  if (COMMUNICATION_CANARY_PERCENT >= 100) return true;
   if (COMMUNICATION_CANARY_PERCENT <= 0) return false;
 
   // Extract Auth Token from Header or Cookies
@@ -105,8 +100,9 @@ function shouldRouteToCommunication(req) {
   const authHeader = req.headers["authorization"];
   if (authHeader && authHeader.startsWith("Bearer ")) {
     token = authHeader.slice(7).trim();
-  } else if (req.headers.cookie) {
-    const cookies = req.headers.cookie.split(";").reduce((acc, c) => {
+  } else if (req.cookie || req.headers.cookie) {
+    const cookieHeader = req.cookie || req.headers.cookie;
+    const cookies = cookieHeader.split(";").reduce((acc, c) => {
       const parts = c.trim().split("=");
       if (parts.length >= 2) {
         acc[parts[0]] = parts.slice(1).join("=");
@@ -116,17 +112,28 @@ function shouldRouteToCommunication(req) {
     token = cookies["authToken"];
   }
 
-  let userId = "anonymous";
-  if (token) {
-    const decoded = decodeJwtPayload(token);
-    if (decoded && (decoded.userId || decoded.id)) {
-      userId = decoded.userId || decoded.id;
-    }
+  if (!token) return false; // Anonymous requests default to monolith
+
+  let userId;
+  let role;
+  try {
+    // Cryptographically verify signature and algorithms
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
+    userId = decoded.userId || decoded.id || decoded._id;
+    role = decoded.role;
+    if (!userId) return false;
+
+    // Attach verified user context to request
+    req.user = { userId, role };
+  } catch (err) {
+    // Invalid/expired token: fallback to monolith (which handles unauthorized responses)
+    return false;
   }
 
-  // Stable hashing percentage bucket
-  const identifier = userId !== "anonymous" ? userId : (req.headers["x-request-id"] || req.ip || "anon");
-  const hash = crypto.createHash("sha256").update(`comm-canary:${identifier}`).digest();
+  if (COMMUNICATION_CANARY_PERCENT >= 100) return true;
+
+  // Stable hashing percentage bucket based on verified userId
+  const hash = crypto.createHash("sha256").update(`comm-canary:${userId}`).digest();
   const bucket = hash[0] % 100;
   return bucket < COMMUNICATION_CANARY_PERCENT;
 }
@@ -150,6 +157,16 @@ const commProxyOptions = {
       proxyReq.setHeader("X-Request-Id", req.id || crypto.randomUUID());
       if (req.headers["traceparent"]) {
         proxyReq.setHeader("traceparent", req.headers["traceparent"]);
+      }
+
+      // Sanitize and inject verified identity headers
+      proxyReq.removeHeader("X-User-Id");
+      proxyReq.removeHeader("X-User-Role");
+      proxyReq.removeHeader("X-Internal-Token");
+      if (req.user) {
+        proxyReq.setHeader("X-User-Id", req.user.userId);
+        proxyReq.setHeader("X-User-Role", req.user.role || "");
+        proxyReq.setHeader("X-Internal-Token", JWT_SECRET);
       }
     },
     proxyRes: (proxyRes, req, res) => {

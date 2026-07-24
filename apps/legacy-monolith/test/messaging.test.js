@@ -93,6 +93,7 @@ beforeAll(async () => {
   process.env.MONGODB_URI = uri;
 
   await mongoose.connect(uri);
+  await mongoose.connection.db.admin().command({ ping: 1 });
 
   // Assert collections exist
   await IntegrationOutboxEvent.createCollection();
