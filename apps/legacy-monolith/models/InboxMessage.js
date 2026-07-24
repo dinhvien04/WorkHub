@@ -21,7 +21,7 @@ const inboxMessageSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index ensuring an event is processed only once per consumer
+// Compound unique index ensuring at-least-once message delivery yields effectively-once business effect per consumer
 inboxMessageSchema.index({ EventID: 1, ConsumerName: 1 }, { unique: true });
 
 module.exports = mongoose.model("InboxMessage", inboxMessageSchema);

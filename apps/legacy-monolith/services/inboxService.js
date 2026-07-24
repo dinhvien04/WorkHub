@@ -7,7 +7,7 @@ const ConsumerDeadLetter = require("../models/ConsumerDeadLetter");
 
 /**
  * Executes a callback process idempotently using the Inbox Pattern.
- * Prevents double-processing of integration events.
+ * Ensures at-least-once message delivery yields effectively-once business effect within local transaction.
  */
 async function processIdempotent(eventId, consumerName, callback) {
   // 1. Optimistic read check

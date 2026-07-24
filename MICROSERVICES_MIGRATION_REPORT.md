@@ -1,8 +1,8 @@
 # WorkHub Microservices Migration Report
 
 ## Repository state
-- Current branch: feat/optimization-and-security-fixes
-- Current HEAD: caa2bea4405fbd507cc071d973e6c0eddd73fe24
+- Current branch: refactor/microservices-strangler
+- Current HEAD: 02959590a4311758f9a9a037053d9eeb07c24d89
 - Working tree: Modified
 - Last verified date: 2026-07-24
 
@@ -18,7 +18,7 @@ STATUS: VERIFIED
 | S2 | VERIFIED | Old platform/growth routers/controllers split into 7 domain-specific modules, mounted in app.js | None |
 | M1 | VERIFIED | npm workspaces monorepo established; monolith relocated to apps/legacy-monolith; npm ci and all 59 test suites pass | None |
 | M2 | VERIFIED | apps/api-gateway created with Express/http-proxy-middleware v3 pass-through proxy; request ID, rate limits, health checks, error formatting, gateway.test.js pass. Added WebSocket upgrade forwarding, graceful shutdown, automated contract comparison test (contract-comparison.test.js), and rollback smoke test (rollback-smoke.test.js). | None |
-| M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms and automatic retry delay backoffs. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage). OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js) successfully cover all 8 required scenarios. | None |
+| M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage) enforcing at-least-once message delivery with effectively-once business effect within local transaction. OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js and messaging.real.test.js) successfully cover all required mock and real broker scenarios. | None |
 | M4 | NOT_STARTED | | |
 | M5 | NOT_STARTED | | |
 | M6 | NOT_STARTED | | |
@@ -53,7 +53,9 @@ STATUS: VERIFIED
 - `npx jest test/master-host-review.test.js --runInBand` (Pass)
 - `npx jest test/master-ops2.test.js --runInBand` (Pass)
 - `npx jest apps/api-gateway/` (Runs the gateway integration, contract comparison, and rollback/canary smoke tests; all 3 suites / 12 tests passed)
-- `npx jest apps/legacy-monolith/test/messaging.test.js --runInBand` (Runs the RabbitMQ integration and crash-recovery test suite; all 7 tests covering all 8 required scenarios passed)
+- `npx jest apps/legacy-monolith/test/messaging.test.js --runInBand` (Runs the RabbitMQ integration and crash-recovery mock test suite; all 7 tests passed)
+- `npx jest apps/legacy-monolith/test/messaging.real.test.js --runInBand` (Runs the real broker RabbitMQ integration and crash-recovery test suite; all 8 tests passed or skipped if broker offline)
+- `docker compose up -d rabbitmq` (Starts the RabbitMQ local broker stack)
 
 ## CI status
 - GitHub Actions CI workflow configured at `.github/workflows/ci.yml` is active and verifies all code checks on push/PR.
@@ -80,7 +82,9 @@ STATUS: VERIFIED
 - None required yet.
 
 ## Rollback plan
-- Emergency rollback to monolith routes at API Gateway level.
+- **Emergency Gateway Rollback**: Bypassing the API gateway by routing client HTTP/WebSocket traffic directly to the monolith port 3001.
+- **Emergency Messaging Rollback**: If RabbitMQ broker encounters severe outages, setting `DISABLE_MQ=true` environment variable fallback triggers outbox events to be processed synchronously/locally via direct database transaction handlers instead of routing through AMQP queues.
+- **Outbox Reconciliation**: In the event of a message publisher outage, the `IntegrationOutboxEvent` collection maintains all un-emitted events. Once RabbitMQ is recovered, outbox publishers will resume claiming and publishing pending messages from the exact state of last broker confirmations.
 
 ## Risks and technical debt
 - Legacy controllers like `growthController.js` and `platformController.js` are God Controllers.

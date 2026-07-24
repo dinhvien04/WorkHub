@@ -98,10 +98,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           btnDiscard.className = 'text-xs border border-red-300 text-red-700 px-3 py-2 rounded-lg font-bold hover:bg-red-50';
           btnDiscard.textContent = 'Hủy bỏ (Discard)';
           btnDiscard.addEventListener('click', async () => {
-            if (!confirm('Bạn có chắc muốn hủy bỏ vĩnh viễn thông điệp này?')) return;
+            const reason = prompt('Nhập lý do hủy bỏ vĩnh viễn thông điệp này:');
+            if (reason === null) return; // cancelled
+            if (reason.trim().length === 0) {
+              alert('Lý do hủy bỏ là bắt buộc!');
+              return;
+            }
             btnDiscard.disabled = true;
 
-            const r = await WorkHubAPI.api(`/api/admin/dlq/${item._id}/discard`, { method: 'POST' });
+            const r = await WorkHubAPI.api(`/api/admin/dlq/${item._id}/discard`, {
+              method: 'POST',
+              body: { reason: reason.trim() }
+            });
             const body = await r.json().catch(() => ({}));
             btnDiscard.disabled = false;
 

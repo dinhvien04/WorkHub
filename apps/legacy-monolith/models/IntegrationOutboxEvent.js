@@ -31,5 +31,6 @@ const integrationOutboxSchema = new mongoose.Schema(
 );
 
 integrationOutboxSchema.index({ Status: 1, AvailableAt: 1 });
+integrationOutboxSchema.index({ Status: 1, LeaseUntil: 1 });
 
 module.exports = mongoose.model("IntegrationOutboxEvent", integrationOutboxSchema);

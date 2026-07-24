@@ -153,6 +153,13 @@ const pushSubscriptionLimiter = makeLimiter({
   prefix: "push-sub",
 });
 
+const adminDlqLimiter = makeLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: "Quá nhiều yêu cầu quản lý DLQ. Vui lòng thử lại sau.",
+  prefix: "admin-dlq",
+});
+
 /**
  * Global catch-all API limiter — applied to all /api/ routes.
  * Protects unauthenticated endpoints (admin, host management, etc.) from scanning.
@@ -180,5 +187,6 @@ module.exports = {
   icalLimiter,
   staffInviteAcceptLimiter,
   pushSubscriptionLimiter,
+  adminDlqLimiter,
   globalApiLimiter,
 };

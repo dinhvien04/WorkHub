@@ -46,4 +46,5 @@ build/
 .env.save
 
 public/dist/
+scratch/
 

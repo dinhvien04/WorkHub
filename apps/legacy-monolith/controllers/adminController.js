@@ -586,26 +586,34 @@ async function getDlqList(req, res) {
 
 async function retryDlqMessage(req, res) {
   try {
+    const crypto = require('crypto');
     const ConsumerDeadLetter = require('../models/ConsumerDeadLetter');
     const { id } = req.params;
-    const dlDoc = await ConsumerDeadLetter.findById(id);
+
+    // Atomically claim the pending message to prevent concurrent double-processing
+    const dlDoc = await ConsumerDeadLetter.findOneAndUpdate(
+      { _id: id, Status: 'pending' },
+      { $set: { Status: 'processing' } },
+      { new: true }
+    );
+
     if (!dlDoc) {
-      return res.status(404).json({ error: 'Không tìm thấy thông điệp dead letter.' });
+      return res.status(400).json({ error: 'Thông điệp không khả dụng hoặc đã được xử lý trước đó.' });
     }
 
-    if (dlDoc.Status !== 'pending') {
-      return res.status(400).json({ error: 'Chỉ có thể phát lại thông điệp ở trạng thái pending.' });
-    }
-
+    const operationId = crypto.randomUUID();
     const { messaging } = require('@workhub/observability');
     const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
-    const connection = await messaging.connect(RABBITMQ_URL);
-    const channel = await messaging.createConfirmChannel(connection);
 
+    let connection, channel;
     try {
+      connection = await messaging.connect(RABBITMQ_URL);
+      channel = await messaging.createConfirmChannel(connection);
+
       const content = Buffer.from(JSON.stringify(dlDoc.Payload));
       const headers = dlDoc.Headers || {};
       headers['x-retry-count'] = 0; // reset retry counter
+      headers['x-replay-operation-id'] = operationId;
 
       const publishPromise = new Promise((resolve, reject) => {
         channel.publish(
@@ -628,13 +636,33 @@ async function retryDlqMessage(req, res) {
 
       dlDoc.Status = 'replayed';
       await dlDoc.save();
+
+      // Log audit trail
+      await logActivity(
+        req.user.userId,
+        'REPLAY_DLQ',
+        'System',
+        dlDoc._id,
+        `Phát lại thông điệp DLQ MessageID: ${dlDoc.MessageID}. OperationID: ${operationId}`,
+        'success'
+      );
+    } catch (pubErr) {
+      // Revert state back to pending on transient broker failure
+      dlDoc.Status = 'pending';
+      await dlDoc.save();
+      throw pubErr;
     } finally {
-      await channel.close();
-      await connection.close();
+      if (channel) await channel.close().catch(() => {});
+      if (connection) await connection.close().catch(() => {});
     }
 
-    return res.json({ message: 'Phát lại thông điệp thành công!', status: dlDoc.Status });
+    return res.json({ message: 'Phát lại thông điệp thành công!', status: dlDoc.Status, operationId });
   } catch (error) {
+    // Redact password from RABBITMQ_URL in logger error trace if leaked
+    const msg = error.message || '';
+    if (msg.includes('amqp://') || msg.includes('amqps://')) {
+      error.message = msg.replace(/:([^@:]+)@/, ':xxxxxx@');
+    }
     return sendServerError(res, error);
   }
 }
@@ -643,13 +671,34 @@ async function discardDlqMessage(req, res) {
   try {
     const ConsumerDeadLetter = require('../models/ConsumerDeadLetter');
     const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+      return res.status(400).json({ error: 'Lý do hủy bỏ là bắt buộc.' });
+    }
+
     const dlDoc = await ConsumerDeadLetter.findById(id);
     if (!dlDoc) {
       return res.status(404).json({ error: 'Không tìm thấy thông điệp dead letter.' });
     }
 
+    if (dlDoc.Status !== 'pending') {
+      return res.status(400).json({ error: 'Chỉ có thể hủy bỏ thông điệp ở trạng thái pending.' });
+    }
+
     dlDoc.Status = 'discarded';
+    dlDoc.Error = `${dlDoc.Error || ''}\nAdmin Discard Reason: ${reason}`;
     await dlDoc.save();
+
+    // Log audit trail
+    await logActivity(
+      req.user.userId,
+      'DISCARD_DLQ',
+      'System',
+      dlDoc._id,
+      `Hủy bỏ thông điệp DLQ MessageID: ${dlDoc.MessageID}. Lý do: ${reason}`,
+      'warning'
+    );
 
     return res.json({ message: 'Đã hủy bỏ thông điệp thành công!', status: dlDoc.Status });
   } catch (error) {

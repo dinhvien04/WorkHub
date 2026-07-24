@@ -330,16 +330,13 @@ describe("Phase M3 Messaging Foundation Integration & Crash Recovery Tests", () 
     // Assert that the business logic was executed
     expect(handlerExecutedCount).toBe(1);
 
-    // Assert that it was published to the retry queue with x-retry-count incremented
-    expect(channel.published.length).toBe(1);
-    const retryPub = channel.published[0];
-    expect(retryPub.exchange).toBe("workhub.events.retry");
-    expect(retryPub.routingKey).toBe("booking-queue.retry");
-    expect(retryPub.options.headers["x-retry-count"]).toBe(1);
-    expect(retryPub.options.headers["x-original-error"]).toBe("Consumer crashed unexpectedly!");
+    // Assert that the message was rejected with requeue=false (which triggers policy DLX routing)
+    expect(channel.rejected.length).toBe(1);
+    expect(channel.rejected[0].requeue).toBe(false);
+    expect(channel.rejected[0].msg.properties.messageId).toBe(envelope.eventId);
 
-    // Verify that the wrapper acked msg1 on the main queue to complete the retry handoff
-    expect(channel.acked.length).toBe(1);
+    // Assert that it did NOT call ack on the original queue during the crash path
+    expect(channel.acked.length).toBe(0);
 
     // The message is put into the retry queue by subscribeEvent wrapper and acked/nacked.
     // In our test, we will verify redelivery handling.
@@ -416,9 +413,12 @@ describe("Phase M3 Messaging Foundation Integration & Crash Recovery Tests", () 
 
     // Business handler should NOT be called
     expect(handlerCalled).toBe(false);
-    // Message should be rejected (routed to DLQ)
-    expect(channel.rejected.length).toBe(1);
-    expect(channel.rejected[0].requeue).toBe(false);
+
+    // Message should be published to DLQ exchange and acknowledged on main queue
+    expect(channel.published.length).toBe(1);
+    expect(channel.published[0].exchange).toBe("workhub.events.dlx");
+    expect(channel.published[0].routingKey).toBe("catalog-queue.dlq");
+    expect(channel.acked.length).toBe(1);
 
     // Verify DLQ log saved to database
     const dlqLog = await ConsumerDeadLetter.findOne({ MessageID: poisonPayload.eventId });

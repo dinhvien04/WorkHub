@@ -5,7 +5,7 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { verifyToken, requireAdmin } = require('../middlewares/authMiddleware');
 const { requireAdmin2faIfEnabled } = require('../middlewares/admin2fa');
-const { globalApiLimiter } = require('../middlewares/rateLimiters');
+const { globalApiLimiter, adminDlqLimiter } = require('../middlewares/rateLimiters');
 
 router.use(globalApiLimiter);
 router.use(verifyToken, requireAdmin, requireAdmin2faIfEnabled);
@@ -32,8 +32,8 @@ router.get('/listings/flagged', adminController.listFlaggedListings);
 router.post('/listings/moderate', adminController.moderateListing);
 
 // DLQ APIs
-router.get('/dlq', adminController.getDlqList);
-router.post('/dlq/:id/retry', adminController.retryDlqMessage);
-router.post('/dlq/:id/discard', adminController.discardDlqMessage);
+router.get('/dlq', adminDlqLimiter, adminController.getDlqList);
+router.post('/dlq/:id/retry', adminDlqLimiter, adminController.retryDlqMessage);
+router.post('/dlq/:id/discard', adminDlqLimiter, adminController.discardDlqMessage);
 
 module.exports = router;

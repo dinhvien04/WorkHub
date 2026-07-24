@@ -4,13 +4,23 @@ const amqp = require("amqplib");
 const { trace, propagation, context, ROOT_CONTEXT, SpanKind } = require("@opentelemetry/api");
 const { validateEvent } = require("@workhub/contracts");
 
+function sanitizeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.password) parsed.password = "xxxxxx";
+    return parsed.toString();
+  } catch {
+    return url.replace(/:([^@:]+)@/, ':xxxxxx@');
+  }
+}
+
 /**
  * Connect to RabbitMQ with reconnect retry logic.
  */
 async function connect(url, retries = 5, delayMs = 2000) {
   for (let i = 0; i < retries; i++) {
     try {
-      console.log(`[Messaging] Connecting to RabbitMQ at ${url} (Attempt ${i + 1}/${retries})...`);
+      console.log(`[Messaging] Connecting to RabbitMQ at ${sanitizeUrl(url)} (Attempt ${i + 1}/${retries})...`);
       const conn = await amqp.connect(url);
       console.log("[Messaging] Connected to RabbitMQ successfully.");
 
@@ -110,6 +120,7 @@ async function publishEvent(channel, event) {
 
 /**
  * Configure topology for a service queue, binds routing key, and subscribes.
+ * Relies on RabbitMQ policies for DLX/TTL backoffs to support dynamic configurability.
  */
 async function subscribeEvent(channel, { queueName, exchangeName = "workhub.events", routingKeyPattern, prefetchCount = 10, handler, onDeadLetter }) {
   // Bounded prefetch
@@ -122,25 +133,12 @@ async function subscribeEvent(channel, { queueName, exchangeName = "workhub.even
   await channel.assertQueue(dlqName, { durable: true });
   await channel.bindQueue(dlqName, "workhub.events.dlx", dlqName);
 
-  // 2. Declare Retry Delayed Queue (routes back to main queue via primary exchange)
-  await channel.assertQueue(retryQueueName, {
-    durable: true,
-    arguments: {
-      "x-dead-letter-exchange": exchangeName,
-      "x-dead-letter-routing-key": queueName,
-      "x-message-ttl": 5000 // 5-second backoff delay
-    }
-  });
+  // 2. Declare Retry Delayed Queue
+  await channel.assertQueue(retryQueueName, { durable: true });
   await channel.bindQueue(retryQueueName, "workhub.events.retry", retryQueueName);
 
-  // 3. Declare Main Queue binding to DLX for unhandled rejects
-  await channel.assertQueue(queueName, {
-    durable: true,
-    arguments: {
-      "x-dead-letter-exchange": "workhub.events.dlx",
-      "x-dead-letter-routing-key": dlqName
-    }
-  });
+  // 3. Declare Main Queue
+  await channel.assertQueue(queueName, { durable: true });
   await channel.bindQueue(queueName, exchangeName, routingKeyPattern);
 
   // 4. Start consuming
@@ -152,6 +150,7 @@ async function subscribeEvent(channel, { queueName, exchangeName = "workhub.even
     const spanName = `consume ${msg.fields.routingKey}`;
 
     await tracer.startActiveSpan(spanName, { kind: SpanKind.CONSUMER }, parentContext, async (span) => {
+      let event;
       try {
         span.setAttribute("messaging.system", "rabbitmq");
         span.setAttribute("messaging.destination", exchangeName);
@@ -159,13 +158,12 @@ async function subscribeEvent(channel, { queueName, exchangeName = "workhub.even
         span.setAttribute("messaging.message_id", msg.properties.messageId || "unknown");
 
         const rawContent = msg.content.toString();
-        let event;
         try {
           event = JSON.parse(rawContent);
         } catch (jsonErr) {
           console.error("[Messaging] Failed to parse message body as JSON:", rawContent);
           // Directly DLQ formatting issues
-          channel.reject(msg, false);
+          await publishToDlq(channel, dlqName, msg);
           return;
         }
 
@@ -179,8 +177,8 @@ async function subscribeEvent(channel, { queueName, exchangeName = "workhub.even
             await onDeadLetter(msg, event, `Schema Validation Failed: ${validationErr.message}`);
           }
 
-          // Route immediately to DLQ (no retry)
-          channel.reject(msg, false);
+          // Route immediately to DLQ
+          await publishToDlq(channel, dlqName, msg);
           span.recordException(validationErr);
           span.setStatus({ code: 2, message: validationErr.message });
           return;
@@ -197,54 +195,63 @@ async function subscribeEvent(channel, { queueName, exchangeName = "workhub.even
         span.recordException(err);
         span.setStatus({ code: 2, message: err.message });
 
-        // Handle retry queue backoff
+        // Retrieve retry count using AMQP x-death headers populated by DLX routing
         const headers = msg.properties.headers || {};
-        const retryCount = Number(headers["x-retry-count"]) || 0;
+        const xDeath = headers["x-death"] || [];
+        const deathEntry = xDeath.find((d) => d.queue === queueName);
+        const retryCount = deathEntry ? deathEntry.count : 0;
         const maxRetries = 3;
 
         if (retryCount < maxRetries) {
-          try {
-            console.log(`[Messaging] Re-enqueuing message to retry queue (Retry ${retryCount + 1}/${maxRetries})...`);
-
-            // Publish message to retry queue
-            const retryHeaders = {
-              ...headers,
-              "x-retry-count": retryCount + 1,
-              "x-original-error": err.message
-            };
-
-            channel.publish("workhub.events.retry", retryQueueName, msg.content, {
-              persistent: true,
-              messageId: msg.properties.messageId,
-              timestamp: msg.properties.timestamp,
-              headers: retryHeaders
-            });
-
-            // Ack original message so it doesn't get reprocessed immediately
-            channel.ack(msg);
-          } catch (pubErr) {
-            console.error("[Messaging] Failed to publish message to retry queue:", pubErr.message);
-            // Requeue as fallback
-            channel.nack(msg, false, true);
-          }
+          // Reject message with requeue = false, triggering DLX policy to route it to retry queue
+          channel.reject(msg, false);
         } else {
           try {
             console.warn(`[Messaging] Message exceeded max retries (${maxRetries}). Directing to DLQ.`);
 
             if (onDeadLetter) {
-              const event = JSON.parse(msg.content.toString());
               await onDeadLetter(msg, event, `Max Retries Exceeded: ${err.message}`);
             }
           } catch (deadLetterErr) {
             console.error("[Messaging] Error saving to dead letter database:", deadLetterErr.message);
           }
 
-          // Reject without requeue (routes to DLQ via arguments)
-          channel.reject(msg, false);
+          // Terminal failure: Publish manually to DLQ and ACK to clear it from main queue
+          await publishToDlq(channel, dlqName, msg);
         }
       }
     });
   }, { noAck: false }); // Enable manual acknowledgments
+}
+
+/**
+ * Helper to manually publish messages to DLQ exchange and acknowledge them.
+ */
+async function publishToDlq(channel, dlqName, msg) {
+  try {
+    await new Promise((resolve, reject) => {
+      channel.publish(
+        "workhub.events.dlx",
+        dlqName,
+        msg.content,
+        {
+          persistent: true,
+          messageId: msg.properties.messageId,
+          headers: msg.properties.headers,
+        },
+        (err, ok) => {
+          if (err) reject(err);
+          else resolve(ok);
+        }
+      );
+    });
+    // Remove original from main queue
+    channel.ack(msg);
+  } catch (err) {
+    console.error("[Messaging] Failed to route to DLQ:", err.message);
+    // Nack and requeue as fallback
+    channel.nack(msg, false, true);
+  }
 }
 
 module.exports = {
