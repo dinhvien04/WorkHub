@@ -101,6 +101,32 @@ const UserUpdatedEventDataSchema = z.object({
   tokenVersion: z.number().int().nonnegative().optional(),
 });
 
+// Content Domain Events (M5)
+const PagePublishedEventDataSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  type: z.string(),
+  publishedAt: z.string().datetime(),
+});
+
+const PageUnpublishedEventDataSchema = z.object({
+  slug: z.string(),
+  type: z.string(),
+});
+
+const SeoRedirectUpdatedEventDataSchema = z.object({
+  fromPath: z.string(),
+  toPath: z.string(),
+  statusCode: z.number().int(),
+  active: z.boolean(),
+});
+
+const TranslationUpdatedEventDataSchema = z.object({
+  locale: z.string(),
+  key: z.string(),
+  value: z.string(),
+});
+
 // Helper validation function
 function validateEvent(envelope) {
   const result = EventEnvelopeSchema.safeParse(envelope);
@@ -142,6 +168,18 @@ function validateEvent(envelope) {
     case "identity.user-updated.v1":
       dataSchema = UserUpdatedEventDataSchema;
       break;
+    case "content.page-published.v1":
+      dataSchema = PagePublishedEventDataSchema;
+      break;
+    case "content.page-unpublished.v1":
+      dataSchema = PageUnpublishedEventDataSchema;
+      break;
+    case "content.seo-redirect-updated.v1":
+      dataSchema = SeoRedirectUpdatedEventDataSchema;
+      break;
+    case "content.translation-updated.v1":
+      dataSchema = TranslationUpdatedEventDataSchema;
+      break;
     default:
       // Unknown event type: pass envelope validation but warn
       return envelope;
@@ -167,5 +205,9 @@ module.exports = {
   RefundCompletedEventDataSchema,
   UserCreatedEventDataSchema,
   UserUpdatedEventDataSchema,
+  PagePublishedEventDataSchema,
+  PageUnpublishedEventDataSchema,
+  SeoRedirectUpdatedEventDataSchema,
+  TranslationUpdatedEventDataSchema,
   validateEvent,
 };

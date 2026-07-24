@@ -14,6 +14,9 @@ const LEGACY_MONOLITH_URL = process.env.LEGACY_MONOLITH_URL || "http://localhost
 const COMMUNICATION_SERVICE_URL = process.env.COMMUNICATION_SERVICE_URL || "http://localhost:3002";
 const COMMUNICATION_SERVICE_ENABLED = process.env.COMMUNICATION_SERVICE_ENABLED === "true";
 const COMMUNICATION_CANARY_PERCENT = Number(process.env.COMMUNICATION_CANARY_PERCENT) || 0;
+const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || "http://localhost:3003";
+const CONTENT_SERVICE_ENABLED = process.env.CONTENT_SERVICE_ENABLED === "true";
+const CONTENT_CANARY_PERCENT = Number(process.env.CONTENT_CANARY_PERCENT) || 0;
 const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
 
@@ -138,6 +141,49 @@ function shouldRouteToCommunication(req) {
   return bucket < COMMUNICATION_CANARY_PERCENT;
 }
 
+function shouldRouteToContent(req) {
+  if (!CONTENT_SERVICE_ENABLED) return false;
+  if (CONTENT_CANARY_PERCENT <= 0) return false;
+
+  // Attempt to identify user for sticky routing; fallback to client IP
+  let token = null;
+  const authHeader = req.headers["authorization"];
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  } else if (req.cookie || req.headers.cookie) {
+    const cookieHeader = req.cookie || req.headers.cookie;
+    const cookies = cookieHeader.split(";").reduce((acc, c) => {
+      const parts = c.trim().split("=");
+      if (parts.length >= 2) {
+        acc[parts[0]] = parts.slice(1).join("=");
+      }
+      return acc;
+    }, {});
+    token = cookies["authToken"];
+  }
+
+  let userId = null;
+  let role = null;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
+      userId = decoded.userId || decoded.id || decoded._id;
+      role = decoded.role;
+      req.user = { userId, role };
+    } catch (err) {
+      // Ignore invalid token errors, treat as guest
+    }
+  }
+
+  if (CONTENT_CANARY_PERCENT >= 100) return true;
+
+  // Guest users use IP address for stable bucket routing
+  const identifier = userId || req.ip || "anon";
+  const hash = crypto.createHash("sha256").update(`content-canary:${identifier}`).digest();
+  const bucket = hash[0] % 100;
+  return bucket < CONTENT_CANARY_PERCENT;
+}
+
 // Proxy configurations for Communication Service
 const commProxyOptions = {
   target: COMMUNICATION_SERVICE_URL,
@@ -176,6 +222,71 @@ const commProxyOptions = {
 };
 
 const communicationProxy = createProxyMiddleware(commProxyOptions);
+
+// Proxy configurations for Content Service
+const contentProxyOptions = {
+  target: CONTENT_SERVICE_URL,
+  changeOrigin: true,
+  ws: true,
+  timeout: 10000,
+  proxyTimeout: 10000,
+  on: {
+    error: (err, req, res) => {
+      console.error(`[API Gateway] Content Proxy error: ${err.message}`);
+      if (res.writeHead && !res.headersSent) {
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Content Service Unavailable" }));
+      }
+    },
+    proxyReq: (proxyReq, req) => {
+      proxyReq.setHeader("X-Request-Id", req.id || crypto.randomUUID());
+      if (req.headers["traceparent"]) {
+        proxyReq.setHeader("traceparent", req.headers["traceparent"]);
+      }
+
+      // Sanitize and inject verified identity headers
+      proxyReq.removeHeader("X-User-Id");
+      proxyReq.removeHeader("X-User-Role");
+      proxyReq.removeHeader("X-Internal-Token");
+      if (req.user) {
+        proxyReq.setHeader("X-User-Id", req.user.userId);
+        proxyReq.setHeader("X-User-Role", req.user.role || "");
+        proxyReq.setHeader("X-Internal-Token", JWT_SECRET);
+      }
+    },
+    proxyRes: (proxyRes, req, res) => {
+      res.setHeader("X-Request-Id", req.id || crypto.randomUUID());
+    }
+  }
+};
+
+const contentProxy = createProxyMiddleware(contentProxyOptions);
+
+// Route content, i18n, seo, sitemaps, and robots to content microservice when enabled
+app.use("/api/content", (req, res, next) => {
+  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
+  next();
+});
+
+app.use("/api/i18n", (req, res, next) => {
+  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
+  next();
+});
+
+app.use("/api/seo", (req, res, next) => {
+  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
+  next();
+});
+
+app.use(/^\/sitemap.*/, (req, res, next) => {
+  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
+  next();
+});
+
+app.use(/^\/robots\.txt$/, (req, res, next) => {
+  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
+  next();
+});
 
 // Route push and notification requests to communication microservice when enabled
 app.use("/api/push", (req, res, next) => {

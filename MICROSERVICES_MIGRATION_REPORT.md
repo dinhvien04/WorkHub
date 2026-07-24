@@ -7,7 +7,7 @@
 - Last verified date: 2026-07-24
 
 ## Current phase
-CURRENT_PHASE: M4
+CURRENT_PHASE: M5
 STATUS: VERIFIED
 
 ## Phase status
@@ -20,7 +20,8 @@ STATUS: VERIFIED
 | M2 | VERIFIED | apps/api-gateway created with Express/http-proxy-middleware v3 pass-through proxy; request ID, rate limits, health checks, error formatting, gateway.test.js pass. Added WebSocket upgrade forwarding, graceful shutdown, automated contract comparison test (contract-comparison.test.js), and rollback smoke test (rollback-smoke.test.js). | None |
 | M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage) enforcing at-least-once message delivery with effectively-once business effect within local transaction. OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js and messaging.real.test.js) successfully cover all required mock and real broker scenarios. | None |
 | M4 | VERIFIED | Extracted push subscriptions, push worker, notification inbox, and email worker to services/communication-service. Owns isolated workhub_communication database (push_subscriptions, notifications, preferences, outbox, etc.) with zero monolith dependencies. Local user caches updated via AMQP identity events. Strangler migration setup (shadow-mode comparison logs, API Gateway canary routing, fallback rollback). E2E scenarios validated. | None |
-| M5 | NOT_STARTED | | |
+| M5 | VERIFIED | Extracted CMS/Pages, SEO redirects, SEO metadata, sitemaps, robots, and i18n translations to services/content-service. Owns workhub_content database. Implemented rich text HTML sanitization (preventing stored XSS), 2-step redirect loop prevention, ETag cache validation, and audit logs. Gateway canary routing and rollback procedure validated. | None |
+| M6 | NOT_STARTED | | |
 | M6 | NOT_STARTED | | |
 | M7 | NOT_STARTED | | |
 | M8 | NOT_STARTED | | |
@@ -56,7 +57,9 @@ STATUS: VERIFIED
 - `npx jest apps/legacy-monolith/test/messaging.test.js --runInBand` (Runs the RabbitMQ integration and crash-recovery mock test suite; all 7 tests passed)
 - `npx jest apps/legacy-monolith/test/messaging.real.test.js --runInBand` (Runs the real broker RabbitMQ integration and crash-recovery test suite; all 8 tests passed or skipped if broker offline)
 - `npx jest services/communication-service/ --runInBand` (Runs the communication service integration, unit, and E2E test suites; all 13 tests passed)
+- `npx jest services/content-service/ --runInBand` (Runs the content service integration, unit, and E2E test suites; all 5 tests passed)
 - `node services/communication-service/scripts/backfillSubscriptions.js` (Runs push subscriptions/preferences backfill migration)
+- `node services/content-service/scripts/backfillContent.js` (Runs CMS and redirects backfill migration script)
 - `docker compose up -d rabbitmq` (Starts the RabbitMQ local broker stack)
 
 ## CI status
@@ -92,4 +95,4 @@ STATUS: VERIFIED
 - Legacy controllers like `growthController.js` and `platformController.js` are God Controllers.
 
 ## Next actions
-- Execute M5: Extraction of next microservice boundary.
+- Execute M6: Extraction of next microservice boundary.
