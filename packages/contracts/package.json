@@ -1,0 +1,9 @@
+{
+  "name": "@workhub/contracts",
+  "version": "1.1.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "zod": "^4.1.12"
+  }
+}

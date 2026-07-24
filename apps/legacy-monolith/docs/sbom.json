@@ -3,10 +3,10 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-24T13:37:50.851Z",
+    "timestamp": "2026-07-24T14:59:53.044Z",
     "component": {
       "type": "application",
-      "name": "workhubmvc",
+      "name": "@workhub/legacy-monolith",
       "version": "1.1.0"
     },
     "tools": [
@@ -950,15 +950,23 @@
       "name": "@noble/hashes",
       "version": "1.8.0",
       "purl": "pkg:npm/%40noble%2Fhashes@1.8.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@opentelemetry/api",
+      "version": "1.9.1",
+      "purl": "pkg:npm/%40opentelemetry%2Fapi@1.9.1",
+      "dev": false,
+      "license": "Apache-2.0"
     },
     {
       "type": "library",
       "name": "@paralleldrive/cuid2",
       "version": "2.3.1",
       "purl": "pkg:npm/%40paralleldrive%2Fcuid2@2.3.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1183,6 +1191,14 @@
       "version": "1.0.9",
       "purl": "pkg:npm/%40types%2Festree@1.0.9",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "@types/http-proxy",
+      "version": "1.17.17",
+      "purl": "pkg:npm/%40types%2Fhttp-proxy@1.17.17",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1459,6 +1475,72 @@
     },
     {
       "type": "library",
+      "name": "@workhub/api-gateway",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Fapi-gateway@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/api-gateway",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/contracts",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/contracts",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Fcontracts@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/legacy-monolith",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Flegacy-monolith@1.1.0",
+      "dev": false,
+      "license": "ISC"
+    },
+    {
+      "type": "library",
+      "name": "@workhub/legacy-monolith",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/observability",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/observability",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Fobservability@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/test-utils",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/test-utils",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Ftest-utils@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
       "name": "accepts",
       "version": "2.0.0",
       "purl": "pkg:npm/accepts@2.0.0",
@@ -1598,7 +1680,7 @@
       "name": "asap",
       "version": "2.0.6",
       "purl": "pkg:npm/asap@2.0.6",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1638,7 +1720,7 @@
       "name": "asynckit",
       "version": "0.4.0",
       "purl": "pkg:npm/asynckit@0.4.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1870,7 +1952,7 @@
       "name": "braces",
       "version": "3.0.3",
       "purl": "pkg:npm/braces@3.0.3",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2116,7 +2198,7 @@
       "name": "combined-stream",
       "version": "1.0.8",
       "purl": "pkg:npm/combined-stream@1.0.8",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2132,7 +2214,7 @@
       "name": "component-emitter",
       "version": "1.3.1",
       "purl": "pkg:npm/component-emitter@1.3.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2220,7 +2302,7 @@
       "name": "cookiejar",
       "version": "2.1.4",
       "purl": "pkg:npm/cookiejar@2.1.4",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2380,7 +2462,7 @@
       "name": "delayed-stream",
       "version": "1.0.0",
       "purl": "pkg:npm/delayed-stream@1.0.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2404,7 +2486,7 @@
       "name": "dezalgo",
       "version": "1.0.4",
       "purl": "pkg:npm/dezalgo@1.0.4",
-      "dev": true,
+      "dev": false,
       "license": "ISC"
     },
     {
@@ -2620,7 +2702,7 @@
       "name": "es-set-tostringtag",
       "version": "2.1.0",
       "purl": "pkg:npm/es-set-tostringtag@2.1.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2724,6 +2806,14 @@
       "name": "etag",
       "version": "1.8.1",
       "purl": "pkg:npm/etag@1.8.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "eventemitter3",
+      "version": "4.0.7",
+      "purl": "pkg:npm/eventemitter3@4.0.7",
       "dev": false,
       "license": "MIT"
     },
@@ -2891,7 +2981,7 @@
       "name": "fill-range",
       "version": "7.1.1",
       "purl": "pkg:npm/fill-range@7.1.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2955,7 +3045,7 @@
       "name": "follow-redirects",
       "version": "1.16.0",
       "purl": "pkg:npm/follow-redirects@1.16.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2979,7 +3069,7 @@
       "name": "form-data",
       "version": "4.0.6",
       "purl": "pkg:npm/form-data@4.0.6",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2987,7 +3077,7 @@
       "name": "form-data>mime-db",
       "version": "1.52.0",
       "purl": "pkg:npm/form-data%3Emime-db@1.52.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2995,7 +3085,7 @@
       "name": "form-data>mime-types",
       "version": "2.1.35",
       "purl": "pkg:npm/form-data%3Emime-types@2.1.35",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3011,7 +3101,7 @@
       "name": "formidable",
       "version": "3.5.4",
       "purl": "pkg:npm/formidable@3.5.4",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3219,7 +3309,7 @@
       "name": "has-tostringtag",
       "version": "1.0.2",
       "purl": "pkg:npm/has-tostringtag@1.0.2",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3275,6 +3365,22 @@
       "name": "http-errors",
       "version": "2.0.1",
       "purl": "pkg:npm/http-errors@2.0.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "http-proxy",
+      "version": "1.18.1",
+      "purl": "pkg:npm/http-proxy@1.18.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "http-proxy-middleware",
+      "version": "3.0.7",
+      "purl": "pkg:npm/http-proxy-middleware@3.0.7",
       "dev": false,
       "license": "MIT"
     },
@@ -3419,7 +3525,7 @@
       "name": "is-extglob",
       "version": "2.1.1",
       "purl": "pkg:npm/is-extglob@2.1.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3443,7 +3549,7 @@
       "name": "is-glob",
       "version": "4.0.3",
       "purl": "pkg:npm/is-glob@4.0.3",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3451,7 +3557,15 @@
       "name": "is-number",
       "version": "7.0.0",
       "purl": "pkg:npm/is-number@7.0.0",
-      "dev": true,
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "is-plain-object",
+      "version": "5.0.0",
+      "purl": "pkg:npm/is-plain-object@5.0.0",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -4331,7 +4445,23 @@
       "name": "methods",
       "version": "1.1.2",
       "purl": "pkg:npm/methods@1.1.2",
-      "dev": true,
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "micromatch",
+      "version": "4.0.8",
+      "purl": "pkg:npm/micromatch@4.0.8",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "micromatch>picomatch",
+      "version": "2.3.2",
+      "purl": "pkg:npm/micromatch%3Epicomatch@2.3.2",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -4339,7 +4469,7 @@
       "name": "mime",
       "version": "2.6.0",
       "purl": "pkg:npm/mime@2.6.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -5288,6 +5418,14 @@
     },
     {
       "type": "library",
+      "name": "requires-port",
+      "version": "1.0.0",
+      "purl": "pkg:npm/requires-port@1.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "resolve-cwd",
       "version": "3.0.0",
       "purl": "pkg:npm/resolve-cwd@3.0.0",
@@ -5714,7 +5852,7 @@
       "name": "superagent",
       "version": "10.3.0",
       "purl": "pkg:npm/superagent@10.3.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -5722,7 +5860,7 @@
       "name": "supertest",
       "version": "7.2.2",
       "purl": "pkg:npm/supertest@7.2.2",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -5834,7 +5972,7 @@
       "name": "to-regex-range",
       "version": "5.0.1",
       "purl": "pkg:npm/to-regex-range@5.0.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -6176,8 +6314,8 @@
     {
       "type": "library",
       "name": "ws",
-      "version": "8.21.0",
-      "purl": "pkg:npm/ws@8.21.0",
+      "version": "8.21.1",
+      "purl": "pkg:npm/ws@8.21.1",
       "dev": false,
       "license": "MIT"
     },
