@@ -9,7 +9,8 @@ const devOutbox = [];
 
 async function enqueueTemplate({ template, recipientId, toEmail, data }, options = {}) {
   const session = options.session;
-  const idempotencyKey = options.idempotencyKey || `email:${template}:${recipientId}:${Date.now()}`;
+  const payloadHash = crypto.createHash("sha256").update(JSON.stringify(data || {})).digest("hex").slice(0, 16);
+  const idempotencyKey = options.idempotencyKey || `email:${template}:${recipientId}:${payloadHash}`;
 
   const [doc] = await CommunicationOutbox.create(
     [

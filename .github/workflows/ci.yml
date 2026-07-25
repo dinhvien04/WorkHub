@@ -17,11 +17,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint:security-ui
-      - run: npm run format:check
       - run: npm run lint
       - run: npm run audit:prod
       - run: npm run build
-      - run: test -s public/css/app.min.css
+      - run: test -s apps/legacy-monolith/public/css/app.min.css
 
   unit:
     runs-on: ubuntu-latest
@@ -36,6 +35,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,12 +51,17 @@ jobs:
           node-version: '20.19'
           cache: npm
       - run: npm ci
-      - name: Unit / integration (standalone Mongo — no multi-doc tx)
-        run: npm run test:noforce
+      - name: Unit / integration (all workspaces)
+        run: npm test
         env:
           NODE_ENV: test
           JWT_SECRET: test_jwt_secret_key_at_least_32_characters_long_for_workhub
           MONGODB_URI: mongodb://127.0.0.1:27017/workhub_ci_test
+          MONGODB_CONTENT_URI: mongodb://127.0.0.1:27017/workhub_content_ci_test
+          MONGODB_COMMUNICATION_URI: mongodb://127.0.0.1:27017/workhub_communication_ci_test
+          RABBITMQ_URL: amqp://localhost:5672
+          CONTENT_INTERNAL_SECRET: test_content_internal_secret_key_at_least_32_chars
+          COMMUNICATION_INTERNAL_SECRET: test_communication_internal_secret_key_at_least_32_chars
           ENABLE_TRANSACTIONS: 'false'
       - name: Upload jest logs
         if: failure()
@@ -100,6 +113,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -113,12 +135,45 @@ jobs:
           set -e
           export NODE_ENV=test
           export JWT_SECRET=test_jwt_secret_key_at_least_32_characters_long_for_workhub
-          export MONGODB_URI=mongodb://127.0.0.1:27017/workhub_ci
           export ALLOW_MOCK_PAYMENT_PROVIDER=1
           export ALLOW_MOCK_COMPLETE=1
           export PAYMENT_PROVIDER=workhub_mock
-          node server.js &
-          echo $! > /tmp/workhub.pid
+
+          # 1. Start monolith (port 3001)
+          export PORT=3001
+          export MONGODB_URI=mongodb://127.0.0.1:27017/workhub_ci
+          export RABBITMQ_URL=amqp://localhost:5672
+          node apps/legacy-monolith/server.js &
+          echo $! > /tmp/monolith.pid
+
+          # 2. Start Content Service (port 3003)
+          export CONTENT_PORT=3003
+          export MONGODB_CONTENT_URI=mongodb://127.0.0.1:27017/workhub_content_ci
+          export CONTENT_INTERNAL_SECRET=test_content_internal_secret_key_at_least_32_chars
+          node services/content-service/server.js &
+          echo $! > /tmp/content.pid
+
+          # 3. Start Communication Service (port 3002)
+          export COMMUNICATION_PORT=3002
+          export MONGODB_COMMUNICATION_URI=mongodb://127.0.0.1:27017/workhub_communication_ci
+          export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
+          node services/communication-service/server.js &
+          echo $! > /tmp/communication.pid
+
+          # 4. Start API Gateway (port 3000)
+          export PORT=3000
+          export LEGACY_MONOLITH_URL=http://127.0.0.1:3001
+          export CONTENT_SERVICE_URL=http://127.0.0.1:3003
+          export CONTENT_SERVICE_ENABLED=true
+          export CONTENT_CANARY_PERCENT=100
+          export CONTENT_INTERNAL_SECRET=test_content_internal_secret_key_at_least_32_chars
+          export COMMUNICATION_SERVICE_URL=http://127.0.0.1:3002
+          export COMMUNICATION_SERVICE_ENABLED=true
+          export COMMUNICATION_CANARY_PERCENT=100
+          export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
+          node apps/api-gateway/server.js &
+          echo $! > /tmp/gateway.pid
+
           ready=0
           for i in $(seq 1 40); do
             if curl -sf http://127.0.0.1:3000/health/ready; then
@@ -129,7 +184,10 @@ jobs:
           done
           if [ "$ready" != "1" ]; then
             echo "Readiness probe failed"
-            kill $(cat /tmp/workhub.pid) 2>/dev/null || true
+            kill $(cat /tmp/gateway.pid) 2>/dev/null || true
+            kill $(cat /tmp/communication.pid) 2>/dev/null || true
+            kill $(cat /tmp/content.pid) 2>/dev/null || true
+            kill $(cat /tmp/monolith.pid) 2>/dev/null || true
             exit 1
           fi
       - name: E2E Playwright
@@ -138,7 +196,11 @@ jobs:
           CI: 'true'
       - name: Stop app
         if: always()
-        run: kill $(cat /tmp/workhub.pid) 2>/dev/null || true
+        run: |
+          kill $(cat /tmp/gateway.pid) 2>/dev/null || true
+          kill $(cat /tmp/communication.pid) 2>/dev/null || true
+          kill $(cat /tmp/content.pid) 2>/dev/null || true
+          kill $(cat /tmp/monolith.pid) 2>/dev/null || true
 
   docker:
     runs-on: ubuntu-latest

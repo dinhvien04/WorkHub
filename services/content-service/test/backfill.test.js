@@ -6,7 +6,6 @@ const mongoose = require("mongoose");
 const ContentPage = require("../models/ContentPage");
 const SeoRedirect = require("../models/SeoRedirect");
 const Translation = require("../models/Translation");
-const env = require("../config/env");
 
 describe("Content Service Idempotent Backfill & Reconciliation Script", () => {
   let legacyConn;

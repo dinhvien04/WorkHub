@@ -31,6 +31,7 @@ module.exports = {
   MONGODB_CONTENT_URI: process.env.MONGODB_CONTENT_URI || "mongodb://127.0.0.1:27017/workhub_content",
   RABBITMQ_URL: process.env.RABBITMQ_URL || "amqp://localhost:5672",
   JWT_SECRET: process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long",
+  CONTENT_INTERNAL_SECRET: process.env.CONTENT_INTERNAL_SECRET || "default_test_content_internal_secret_key",
   SHADOW_MODE: process.env.CONTENT_SHADOW_MODE === "true",
   isProduction: process.env.NODE_ENV === "production",
   isTest: process.env.NODE_ENV === "test",

@@ -10,16 +10,21 @@
   "scripts": {
     "start": "npm start --workspace=@workhub/legacy-monolith",
     "dev": "npm run dev --workspace=@workhub/legacy-monolith",
-    "test": "npm test --workspace=@workhub/legacy-monolith && npm test --workspace=@workhub/api-gateway",
+    "test": "npm test --workspaces --if-present",
     "test:noforce": "npm run test:noforce --workspace=@workhub/legacy-monolith",
     "test:transactions": "npm run test:transactions --workspace=@workhub/legacy-monolith",
-    "lint": "eslint apps/legacy-monolith apps/api-gateway packages/contracts packages/observability packages/test-utils --max-warnings=0",
+    "test:e2e": "npm run test:e2e --workspace=@workhub/legacy-monolith",
+    "lint": "eslint apps/legacy-monolith apps/api-gateway services/communication-service services/content-service packages/contracts packages/observability packages/test-utils --max-warnings=0",
     "lint:security-ui": "npm run lint:security-ui --workspace=@workhub/legacy-monolith",
-    "build": "npm run build --workspace=@workhub/legacy-monolith",
+    "build": "npm run build --workspaces --if-present",
+    "format:check": "prettier --check \"**/*.{js,json,md,yml,yaml,ejs,css}\" --ignore-path .gitignore",
     "audit:prod": "npm audit --omit=dev --audit-level=high"
   },
   "engines": {
     "node": ">=20.19.0 <21 || >=22.13.0"
   },
-  "packageManager": "npm@10.9.2"
+  "packageManager": "npm@10.9.2",
+  "overrides": {
+    "brace-expansion": "5.0.8"
+  }
 }

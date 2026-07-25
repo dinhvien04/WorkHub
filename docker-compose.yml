@@ -8,7 +8,7 @@ services:
     image: mongo:7
     restart: unless-stopped
     ports:
-      - '27017:27017'
+      - '127.0.0.1:27017:27017'
     volumes:
       - workhub_mongo:/data/db
     command: ['--replSet', 'rs0', '--bind_ip_all']
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     volumes:
       - workhub_redis:/data
 
@@ -30,7 +30,7 @@ services:
     image: clamav/clamav:stable
     restart: unless-stopped
     ports:
-      - '3310:3310'
+      - '127.0.0.1:3310:3310'
     volumes:
       - workhub_clamav:/var/lib/clamav
 
@@ -39,8 +39,8 @@ services:
     container_name: workhub-rabbitmq
     restart: unless-stopped
     ports:
-      - '5672:5672'     # AMQP Protocol Port
-      - '15672:15672'   # Web Management UI
+      - '127.0.0.1:5672:5672'     # AMQP Protocol Port
+      - '127.0.0.1:15672:15672'   # Web Management UI
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -62,7 +62,8 @@ services:
       - NODE_ENV=production
       - MONGODB_COMMUNICATION_URI=mongodb://mongo:27017/workhub_communication
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - JWT_SECRET=replace_with_a_long_random_secret
+      - JWT_SECRET=${JWT_SECRET:?required}
+      - COMMUNICATION_INTERNAL_SECRET=${COMMUNICATION_INTERNAL_SECRET:?required}
     depends_on:
       mongo:
         condition: service_healthy
@@ -79,8 +80,8 @@ services:
       - NODE_ENV=production
       - MONGODB_CONTENT_URI=mongodb://mongo:27017/workhub_content
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - JWT_SECRET=replace_with_a_long_random_secret
-      - CONTENT_INTERNAL_SECRET=replace_with_a_long_random_content_internal_secret
+      - JWT_SECRET=${JWT_SECRET:?required}
+      - CONTENT_INTERNAL_SECRET=${CONTENT_INTERNAL_SECRET:?required}
     depends_on:
       mongo:
         condition: service_healthy
@@ -90,16 +91,15 @@ services:
   legacy-monolith:
     build:
       context: .
-      dockerfile: apps/legacy-monolith/Dockerfile # Wait, does apps/legacy-monolith have a Dockerfile? We should verify or create one if needed!
+      dockerfile: apps/legacy-monolith/Dockerfile
     container_name: workhub-legacy-monolith
     restart: unless-stopped
-    ports:
-      - '3001:3001'
     environment:
       - NODE_ENV=production
+      - PORT=3001
       - MONGODB_URI=mongodb://mongo:27017/workhub
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - JWT_SECRET=replace_with_a_long_random_secret
+      - JWT_SECRET=${JWT_SECRET:?required}
     depends_on:
       mongo:
         condition: service_healthy
@@ -109,7 +109,7 @@ services:
   api-gateway:
     build:
       context: .
-      dockerfile: apps/api-gateway/Dockerfile # Wait, does apps/api-gateway have a Dockerfile? We should verify or create one if needed!
+      dockerfile: apps/api-gateway/Dockerfile
     container_name: workhub-api-gateway
     restart: unless-stopped
     ports:
@@ -121,11 +121,12 @@ services:
       - COMMUNICATION_SERVICE_URL=http://communication-service:3002
       - COMMUNICATION_SERVICE_ENABLED=true
       - COMMUNICATION_CANARY_PERCENT=100
+      - COMMUNICATION_INTERNAL_SECRET=${COMMUNICATION_INTERNAL_SECRET:?required}
       - CONTENT_SERVICE_URL=http://content-service:3003
       - CONTENT_SERVICE_ENABLED=true
       - CONTENT_CANARY_PERCENT=100
-      - JWT_SECRET=replace_with_a_long_random_secret
-      - CONTENT_INTERNAL_SECRET=replace_with_a_long_random_content_internal_secret
+      - CONTENT_INTERNAL_SECRET=${CONTENT_INTERNAL_SECRET:?required}
+      - JWT_SECRET=${JWT_SECRET:?required}
     depends_on:
       - legacy-monolith
       - communication-service

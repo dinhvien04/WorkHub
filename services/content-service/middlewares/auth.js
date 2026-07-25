@@ -1,6 +1,19 @@
 "use strict";
 
+const crypto = require("crypto");
 const env = require("../config/env");
+
+function safeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") {
+    return false;
+  }
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function requireAuth(req, res, next) {
   const internalToken = req.headers["x-internal-token"];
@@ -41,7 +54,7 @@ function requireAuth(req, res, next) {
 
   // Enforce secure internal microservice boundaries
   const serviceName = req.headers["x-service-name"];
-  if (!internalToken || internalToken !== env.CONTENT_INTERNAL_SECRET || serviceName !== "api-gateway") {
+  if (!internalToken || !safeCompare(internalToken, env.CONTENT_INTERNAL_SECRET) || serviceName !== "api-gateway") {
     return res.status(401).json({ error: "Yêu cầu xác thực mạng nội bộ không hợp lệ." });
   }
 

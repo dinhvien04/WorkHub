@@ -465,7 +465,7 @@ async function creditAvailable(hostId, amount) {
     amount: amt,
     direction: "credit",
     description: "creditAvailable compatibility wrapper",
-    idempotencyKey: `compat-credit:${hostId}:${amt}:${Date.now()}`,
+    idempotencyKey: `compat-credit:${hostId}:${amt}:${require("crypto").randomUUID()}`,
     meta: { via: "creditAvailable_deprecated" },
   });
 }

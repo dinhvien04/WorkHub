@@ -115,28 +115,29 @@ async function getPage(req, res, next) {
 }
 
 async function upsertPage(req, res, next) {
+  const { title, body, type, status, citySlug, reason } = req.body;
+  let { slug } = req.body;
+
+  // Validate inputs first before opening session
+  if (!title) {
+    return res.status(400).json({ error: "Tiêu đề trang là bắt buộc." });
+  }
+
+  if (!reason || typeof reason !== "string" || reason.trim().length === 0) {
+    return res.status(400).json({ error: "Lý do thay đổi là bắt buộc." });
+  }
+
+  if (status === "published") {
+    const userScopes = req.user && req.user.scopes ? req.user.scopes : [];
+    if (!userScopes.includes("content:publish")) {
+      return res.status(403).json({ error: "Quyền truy cập bị từ chối. Thiếu scope: content:publish" });
+    }
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { title, body, type, status, citySlug, reason } = req.body;
-    let { slug } = req.body;
-
-    if (!title) {
-      return res.status(400).json({ error: "Tiêu đề trang là bắt buộc." });
-    }
-
-    if (!reason || typeof reason !== "string" || reason.trim().length === 0) {
-      return res.status(400).json({ error: "Lý do thay đổi là bắt buộc." });
-    }
-
-    if (status === "published") {
-      const userScopes = req.user && req.user.scopes ? req.user.scopes : [];
-      if (!userScopes.includes("content:publish")) {
-        return res.status(403).json({ error: "Quyền truy cập bị từ chối. Thiếu scope: content:publish" });
-      }
-    }
-
     if (!slug) {
       slug = slugify(title);
     } else {
@@ -149,9 +150,10 @@ async function upsertPage(req, res, next) {
     if (ifMatch && existing) {
       const currentEtag = computeEtag(existing);
       if (ifMatch !== currentEtag) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(412).json({ error: "Lỗi đè dữ liệu (If-Match Precondition Failed)." });
+        const err = new Error("Lỗi đè dữ liệu (If-Match Precondition Failed).");
+        err.statusCode = 412;
+        err.isOperational = true;
+        throw err;
       }
     }
 
@@ -190,8 +192,8 @@ async function upsertPage(req, res, next) {
     );
 
     // Transactional Outbox integration: publish events
-    const idempotencyKey = `page:${doc.Slug}:${status}:${Date.now()}`;
     const eventType = status === "published" ? "content.page-published.v1" : "content.page-unpublished.v1";
+    const idempotencyKey = `${eventType}:${doc._id}:1`;
     const eventData = status === "published"
       ? { slug: doc.Slug, title: doc.Title, type: doc.Type, publishedAt: now.toISOString() }
       : { slug: doc.Slug, type: doc.Type };
@@ -219,13 +221,15 @@ async function upsertPage(req, res, next) {
     );
 
     await session.commitTransaction();
-    session.endSession();
 
     return res.json({ message: "Cập nhật trang thành công.", page: doc });
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
+    try {
+      await session.abortTransaction();
+    } catch (_) {}
     next(err);
+  } finally {
+    session.endSession();
   }
 }
 

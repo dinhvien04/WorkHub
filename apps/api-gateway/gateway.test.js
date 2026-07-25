@@ -117,4 +117,64 @@ describe("API Gateway Proxy & Middleware Tests", () => {
       mockMonolithServer.listen(targetPort, () => resolve());
     });
   });
+
+  test("CORS allows requests from allowed origins", async () => {
+    const res = await request(app)
+      .get("/gateway/health")
+      .set("Origin", "http://localhost:3000");
+
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+    expect(res.headers["vary"]).toContain("Origin");
+  });
+
+  test("CORS rejects requests from disallowed origins", async () => {
+    const res = await request(app)
+      .get("/gateway/health")
+      .set("Origin", "http://malicious.com");
+
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  test("Proxy pathing E2E: target content server receives original intact URL path", async () => {
+    let receivedUrl;
+    let receivedHeaders;
+    const mockContentServer = http.createServer((req, res) => {
+      receivedUrl = req.url;
+      receivedHeaders = req.headers;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "content_ok" }));
+    });
+    await new Promise((resolve) => mockContentServer.listen(0, resolve));
+    const mockPort = mockContentServer.address().port;
+
+    // Isolate modules to re-require server with new environment variables
+    await new Promise((resolve, reject) => {
+      jest.isolateModules(async () => {
+        try {
+          process.env.CONTENT_SERVICE_URL = `http://localhost:${mockPort}`;
+          process.env.CONTENT_SERVICE_ENABLED = "true";
+          process.env.CONTENT_CANARY_PERCENT = "100";
+          process.env.CONTENT_INTERNAL_SECRET = "test_content_internal_secret";
+
+          const { app: tempGatewayApp } = require("./server");
+          const res = await request(tempGatewayApp)
+            .get("/api/content/pages/about-us")
+            .set("Origin", "http://localhost:3000");
+
+          expect(res.status).toBe(200);
+          expect(res.body.status).toBe("content_ok");
+          // The target server MUST receive the original path intact, not stripped
+          expect(receivedUrl).toBe("/api/content/pages/about-us");
+          expect(receivedHeaders["x-internal-token"]).toBe("test_content_internal_secret");
+
+          await new Promise((resClose) => mockContentServer.close(resClose));
+          resolve();
+        } catch (err) {
+          await new Promise((resClose) => mockContentServer.close(resClose));
+          reject(err);
+        }
+      });
+    });
+  });
 });

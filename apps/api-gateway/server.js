@@ -21,6 +21,7 @@ const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
 
 const CONTENT_INTERNAL_SECRET = process.env.CONTENT_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing CONTENT_INTERNAL_SECRET in production."); })() : "default_test_content_internal_secret_key");
+const COMMUNICATION_INTERNAL_SECRET = process.env.COMMUNICATION_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing COMMUNICATION_INTERNAL_SECRET in production."); })() : "default_test_communication_internal_secret_key");
 
 const app = express();
 
@@ -46,8 +47,19 @@ const edgeLimiter = rateLimit({
 });
 app.use(edgeLimiter);
 
+const CORS_ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(",").map(o => o.trim())
+  : ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like curl or mobile apps)
+    if (!origin) return callback(null, true);
+    if (CORS_ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
 }));
 
@@ -197,10 +209,10 @@ const commProxyOptions = {
       proxyReq.removeHeader("X-User-Id");
       proxyReq.removeHeader("X-User-Role");
       proxyReq.removeHeader("X-Internal-Token");
+      proxyReq.setHeader("X-Internal-Token", COMMUNICATION_INTERNAL_SECRET);
       if (req.user) {
         proxyReq.setHeader("X-User-Id", req.user.userId);
         proxyReq.setHeader("X-User-Role", req.user.role || "");
-        proxyReq.setHeader("X-Internal-Token", JWT_SECRET);
       }
     },
     proxyRes: (proxyRes, req, res) => {
@@ -262,42 +274,24 @@ const contentProxyOptions = {
 
 const contentProxy = createProxyMiddleware(contentProxyOptions);
 
-// Route content, i18n, seo, sitemaps, and robots to content microservice when enabled
-app.use("/api/content", (req, res, next) => {
-  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
-  next();
-});
-
-app.use("/api/i18n", (req, res, next) => {
-  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
-  next();
-});
-
-app.use("/api/seo", (req, res, next) => {
-  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
-  next();
-});
-
-app.use(/^\/sitemap.*/, (req, res, next) => {
-  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
-  next();
-});
-
-app.use(/^\/robots\.txt$/, (req, res, next) => {
-  if (shouldRouteToContent(req)) return contentProxy(req, res, next);
-  next();
-});
-
-// Route push and notification requests to communication microservice when enabled
-app.use("/api/push", (req, res, next) => {
-  if (shouldRouteToCommunication(req)) {
-    return communicationProxy(req, res, next);
+// Route content, i18n, seo, sitemaps, and robots to content microservice when enabled (preserving original path)
+app.use((req, res, next) => {
+  const isContentPath = req.path.startsWith("/api/content") ||
+                        req.path.startsWith("/api/i18n") ||
+                        req.path.startsWith("/api/seo") ||
+                        /^\/sitemap.*/.test(req.path) ||
+                        /^\/robots\.txt$/.test(req.path);
+  if (isContentPath && shouldRouteToContent(req)) {
+    return contentProxy(req, res, next);
   }
   next();
 });
 
-app.use("/api/notifications", (req, res, next) => {
-  if (shouldRouteToCommunication(req)) {
+// Route push and notification requests to communication microservice when enabled (preserving original path)
+app.use((req, res, next) => {
+  const isCommPath = req.path.startsWith("/api/push") ||
+                     req.path.startsWith("/api/notifications");
+  if (isCommPath && shouldRouteToCommunication(req)) {
     return communicationProxy(req, res, next);
   }
   next();

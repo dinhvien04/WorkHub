@@ -166,37 +166,40 @@ async function getRedirectByPath(req, res, next) {
 }
 
 async function upsertRedirect(req, res, next) {
+  const { fromPath, toPath, statusCode, active, note, reason } = req.body;
+
+  if (!fromPath || !toPath) {
+    return res.status(400).json({ error: "FromPath và ToPath là bắt buộc." });
+  }
+
+  if (!reason || typeof reason !== "string" || reason.trim().length === 0) {
+    return res.status(400).json({ error: "Lý do thay đổi là bắt buộc." });
+  }
+
+  // Canonicalize paths
+  const canonicalFrom = canonicalizePath(fromPath);
+  const canonicalTo = canonicalizePath(toPath);
+
+  if (!canonicalFrom || !canonicalTo || !isSafeInternalPath(canonicalFrom) || !isSafeInternalPath(canonicalTo)) {
+    return res.status(400).json({ error: "Đường dẫn không hợp lệ hoặc không an toàn." });
+  }
+
+  // Self Loop Check
+  if (canonicalFrom === canonicalTo) {
+    return res.status(400).json({ error: "FromPath và ToPath không được trùng (tránh vòng lặp)." });
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { fromPath, toPath, statusCode, active, note, reason } = req.body;
-
-    if (!fromPath || !toPath) {
-      return res.status(400).json({ error: "FromPath và ToPath là bắt buộc." });
-    }
-
-    if (!reason || typeof reason !== "string" || reason.trim().length === 0) {
-      return res.status(400).json({ error: "Lý do thay đổi là bắt buộc." });
-    }
-
-    // Canonicalize paths
-    const canonicalFrom = canonicalizePath(fromPath);
-    const canonicalTo = canonicalizePath(toPath);
-
-    if (!canonicalFrom || !canonicalTo || !isSafeInternalPath(canonicalFrom) || !isSafeInternalPath(canonicalTo)) {
-      return res.status(400).json({ error: "Đường dẫn không hợp lệ hoặc không an toàn." });
-    }
-
-    // Self Loop Check
-    if (canonicalFrom === canonicalTo) {
-      return res.status(400).json({ error: "FromPath và ToPath không được trùng (tránh vòng lặp)." });
-    }
-
     // Arbitrary-depth loop / cycle check
     const cycleCheck = await detectRedirectCycle(canonicalFrom, canonicalTo, session);
     if (cycleCheck.hasCycle) {
-      return res.status(400).json({ error: `Không thể tạo redirect: ${cycleCheck.reason}` });
+      const err = new Error(`Không thể tạo redirect: ${cycleCheck.reason}`);
+      err.statusCode = 400;
+      err.isOperational = true;
+      throw err;
     }
 
     // Optimistic check to ensure transaction-safety
@@ -228,6 +231,7 @@ async function upsertRedirect(req, res, next) {
     // Transactional Outbox
     const now = new Date();
     const eventType = "content.seo-redirect-updated.v1";
+    const idempotencyKey = `${eventType}:${doc._id}:1`;
     const envelope = {
       eventId: crypto.randomUUID(),
       eventType,
@@ -249,20 +253,22 @@ async function upsertRedirect(req, res, next) {
         Type: eventType,
         Payload: envelope,
         Status: "pending",
-        IdempotencyKey: `redirect:${doc.FromPath}:${doc.Active}:${Date.now()}`,
+        IdempotencyKey: idempotencyKey,
         AvailableAt: now,
       }],
       { session }
     );
 
     await session.commitTransaction();
-    session.endSession();
 
     return res.json({ message: "Cập nhật redirect thành công.", redirect: doc });
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
+    try {
+      await session.abortTransaction();
+    } catch (_) {}
     next(err);
+  } finally {
+    session.endSession();
   }
 }
 

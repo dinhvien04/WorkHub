@@ -1,25 +1,13 @@
-# WorkHub production image — pin Node minor to engines contract
-FROM node:20.19-alpine AS base
-WORKDIR /app
+FROM node:22.13.0-alpine AS builder
+WORKDIR /usr/src/app
+COPY package*.json ./
+COPY packages/ ./packages/
+COPY apps/api-gateway/ ./apps/api-gateway/
+RUN npm ci --workspace=@workhub/api-gateway --include-workspace-root
 
-FROM base AS deps
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-FROM base AS build
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY . .
-RUN npm run build:css
-RUN npm run build:assets
-RUN test -s public/css/app.min.css
-
-FROM base AS runner
+FROM node:22.13.0-alpine
+WORKDIR /usr/src/app
+COPY --from=builder /usr/src/app ./
 ENV NODE_ENV=production
-ENV USE_TAILWIND_CDN=0
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app ./
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/health || exit 1
-CMD ["node", "server.js"]
+CMD ["node", "apps/api-gateway/server.js"]

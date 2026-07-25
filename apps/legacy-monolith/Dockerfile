@@ -4,6 +4,7 @@ COPY package*.json ./
 COPY packages/ ./packages/
 COPY apps/legacy-monolith/ ./apps/legacy-monolith/
 RUN npm ci --workspace=@workhub/legacy-monolith --include-workspace-root
+RUN npm run build --workspace=@workhub/legacy-monolith
 
 FROM node:22.13.0-alpine
 WORKDIR /usr/src/app
