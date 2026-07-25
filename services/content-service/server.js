@@ -12,10 +12,12 @@ const register = new client.Registry();
 client.collectDefaultMetrics({ register });
 
 const app = express();
+const idempotency = require("./middlewares/idempotency");
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ limit: "2mb", extended: true }));
 app.use(cookieParser());
+app.use(idempotency());
 
 // Healthcheck routes
 app.get("/live", (req, res) => res.json({ status: "ok", service: "content-service" }));
@@ -70,16 +72,31 @@ module.exports = { app, server, register };
 // If run directly, connect database and start listening
 if (require.main === module) {
   const consumerService = require("./services/consumerService");
+  const outboxPublisher = require("./workers/outboxPublisher");
+
+  const processRole = String(process.env.PROCESS_ROLE || "all").toLowerCase();
+  const isWeb = processRole === "web" || processRole === "all";
+  const isWorker = processRole === "worker" || processRole === "all";
 
   async function bootstrap() {
     await db.connectDb();
 
-    // Connect to RabbitMQ and start consumers
-    await consumerService.start();
+    if (isWorker) {
+      // Connect to RabbitMQ and start consumers
+      await consumerService.start();
+      // Start outbox publisher worker
+      outboxPublisher.start(5000);
+    }
 
-    server.listen(env.PORT, () => {
-      console.log(`[ContentService] Listening on port ${env.PORT}`);
-    });
+    if (isWeb) {
+      server.listen(env.PORT, () => {
+        console.log(`[ContentService] Listening on port ${env.PORT}`);
+      });
+    } else {
+      console.log(`[ContentService] Worker started (no HTTP listener)`);
+      // Keep process alive
+      setInterval(() => {}, 60000);
+    }
   }
 
   bootstrap().catch((err) => {
@@ -91,12 +108,17 @@ if (require.main === module) {
     console.log(`[ContentService] Received ${signal}. Starting graceful shutdown...`);
 
     // 1. Close HTTP Server
-    server.close(() => {
-      console.log("[ContentService] HTTP server closed.");
-    });
+    if (isWeb) {
+      server.close(() => {
+        console.log("[ContentService] HTTP server closed.");
+      });
+    }
 
     // 2. Stop RabbitMQ connection
-    await consumerService.stop().catch(console.error);
+    if (isWorker) {
+      outboxPublisher.stop();
+      await consumerService.stop().catch(console.error);
+    }
 
     // 3. Disconnect from database
     await db.disconnectDb().catch(console.error);

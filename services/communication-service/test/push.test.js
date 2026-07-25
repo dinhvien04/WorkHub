@@ -4,6 +4,7 @@ require("./setup");
 
 const pushService = require("../services/pushService");
 const PushSubscription = require("../models/PushSubscription");
+const PushDelivery = require("../models/PushDelivery");
 const mongoose = require("mongoose");
 const webpush = require("web-push");
 
@@ -97,5 +98,39 @@ describe("PushService SSRF Protection and Dispatch Tests", () => {
     await expect(
       pushService.notifyPush(userId, { title: "Title", body: "Body" })
     ).rejects.toThrow("Too many requests");
+  });
+
+  test("notifyPush is idempotent: skips sending to subscription if successful PushDelivery already exists for outboxItemId", async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const sub = await PushSubscription.create({
+      UserID: userId,
+      Endpoint: "https://fcm.googleapis.com/send/tokenIdemp",
+      Keys: { p256dh: "key_dh_p256dh_length_ok", auth: "auth_key_ok" },
+      Status: "active",
+    });
+
+    const outboxItemId = new mongoose.Types.ObjectId();
+
+    // Pre-seed successful PushDelivery for this subscription + outboxItem (simulating crash recovery)
+    await PushDelivery.create({
+      UserID: userId,
+      SubscriptionID: sub._id,
+      OutboxItemID: outboxItemId,
+      Payload: { title: "Title", body: "Body" },
+      Status: "success",
+      StatusCode: 201,
+    });
+
+    process.env.VAPID_PUBLIC_KEY = "testkey";
+    process.env.VAPID_PRIVATE_KEY = "testprivate";
+
+    // Call notifyPush with outboxItemId
+    const result = await pushService.notifyPush(userId, { title: "Title", body: "Body" }, outboxItemId);
+
+    // Verify it reports success
+    expect(result.sent).toBe(1);
+
+    // Assert that webpush.sendNotification was NOT called since it was skipped idempotently!
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
   });
 });

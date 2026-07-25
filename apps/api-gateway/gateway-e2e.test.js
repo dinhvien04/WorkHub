@@ -14,6 +14,7 @@ const COMM_SECRET = "test_communication_internal_secret_key_at_least_32_chars";
 let processes = {};
 let contentConn;
 let commConn;
+let monoConn;
 let replset;
 let uriContent;
 let uriComm;
@@ -62,6 +63,7 @@ beforeAll(async () => {
   // Setup database connections for direct inspection
   contentConn = await mongoose.createConnection(uriContent).asPromise();
   commConn = await mongoose.createConnection(uriComm).asPromise();
+  monoConn = await mongoose.createConnection(uriMonolith).asPromise();
 
   // Pre-create collections to prevent replica set catalog changes transaction errors
   await contentConn.createCollection("content_pages");
@@ -76,6 +78,32 @@ beforeAll(async () => {
   await commConn.createCollection("communication_outbox");
   await commConn.createCollection("notification_preferences");
   await commConn.createCollection("processed_messages");
+
+  await monoConn.createCollection("users");
+  await monoConn.createCollection("user_sessions");
+
+  // Seed default E2E users inside the monolith DB so the Gateway verify checks succeed
+  const adminId = "507f1f77bcf86cd799439011";
+  const customerId = "507f1f77bcf86cd799439012";
+  const User = monoConn.model("User", new mongoose.Schema({}, { strict: false }), "users");
+  await User.create([
+    {
+      _id: new mongoose.Types.ObjectId(adminId),
+      Email: "admin@workhub.local",
+      FullName: "Admin User",
+      Role: "admin",
+      Status: "active",
+      tokenVersion: 0,
+    },
+    {
+      _id: new mongoose.Types.ObjectId(customerId),
+      Email: "cust@workhub.local",
+      FullName: "Customer User",
+      Role: "customer",
+      Status: "active",
+      tokenVersion: 0,
+    }
+  ]);
 
   mockAmqpPath = path.join(__dirname, "mock-amqp.js");
 
@@ -130,6 +158,7 @@ beforeAll(async () => {
       ...process.env,
       PORT: "3000",
       LEGACY_MONOLITH_URL: "http://127.0.0.1:3001",
+      MONGODB_URI: uriMonolith,
       CONTENT_SERVICE_URL: "http://127.0.0.1:3003",
       CONTENT_SERVICE_ENABLED: "true",
       CONTENT_CANARY_PERCENT: "100",
@@ -157,19 +186,50 @@ beforeAll(async () => {
   }
 }, 60000);
 
+async function killProcess(proc, name) {
+  if (!proc) return;
+  return new Promise((resolve) => {
+    let resolved = false;
+    const handleExit = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    proc.on("exit", handleExit);
+    proc.on("error", handleExit);
+
+    proc.kill("SIGTERM");
+
+    setTimeout(() => {
+      if (!resolved) {
+        console.warn(`[Teardown] ${name} did not exit in 3s, sending SIGKILL...`);
+        proc.kill("SIGKILL");
+        resolved = true;
+        resolve();
+      }
+    }, 3000);
+  });
+}
+
 afterAll(async () => {
-  // Kill processes
-  for (const key of Object.keys(processes)) {
-    processes[key].kill();
-  }
+  // Kill processes cleanly with SIGTERM and timeout SIGKILL fallback
+  await killProcess(processes.monolith, "Monolith");
+  await killProcess(processes.content, "Content Service");
+  await killProcess(processes.comm, "Communication Service");
+  await killProcess(processes.gateway, "API Gateway");
+
   // Close database connections
   if (contentConn) await contentConn.close();
   if (commConn) await commConn.close();
+  if (monoConn) await monoConn.close();
   if (replset) await replset.stop();
 });
 
 describe("Real Gateway-to-Service E2E Integration Tests", () => {
-  const adminUserId = new mongoose.Types.ObjectId().toString();
+  const adminUserId = "507f1f77bcf86cd799439011";
+  const customerUserId = "507f1f77bcf86cd799439012";
 
   function signToken(userId, role = "customer", opts = {}) {
     return jwt.sign(
@@ -212,7 +272,7 @@ describe("Real Gateway-to-Service E2E Integration Tests", () => {
   });
 
   test("2. POST push subscription through Gateway saves in Communication DB", async () => {
-    const token = signToken(adminUserId, "customer");
+    const token = signToken(customerUserId, "customer");
     const payload = {
       endpoint: "https://fcm.googleapis.com/send/e2e-push-token",
       keys: { p256dh: "key_dh_p256dh_length_ok", auth: "auth_key_ok" },
@@ -229,7 +289,7 @@ describe("Real Gateway-to-Service E2E Integration Tests", () => {
 
     // Inspect database directly
     const subModel = commConn.model("PushSubscription", new mongoose.Schema({}, { strict: false }), "push_subscriptions");
-    const saved = await subModel.findOne({ UserID: new mongoose.Types.ObjectId(adminUserId) });
+    const saved = await subModel.findOne({ UserID: new mongoose.Types.ObjectId(customerUserId) });
     expect(saved).toBeTruthy();
     expect(saved.get("Endpoint")).toBe("https://fcm.googleapis.com/send/e2e-push-token");
   });

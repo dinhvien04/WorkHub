@@ -6,7 +6,6 @@ process.env.MONGODB_URI = "mongodb://127.0.0.1:27017/test-db";
 
 const request = require("supertest");
 const http = require("http");
-const mongoose = require("mongoose");
 const { createApp } = require("../legacy-monolith/app");
 const { startMemoryMongo, stopMemoryMongo } = require("../legacy-monolith/test/helpers");
 
@@ -170,7 +169,9 @@ describe("API Gateway Contract Comparison", () => {
   });
 
   test("Sitemap handles over 50,000 URLs correctly without crashing", async () => {
-    const BranchModel = mongoose.model("Branch");
+    const path = require("path");
+    const monoMongoose = require(require.resolve("mongoose", { paths: [path.join(__dirname, "../legacy-monolith")] }));
+    const BranchModel = monoMongoose.model("Branch");
     const originalFind = BranchModel.find;
 
     // Create 51,000 mock branches

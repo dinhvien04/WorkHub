@@ -2,6 +2,7 @@
 
 const ContentOutbox = require("../models/ContentOutbox");
 const { messaging } = require("@workhub/observability");
+const { validateEvent } = require("@workhub/contracts");
 const consumerService = require("../services/consumerService");
 const crypto = require("crypto");
 
@@ -52,6 +53,9 @@ async function processOutbox(workerId = `content-outbox-${crypto.randomUUID()}`)
   let successCount = 0;
   for (const item of batch) {
     try {
+      // Validate event envelope contract before publishing
+      validateEvent(item.Payload);
+
       // Publish event envelope to RabbitMQ exchange
       await messaging.publishEvent(channel, item.Payload);
 

@@ -6,6 +6,7 @@ const pushDeliverySchema = new mongoose.Schema(
   {
     UserID: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     SubscriptionID: { type: mongoose.Schema.Types.ObjectId, ref: "PushSubscription", required: true },
+    OutboxItemID: { type: mongoose.Schema.Types.ObjectId, index: true },
     Payload: { type: mongoose.Schema.Types.Mixed, required: true },
     Status: { type: String, enum: ["success", "failed"], required: true, index: true },
     StatusCode: { type: Number },

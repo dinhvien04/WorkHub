@@ -107,9 +107,9 @@ async function main() {
         timeout: 20000,
       });
       const status = res ? res.status() : 0;
-      if (status !== expectStatus && status >= 400) {
-        failures.push(`${path} → HTTP ${status}`);
-        console.log(`FAIL ${status} ${path}`);
+      if (status !== expectStatus) {
+        failures.push(`${path} → HTTP ${status} (expected ${expectStatus})`);
+        console.log(`FAIL ${status} ${path} (expected ${expectStatus})`);
         return;
       }
       if (expectText) {
@@ -138,8 +138,32 @@ async function main() {
   await visit("/status");
 
   // Verify Gateway-to-microservices integration E2E paths
-  await visit("/api/content/pages", { expectStatus: 401 });
-  await visit("/api/push/subscribe", { expectStatus: 401 });
+  await visit("/api/content/pages", { expectStatus: 200 });
+
+  // Verify protected POST endpoints return 401 when no token is present (via page fetch)
+  try {
+    const postPushStatus = await page.evaluate(async (base) => {
+      const res = await fetch(`${base}/api/push/subscribe`, { method: "POST" });
+      return res.status;
+    }, base);
+    if (postPushStatus !== 401) {
+      failures.push(`/api/push/subscribe POST → HTTP ${postPushStatus} (expected 401)`);
+    } else {
+      console.log("OK   401 /api/push/subscribe POST");
+    }
+
+    const postContentStatus = await page.evaluate(async (base) => {
+      const res = await fetch(`${base}/api/content/pages`, { method: "POST" });
+      return res.status;
+    }, base);
+    if (postContentStatus !== 401) {
+      failures.push(`/api/content/pages POST → HTTP ${postContentStatus} (expected 401)`);
+    } else {
+      console.log("OK   401 /api/content/pages POST");
+    }
+  } catch (err) {
+    failures.push(`Protected E2E fetch checks failed: ${err.message}`);
+  }
 
   // Production CSS present
   try {

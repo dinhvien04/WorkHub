@@ -49,8 +49,8 @@ async function processPushQueue(workerId = `push-worker-${crypto.randomUUID()}`)
   let successCount = 0;
   for (const item of batch) {
     try {
-      // Dispatch Web Push notification
-      await pushService.notifyPush(item.RecipientID, item.Payload);
+      // Dispatch Web Push notification with outbox item ID for idempotency check
+      await pushService.notifyPush(item.RecipientID, item.Payload, item._id);
 
       item.Status = "sent";
       item.LastError = null;

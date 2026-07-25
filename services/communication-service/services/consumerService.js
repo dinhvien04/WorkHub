@@ -191,10 +191,11 @@ async function handleReviewReplied(event) {
 
     // 3. Queue Push outbox
     if (!prefs || prefs.NotifyPush !== false) {
-      await pushService.notifyPush(customerId, {
+      await pushService.enqueuePush({
+        recipientId: customerId,
         title: "Phản hồi đánh giá mới",
         body: replyText,
-      });
+      }, { session });
     }
   });
 }
@@ -233,11 +234,12 @@ async function handleBookingConfirmed(event) {
     }
 
     if (!prefs || prefs.NotifyPush !== false) {
-      await pushService.notifyPush(customerId, {
+      await pushService.enqueuePush({
+        recipientId: customerId,
         title: "Booking đã xác nhận",
         body: spaceName,
         url: "/dashboard",
-      });
+      }, { session });
     }
   });
 }
@@ -276,10 +278,11 @@ async function handleBookingCancelled(event) {
     }
 
     if (!prefs || prefs.NotifyPush !== false) {
-      await pushService.notifyPush(recipientId, {
+      await pushService.enqueuePush({
+        recipientId,
         title: "Đơn đặt chỗ đã bị hủy",
         body: spaceName,
-      });
+      }, { session });
     }
   });
 }
@@ -316,11 +319,12 @@ async function handlePaymentSucceeded(event) {
     }
 
     if (!prefs || prefs.NotifyPush !== false) {
-      await pushService.notifyPush(customerId, {
+      await pushService.enqueuePush({
+        recipientId: customerId,
         title: "Thanh toán thành công",
         body: `${Number(amount).toLocaleString("vi-VN")}đ`,
         url: `/booking/detail?id=${bookingId}`,
-      });
+      }, { session });
     }
   });
 }
@@ -355,10 +359,11 @@ async function handleRefundCompleted(event) {
     }
 
     if (!prefs || prefs.NotifyPush !== false) {
-      await pushService.notifyPush(customerId, {
+      await pushService.enqueuePush({
+        recipientId: customerId,
         title: "Hoàn tiền đã xử lý",
         body: `${Number(refundAmount).toLocaleString("vi-VN")}đ`,
-      });
+      }, { session });
     }
   });
 }

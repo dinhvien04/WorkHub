@@ -203,7 +203,7 @@ function sanitizeErrorMessage(errMsg, endpoint) {
   return sanitized;
 }
 
-async function notifyPush(userId, payload) {
+async function notifyPush(userId, payload, outboxItemId = null) {
   const subs = await listSubscriptions(userId);
   if (!subs.length) return { sent: 0 };
 
@@ -230,6 +230,20 @@ async function notifyPush(userId, payload) {
 
   for (const s of subs) {
     try {
+      // Idempotency: Skip if already successfully delivered to this subscription for this outbox item
+      if (outboxItemId) {
+        const existing = await PushDelivery.findOne({
+          SubscriptionID: s._id,
+          OutboxItemID: outboxItemId,
+          Status: "success",
+        }).lean();
+        if (existing) {
+          console.log(`[PushService] Duplicate delivery skipped for sub ${s._id}, outbox ${outboxItemId}`);
+          sent += 1;
+          continue;
+        }
+      }
+
       const response = await webpush.sendNotification(
         {
           endpoint: s.Endpoint,
@@ -242,6 +256,7 @@ async function notifyPush(userId, payload) {
       await PushDelivery.create({
         UserID: userId,
         SubscriptionID: s._id,
+        OutboxItemID: outboxItemId,
         Payload: payload,
         Status: "success",
         StatusCode: response.statusCode,
@@ -256,6 +271,7 @@ async function notifyPush(userId, payload) {
       await PushDelivery.create({
         UserID: userId,
         SubscriptionID: s._id,
+        OutboxItemID: outboxItemId,
         Payload: payload,
         Status: "failed",
         StatusCode: err.statusCode,
@@ -282,10 +298,34 @@ async function notifyPush(userId, payload) {
   return { sent, mode: "web-push" };
 }
 
+const crypto = require("crypto");
+const CommunicationOutbox = require("../models/CommunicationOutbox");
+
+async function enqueuePush({ recipientId, title, body, url }, options = {}) {
+  const session = options.session;
+  const hash = crypto.createHash("sha256").update(title + body + (url || "")).digest("hex").slice(0, 16);
+  const idempotencyKey = options.idempotencyKey || `push:${recipientId}:${hash}`;
+
+  const [doc] = await CommunicationOutbox.create(
+    [
+      {
+        Type: "push",
+        RecipientID: recipientId,
+        Payload: { title, body, url },
+        Status: "pending",
+        IdempotencyKey: idempotencyKey,
+        AvailableAt: new Date(),
+      },
+    ],
+    { session }
+  );
+  return doc;
+}
+
 module.exports = {
   saveSubscription,
   revokeSubscription,
   listSubscriptions,
   notifyPush,
-  ValidationError,
+  enqueuePush,
 };
