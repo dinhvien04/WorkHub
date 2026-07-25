@@ -14,6 +14,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const LEGACY_MONOLITH_URL = process.env.LEGACY_MONOLITH_URL || "http://localhost:3001";
 const COMMUNICATION_SERVICE_URL = process.env.COMMUNICATION_SERVICE_URL || "http://localhost:3002";
 const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || "http://localhost:3003";
+const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || "http://localhost:3004";
 const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
 if (process.env.NODE_ENV === "production") {
@@ -24,6 +25,7 @@ if (process.env.NODE_ENV === "production") {
 
 const CONTENT_INTERNAL_SECRET = process.env.CONTENT_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing CONTENT_INTERNAL_SECRET in production."); })() : "default_test_content_internal_secret_key");
 const COMMUNICATION_INTERNAL_SECRET = process.env.COMMUNICATION_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing COMMUNICATION_INTERNAL_SECRET in production."); })() : "default_test_communication_internal_secret_key");
+const IDENTITY_INTERNAL_SECRET = process.env.IDENTITY_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing IDENTITY_INTERNAL_SECRET in production."); })() : "default_test_identity_internal_secret_key");
 
 const app = express();
 
@@ -264,6 +266,20 @@ function shouldRouteToContent(req) {
   return bucket < canaryPercent;
 }
 
+function shouldRouteToIdentity(req) {
+  const enabled = process.env.IDENTITY_SERVICE_ENABLED === "true";
+  if (!enabled) return false;
+  const canaryPercent = Number(process.env.IDENTITY_CANARY_PERCENT) || 0;
+  if (canaryPercent <= 0) return false;
+  if (canaryPercent >= 100) return true;
+
+  // Auth canary can include anonymous traffic (login/register) using IP fallback.
+  const identifier = req.user ? req.user.userId : (req.ip || "anon");
+  const hash = crypto.createHash("sha256").update(`identity-canary:${identifier}`).digest();
+  const bucket = hash.readUInt32BE(0) % 100;
+  return bucket < canaryPercent;
+}
+
 // Proxy configurations for Communication Service
 const commProxyOptions = {
   target: COMMUNICATION_SERVICE_URL,
@@ -354,6 +370,43 @@ const contentProxyOptions = {
 
 const contentProxy = createProxyMiddleware(contentProxyOptions);
 
+// Proxy configurations for Identity Service
+const identityProxyOptions = {
+  target: IDENTITY_SERVICE_URL,
+  changeOrigin: true,
+  ws: false,
+  timeout: 10000,
+  proxyTimeout: 10000,
+  on: {
+    error: (err, req, res) => {
+      console.error(`[API Gateway] Identity Proxy error: ${err.message}`);
+      if (res.writeHead && !res.headersSent) {
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Identity Service Unavailable" }));
+      }
+    },
+    proxyReq: (proxyReq, req) => {
+      proxyReq.setHeader("X-Request-Id", req.id || crypto.randomUUID());
+      if (req.headers["traceparent"]) {
+        proxyReq.setHeader("traceparent", req.headers["traceparent"]);
+      }
+      proxyReq.removeHeader("X-Internal-Token");
+      proxyReq.removeHeader("X-Service-Name");
+      proxyReq.setHeader("X-Service-Name", "api-gateway");
+      proxyReq.setHeader("X-Internal-Token", IDENTITY_INTERNAL_SECRET);
+      if (req.user) {
+        proxyReq.setHeader("X-User-Id", req.user.userId);
+        proxyReq.setHeader("X-User-Role", req.user.role || "");
+      }
+    },
+    proxyRes: (proxyRes, req, res) => {
+      res.setHeader("X-Request-Id", req.id || crypto.randomUUID());
+    },
+  },
+};
+
+const identityProxy = createProxyMiddleware(identityProxyOptions);
+
 // Route content, i18n, and seo to content microservice when enabled (preserving original path)
 app.use((req, res, next) => {
   const isContentPath = req.path === "/api/content" || req.path.startsWith("/api/content/") ||
@@ -371,6 +424,19 @@ app.use((req, res, next) => {
                      req.path === "/api/notifications" || req.path.startsWith("/api/notifications/");
   if (isCommPath && shouldRouteToCommunication(req)) {
     return communicationProxy(req, res, next);
+  }
+  next();
+});
+
+// Route auth/session identity endpoints to identity microservice when enabled
+app.use((req, res, next) => {
+  const isIdentityPath =
+    req.path === "/api/auth" ||
+    req.path.startsWith("/api/auth/") ||
+    req.path === "/api/sessions" ||
+    req.path.startsWith("/api/sessions/");
+  if (isIdentityPath && shouldRouteToIdentity(req)) {
+    return identityProxy(req, res, next);
   }
   next();
 });
@@ -434,4 +500,10 @@ if (require.main === module) {
   process.on("SIGINT", () => handleShutdown("SIGINT"));
 }
 
-module.exports = { app, server, shouldRouteToCommunication, shouldRouteToContent };
+module.exports = {
+  app,
+  server,
+  shouldRouteToCommunication,
+  shouldRouteToContent,
+  shouldRouteToIdentity,
+};

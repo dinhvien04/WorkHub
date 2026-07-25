@@ -1,27 +1,28 @@
 # WorkHub Microservices Migration Report
 
 ## Repository state
-- Current branch: refactor/microservices-strangler
-- Current HEAD: 9a6c6fa5344232e387c8c12158cb8e0c44b3c454
-- Working tree: Modified
+- Current branch: main
+- Current HEAD: pending-commit (will match after push of CI/M6 scaffold work)
+- Working tree: active cleanup + M6 scaffold
 - Last verified date: 2026-07-25
 
 ## Current phase
-CURRENT_PHASE: M5
-STATUS: VERIFIED
+CURRENT_PHASE: M6
+STATUS: IN_PROGRESS (scaffold + canary wiring)
 
 ## Phase status
 | Phase | Status | Evidence | Blockers |
 |---|---|---|---|
-| S0 | VERIFIED | npm run check pass, build pass, audit:prod clean | None |
-| S1 | VERIFIED | Dispute-Refund outbox, Push DNS allowlist, Rating calculation, freeCancelHours validation, custom tests pass | None |
-| S2 | VERIFIED | Old platform/growth routers/controllers split into 7 domain-specific modules, mounted in app.js | None |
-| M1 | VERIFIED | npm workspaces monorepo established; monolith relocated to apps/legacy-monolith; npm ci and all 59 test suites pass | None |
-| M2 | VERIFIED | apps/api-gateway created with Express/http-proxy-middleware v3 pass-through proxy; request ID, rate limits, health checks, error formatting, gateway.test.js pass. Added WebSocket upgrade forwarding, graceful shutdown, automated contract comparison test (contract-comparison.test.js), and rollback smoke test (rollback-smoke.test.js). | None |
-| M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage) enforcing at-least-once message delivery with effectively-once business effect within local transaction. OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js and messaging.real.test.js) successfully cover all required mock and real broker scenarios. | None |
-| M4 | VERIFIED | Extracted push subscriptions, push worker, notification inbox, and email worker to services/communication-service. Owns isolated workhub_communication database (push_subscriptions, notifications, preferences, outbox, etc.) with zero monolith dependencies. Local user caches updated via AMQP identity events. Strangler migration setup (shadow-mode comparison logs, API Gateway canary routing, fallback rollback). E2E scenarios validated. | None |
-| M5 | VERIFIED | Extracted CMS/Pages, SEO redirects, SEO metadata, sitemaps, robots, and i18n translations to services/content-service. Owns workhub_content database. Implemented secure user-auth (cryptographic JWT signature, exp, nbf, iss, and aud checks at gateway) and service-auth (CONTENT_INTERNAL_SECRET and service name verification on microservice). Enforced scope-based validation (content:read, content:write, content:publish, content:redirect:manage, content:i18n:manage). Web Push code was cleanly stripped from the backfill content script. Caching (representation-based ETags & Vary), HTML sanitization allowlist (preventing XSS), and redirect cycle loop check (up to 20 hops) implemented and E2E tested. | None |
-| M6 | NOT_STARTED | | |
+| S0 | VERIFIED | Baseline security/test gates green | None |
+| S1 | VERIFIED | P0/P1 production safety fixes | None |
+| S2 | VERIFIED | Domain route/controller split | None |
+| M1 | VERIFIED | npm workspaces monorepo; apps/legacy-monolith | None |
+| M2 | VERIFIED | apps/api-gateway pass-through + contract/rollback tests | None |
+| M3 | VERIFIED | RabbitMQ foundation + outbox/inbox + messaging tests | None |
+| M4 | VERIFIED | services/communication-service extraction | None |
+| M5 | VERIFIED | services/content-service extraction | None |
+| M5.1 | VERIFIED | Post-merge + post-push verification blockers closed | None |
+| M6 | IN_PROGRESS | services/identity-service scaffolded; gateway canary route for `/api/auth` + `/api/sessions`; auth contract tests | Full auth surface (2FA/WebAuthn/Google/reset) still dual-run with monolith |
 | M7 | NOT_STARTED | | |
 | M8 | NOT_STARTED | | |
 | M9 | NOT_STARTED | | |
@@ -31,44 +32,21 @@ STATUS: VERIFIED
 | M13 | NOT_STARTED | | |
 
 ## Baseline
-- **Lint:** ESLint maximum warnings: 0 (zero errors/warnings).
-- **Test:** Jest standard test suites and replica-set transaction tests pass.
-- **Build:** Purge CSS minification and asset manifest mapping compiles successfully.
-- **Audit:** Production dependencies have 0 high/critical vulnerabilities.
+- **Lint:** ESLint zero warnings on monorepo paths including identity-service.
+- **Test:** API Gateway 29 tests green; Identity auth contract tests included.
+- **Build:** CSS/assets build via legacy-monolith workspace.
+- **Audit:** `npm run audit:prod` has 0 high/critical findings (2 moderate via exceljs/uuid accepted in risk register).
+- **Docker:** `docker compose config` validates; local `docker compose build` requires Docker Desktop engine running.
 
-## Completed changes
-- S0/S1: Dispute-Refund transaction decoupling via Transactional Outbox.
-- S0/S1: Web Push SSRF and DNS Rebinding protection allowlist.
-- S0/S1: Space & Branch Average Rating aggregate reset to 0 when no reviews remain.
-- S0/S1: PII Customer Email removal from listHostReviews and listAdminReviews.
-- S0/S1: Strict `freeCancelHours` Finite/Number validation and preservation of 0 hours.
-- S0/S1: Atomic notes pushing with slice -50.
-- S0/S1: Incident creation validation and branch-scoped staff access checks.
-- S0/S1: Clean up of duplicate platformRoutes/growthRoutes.
-- S0/S1: Added ipaddr.js dependency to package.json.
-
-## Tests and commands
-- `npx jest test/stabilization-transactions.test.js --runInBand` (Pass)
-- `npx jest test/master-passkey-push.test.js --runInBand` (Pass)
-- `npx jest test/master-host-review.test.js --runInBand` (Pass)
-- `npx jest test/master-ops2.test.js --runInBand` (Pass)
-- `npx jest apps/api-gateway/` (Runs the gateway integration, contract comparison, and rollback/canary smoke tests; all 3 suites / 12 tests passed)
-- `npx jest apps/legacy-monolith/test/messaging.test.js --runInBand` (Runs the RabbitMQ integration and crash-recovery mock test suite; all 7 tests passed)
-- `npx jest apps/legacy-monolith/test/messaging.real.test.js --runInBand` (Runs the real broker RabbitMQ integration and crash-recovery test suite; all 8 tests passed or skipped if broker offline)
-- `npx jest services/communication-service/ --runInBand` (Runs the communication service integration, unit, and E2E test suites; all 13 tests passed)
-- `npx jest services/content-service/ --runInBand` (Runs the content service integration, unit, and E2E test suites; all 5 tests passed)
-- `node services/communication-service/scripts/backfillSubscriptions.js` (Runs push subscriptions/preferences backfill migration)
-- `node services/content-service/scripts/backfillContent.js` (Runs CMS and redirects backfill migration script)
-- `docker compose up -d rabbitmq` (Starts the RabbitMQ local broker stack)
-
-## CI status
-- GitHub Actions CI workflow configured at `.github/workflows/ci.yml` is active and verifies all code checks on push/PR.
-
-## API contracts preserved
-- Gateway request path and response schemas are preserved for dispute, refund, push subscribe, review listing, and check-in endpoints.
+## Active Route Phase Status
+* **Communication Routes** (`/api/push/*`, `/api/notifications/*`): CANARY (env-controlled; default enabled in compose).
+* **Content Routes** (`/api/content/*`, `/api/i18n/*`, `/api/seo/*`): CANARY (env-controlled).
+* **Sitemap/Robots** (`/sitemap*.xml`, `/robots.txt`): **MONOLITH (Option B)** until full content SEO parity is complete.
+* **Identity Routes** (`/api/auth/*`, `/api/sessions/*`): CANARY (default `IDENTITY_CANARY_PERCENT=0` / disabled until cutover).
+* **Other Routes**: MONOLITH (100%).
 
 ## Database ownership decisions
-- `workhub_identity` owns User, Credentials.
+- `workhub_identity` owns User, UserSession/Credentials (M6).
 - `workhub_catalog` owns Space, Branch, Review.
 - `workhub_booking` owns Booking, BookingSlot, Incident.
 - `workhub_billing` owns PaymentHistory, Refund, RefundAllocation, LedgerEntry.
@@ -91,26 +69,37 @@ STATUS: VERIFIED
 - `content.seo-redirect-updated.v1`
 - `content.translation-updated.v1`
 
-## Active Route Phase Status
-* **Communication Routes** (`/api/push/*`, `/api/notifications/*`): CANARY (100% rollout when enabled).
-* **Content Routes** (`/api/content/*`, `/api/i18n/*`, `/api/seo/*`, `/sitemap*.xml`, `/robots.txt`): CANARY (100% rollout when enabled).
-* **Other Routes**: MONOLITH (100%).
-
-## Data Migration & Reconciliation Results
-* **Push Subscriptions backfill**: Successfully executed with idempotent upserts. Monolith collection `push_subscriptions` reconciled with `workhub_communication.push_subscriptions` (Counts matched).
-* **Content backfill (CMS & Redirects)**: Reconciled `cms_pages` and `seo_redirects` monolith collections with `workhub_content` equivalents. Source counts matched target counts, conflict checksums resolved with 0 mismatched items.
-* **Audit Results**: 0 high/critical vulnerabilities unresolved. High severity vulnerabilities in `exceljs` (`brace-expansion`) are logged and accepted in the risk register (`docs/security/dependency-risk-register.md`) since they are restricted to developer environment tools and not reachable in production.
-
-## Compatibility shims
-- None required yet.
+## M6 Identity extraction notes
+- New workspace: `services/identity-service`
+- Endpoints implemented in service:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `POST /api/auth/logout`
+  - `GET /api/auth/me`
+  - `GET /api/sessions`
+  - `DELETE /api/sessions/:id`
+  - `POST /api/sessions/logout-all`
+- Gateway canary flags:
+  - `IDENTITY_SERVICE_ENABLED`
+  - `IDENTITY_CANARY_PERCENT`
+  - `IDENTITY_SERVICE_URL`
+  - `IDENTITY_INTERNAL_SECRET`
+- Backfill script: `services/identity-service/scripts/backfillUsers.js` (idempotent upsert users/sessions).
+- Default canary percent is **0** so production remains monolith-auth until intentionally enabled.
 
 ## Rollback plan
-- **Emergency Gateway Rollback**: Bypassing the API gateway by routing client HTTP/WebSocket traffic directly to the monolith port 3001.
-- **Emergency Messaging Rollback**: If RabbitMQ broker encounters severe outages, setting `DISABLE_MQ=true` environment variable fallback triggers outbox events to be processed synchronously/locally via direct database transaction handlers instead of routing through AMQP queues.
-- **Outbox Reconciliation**: In the event of a message publisher outage, the `IntegrationOutboxEvent` collection maintains all un-emitted events. Once RabbitMQ is recovered, outbox publishers will resume claiming and publishing pending messages from the exact state of last broker confirmations.
+- Set `IDENTITY_SERVICE_ENABLED=false` or `IDENTITY_CANARY_PERCENT=0` to force auth back to monolith.
+- Emergency gateway bypass still routes traffic directly to monolith port 3001.
+- Messaging rollback remains `DISABLE_MQ=true` + outbox replay.
 
 ## Risks and technical debt
-- Legacy controllers like `growthController.js` and `platformController.js` are God Controllers.
+- Identity service currently covers core password auth/session contracts; 2FA/WebAuthn/Google/password-reset still live in monolith and require progressive dual-run extraction.
+- Sitemap/robots remain on monolith (Option B).
+- Docker Desktop engine may be offline on local Windows; CI docker job still validates compose build.
+- Moderate `uuid` advisory via `exceljs` remains accepted in risk register.
 
 ## Next actions
-- Execute M6: Extraction of next microservice boundary.
+1. Enable Identity dual-run canary in staging (`IDENTITY_CANARY_PERCENT` gradual rollout).
+2. Extract remaining auth surface (2FA, WebAuthn, Google OIDC, email verify/reset) into identity-service.
+3. Run production-like backfill + reconciliation of `users` / `user_sessions`.
+4. Proceed to M7 Catalog Service only after Identity cutover criteria pass.

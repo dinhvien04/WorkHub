@@ -98,6 +98,29 @@ services:
       timeout: 5s
       retries: 5
 
+  identity-service:
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
+    container_name: workhub-identity-service
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - MONGODB_IDENTITY_URI=mongodb://mongo:27017/workhub_identity
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=${JWT_SECRET:?required}
+      - IDENTITY_INTERNAL_SECRET=${IDENTITY_INTERNAL_SECRET:?required}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   legacy-monolith:
     build:
       context: .
@@ -141,11 +164,16 @@ services:
       - CONTENT_SERVICE_ENABLED=true
       - CONTENT_CANARY_PERCENT=100
       - CONTENT_INTERNAL_SECRET=${CONTENT_INTERNAL_SECRET:?required}
+      - IDENTITY_SERVICE_URL=http://identity-service:3004
+      - IDENTITY_SERVICE_ENABLED=true
+      - IDENTITY_CANARY_PERCENT=0
+      - IDENTITY_INTERNAL_SECRET=${IDENTITY_INTERNAL_SECRET:?required}
       - JWT_SECRET=${JWT_SECRET:?required}
     depends_on:
       - legacy-monolith
       - communication-service
       - content-service
+      - identity-service
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/gateway/health/ready"]
       interval: 10s
