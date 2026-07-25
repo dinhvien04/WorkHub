@@ -132,9 +132,13 @@ describe('SBOM script', () => {
   test('generate sbom file', () => {
     const { execSync } = require('child_process');
     const fs = require('fs');
-    execSync('node scripts/generate-sbom.js', { cwd: process.cwd() });
-    expect(fs.existsSync('docs/sbom.json')).toBe(true);
-    const sbom = JSON.parse(fs.readFileSync('docs/sbom.json', 'utf8'));
+    const path = require('path');
+
+    execSync('node scripts/generate-sbom.js', { cwd: path.join(__dirname, '..') });
+
+    const sbomPath = path.join(__dirname, '..', 'docs', 'sbom.json');
+    expect(fs.existsSync(sbomPath)).toBe(true);
+    const sbom = JSON.parse(fs.readFileSync(sbomPath, 'utf8'));
     expect(sbom.bomFormat).toBe('CycloneDX');
     expect(sbom.components.length).toBeGreaterThan(10);
   });

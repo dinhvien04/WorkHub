@@ -80,8 +80,8 @@ describe('Customer dashboard + health + css build', () => {
     const home = await request(app).get('/health');
     expect(home.headers['x-response-time'] || home.headers['server-timing']).toBeTruthy();
 
-    execSync('node scripts/minify-css.js', { cwd: process.cwd() });
-    expect(fs.existsSync(path.join('public', 'css', 'app.min.css'))).toBe(true);
+    execSync('node scripts/minify-css.js', { cwd: path.join(__dirname, '..') });
+    expect(fs.existsSync(path.join(__dirname, '..', 'public', 'css', 'app.min.css'))).toBe(true);
     expect((await request(app).get('/css/app.min.css')).status).toBe(200);
     expect((await request(app).get('/dashboard')).status).toBe(200);
   });

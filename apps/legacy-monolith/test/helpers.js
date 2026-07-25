@@ -16,6 +16,16 @@ async function startMemoryMongo() {
   const uri = mongoServer.getUri();
   process.env.MONGODB_URI = uri;
   await mongoose.connect(uri);
+  await mongoose.connection.db.admin().command({ ping: 1 });
+
+  // Pre-create collections to prevent replica set catalog changes transaction errors
+  const collections = ["integration_outbox_events", "processed_messages", "webhook_events", "outbox_events", "payment_histories", "bookings"];
+  for (const col of collections) {
+    try {
+      await mongoose.connection.createCollection(col);
+    } catch (_) {}
+  }
+
   return uri;
 }
 

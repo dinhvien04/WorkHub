@@ -29,9 +29,9 @@ beforeEach(async () => {
 
 describe('CSS purge build', () => {
   test('purge-css produces smaller or equal app.min.css', () => {
-    execSync('node scripts/purge-css.js', { cwd: process.cwd() });
-    const minPath = path.join('public', 'css', 'app.min.css');
-    const purgedPath = path.join('public', 'css', 'utilities.purged.css');
+    execSync('node scripts/purge-css.js', { cwd: path.join(__dirname, '..') });
+    const minPath = path.join(__dirname, '..', 'public', 'css', 'app.min.css');
+    const purgedPath = path.join(__dirname, '..', 'public', 'css', 'utilities.purged.css');
     expect(fs.existsSync(minPath)).toBe(true);
     expect(fs.existsSync(purgedPath)).toBe(true);
     const min = fs.readFileSync(minPath, 'utf8');

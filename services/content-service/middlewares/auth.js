@@ -40,7 +40,8 @@ function requireAuth(req, res, next) {
   }
 
   // Enforce secure internal microservice boundaries
-  if (!internalToken || internalToken !== env.JWT_SECRET) {
+  const serviceName = req.headers["x-service-name"];
+  if (!internalToken || internalToken !== env.CONTENT_INTERNAL_SECRET || serviceName !== "api-gateway") {
     return res.status(401).json({ error: "Yêu cầu xác thực mạng nội bộ không hợp lệ." });
   }
 

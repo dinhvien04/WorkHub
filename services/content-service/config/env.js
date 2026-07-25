@@ -11,6 +11,7 @@ const required = [
   "MONGODB_CONTENT_URI",
   "RABBITMQ_URL",
   "JWT_SECRET",
+  "CONTENT_INTERNAL_SECRET",
 ];
 
 const missing = [];

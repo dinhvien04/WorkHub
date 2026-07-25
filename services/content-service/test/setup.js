@@ -2,6 +2,7 @@
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "test_jwt_secret_key_at_least_32_characters_long_for_workhub";
+process.env.CONTENT_INTERNAL_SECRET = "default_test_content_internal_secret_key";
 process.env.MONGODB_CONTENT_URI = "mongodb://127.0.0.1:27017/test-content-db";
 
 const mongoose = require("mongoose");

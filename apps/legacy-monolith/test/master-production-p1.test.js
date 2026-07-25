@@ -334,14 +334,15 @@ describe("P1.13 Inline handler CI guard", () => {
       "views/customer/login.ejs",
       "views/partials/header.ejs",
     ];
+    const workspaceDir = path.join(__dirname, "..");
     for (const f of files) {
-      const p = path.join(process.cwd(), f);
+      const p = path.join(workspaceDir, f);
       if (!fs.existsSync(p)) continue;
       const text = fs.readFileSync(p, "utf8");
       expect(text).not.toMatch(/\son(?:click|error|change|submit|input)\s*=/i);
     }
     expect(
-      fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js")),
+      fs.existsSync(path.join(workspaceDir, "public/js/ui-bind.js")),
     ).toBe(true);
   });
 });
