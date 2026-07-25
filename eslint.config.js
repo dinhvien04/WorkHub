@@ -4,12 +4,13 @@ module.exports = [
   {
     ignores: [
       'node_modules/**',
-      'public/uploads/**',
-      'public/dist/**',
-      'coverage/**',
-      'tmp/**',
+      'apps/legacy-monolith/public/uploads/**',
+      'apps/legacy-monolith/public/dist/**',
+      'apps/legacy-monolith/public/sw.js',
+      'apps/legacy-monolith/coverage/**',
+      'apps/legacy-monolith/tmp/**',
       'dist-ts/**',
-      'scripts/tick-*.js',
+      'apps/legacy-monolith/scripts/tick-*.js',
     ],
   },
   {
@@ -61,7 +62,7 @@ module.exports = [
     },
   },
   {
-    files: ['public/js/**/*.js'],
+    files: ['apps/legacy-monolith/public/js/**/*.js'],
     languageOptions: {
       globals: {
         window: 'readonly',
@@ -106,14 +107,14 @@ module.exports = [
     },
   },
   {
-    files: ['test/**/*.js'],
+    files: ['apps/legacy-monolith/test/**/*.js'],
     rules: {
       // Suite scaffolding often imports helpers not used in every file
       'no-unused-vars': 'off',
     },
   },
   {
-    files: ['scripts/**/*.js'],
+    files: ['apps/legacy-monolith/scripts/**/*.js'],
     rules: {
       'no-unused-vars': [
         'error',

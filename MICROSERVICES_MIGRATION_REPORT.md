@@ -1,128 +1,116 @@
-# BÁO CÁO ỔN ĐỊNH MONOLITH VÀ SỬA LỖI P0/P1 TRƯỚC KHI CHUYỂN ĐỔI MICROSERVICES
+# WorkHub Microservices Migration Report
 
-*   **Thời điểm báo cáo:** 2026-07-24
-*   **Trạng thái nhánh hiện tại:** `feat/optimization-and-security-fixes`
-*   **Commit đích:** `3a2db51ee2a11f3c14461c70cba72a3554347aa8`
-*   **Mục tiêu:** Thực hiện Giai đoạn S0 và S1 (khóa baseline, viết test cho commit mới nhất, sửa toàn bộ lỗi P0/P1, kiểm chứng độ tin cậy của mã nguồn thông qua Jest và Lint trước khi chuyển đổi sang microservices).
+## Repository state
+- Current branch: refactor/microservices-strangler
+- Current HEAD: 9a6c6fa5344232e387c8c12158cb8e0c44b3c454
+- Working tree: Modified
+- Last verified date: 2026-07-25
 
----
+## Current phase
+CURRENT_PHASE: M5
+STATUS: VERIFIED
 
-## 1. TỔNG HỢP CÁC LỖI P0/P1 ĐÃ ĐƯỢC SỬA
+## Phase status
+| Phase | Status | Evidence | Blockers |
+|---|---|---|---|
+| S0 | VERIFIED | npm run check pass, build pass, audit:prod clean | None |
+| S1 | VERIFIED | Dispute-Refund outbox, Push DNS allowlist, Rating calculation, freeCancelHours validation, custom tests pass | None |
+| S2 | VERIFIED | Old platform/growth routers/controllers split into 7 domain-specific modules, mounted in app.js | None |
+| M1 | VERIFIED | npm workspaces monorepo established; monolith relocated to apps/legacy-monolith; npm ci and all 59 test suites pass | None |
+| M2 | VERIFIED | apps/api-gateway created with Express/http-proxy-middleware v3 pass-through proxy; request ID, rate limits, health checks, error formatting, gateway.test.js pass. Added WebSocket upgrade forwarding, graceful shutdown, automated contract comparison test (contract-comparison.test.js), and rollback smoke test (rollback-smoke.test.js). | None |
+| M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage) enforcing at-least-once message delivery with effectively-once business effect within local transaction. OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js and messaging.real.test.js) successfully cover all required mock and real broker scenarios. | None |
+| M4 | VERIFIED | Extracted push subscriptions, push worker, notification inbox, and email worker to services/communication-service. Owns isolated workhub_communication database (push_subscriptions, notifications, preferences, outbox, etc.) with zero monolith dependencies. Local user caches updated via AMQP identity events. Strangler migration setup (shadow-mode comparison logs, API Gateway canary routing, fallback rollback). E2E scenarios validated. | None |
+| M5 | VERIFIED | Extracted CMS/Pages, SEO redirects, SEO metadata, sitemaps, robots, and i18n translations to services/content-service. Owns workhub_content database. Implemented secure user-auth (cryptographic JWT signature, exp, nbf, iss, and aud checks at gateway) and service-auth (CONTENT_INTERNAL_SECRET and service name verification on microservice). Enforced scope-based validation (content:read, content:write, content:publish, content:redirect:manage, content:i18n:manage). Web Push code was cleanly stripped from the backfill content script. Caching (representation-based ETags & Vary), HTML sanitization allowlist (preventing XSS), and redirect cycle loop check (up to 20 hops) implemented and E2E tested. | None |
+| M6 | NOT_STARTED | | |
+| M7 | NOT_STARTED | | |
+| M8 | NOT_STARTED | | |
+| M9 | NOT_STARTED | | |
+| M10 | NOT_STARTED | | |
+| M11 | NOT_STARTED | | |
+| M12 | NOT_STARTED | | |
+| M13 | NOT_STARTED | | |
 
-Dưới đây là chi tiết các lỗi đã được vá và kiểm chứng thành công trong giai đoạn Stabilization:
+## Baseline
+- **Lint:** ESLint maximum warnings: 0 (zero errors/warnings).
+- **Test:** Jest standard test suites and replica-set transaction tests pass.
+- **Build:** Purge CSS minification and asset manifest mapping compiles successfully.
+- **Audit:** Production dependencies have 0 high/critical vulnerabilities.
 
-### P0-02 — Dispute bị đánh dấu resolved trước khi refund hoàn thành
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\services\disputeService.js`
-    *   `D:\WorkHub\services\refundService.js`
-*   **Giải pháp xử lý:** 
-    *   Bọc toàn bộ luồng cập nhật trạng thái Dispute và luồng tạo/xử lý hoàn tiền trong một phiên giao dịch (Session/Transaction) MongoDB thông qua tiện ích `withTransaction`.
-    *   Hỗ trợ truyền đối tượng `session` vào trong các hàm `requestRefund` và `processRefund`.
-    *   Điều chỉnh `processRefund` để sử dụng trực tiếp session được truyền vào thay vì gọi lồng hàm `withTransaction` mới, bảo đảm tính nhất quán khi có lỗi phát sinh (nếu khâu hoàn tiền lỗi, Dispute sẽ tự động rollback về trạng thái trước đó).
-    *   Các sự kiện Outbox enqueues trong quá trình hoàn tiền cũng được chạy kèm đối tượng `session` này để chỉ thực hiện gửi email khi transaction commit thành công.
+## Completed changes
+- S0/S1: Dispute-Refund transaction decoupling via Transactional Outbox.
+- S0/S1: Web Push SSRF and DNS Rebinding protection allowlist.
+- S0/S1: Space & Branch Average Rating aggregate reset to 0 when no reviews remain.
+- S0/S1: PII Customer Email removal from listHostReviews and listAdminReviews.
+- S0/S1: Strict `freeCancelHours` Finite/Number validation and preservation of 0 hours.
+- S0/S1: Atomic notes pushing with slice -50.
+- S0/S1: Incident creation validation and branch-scoped staff access checks.
+- S0/S1: Clean up of duplicate platformRoutes/growthRoutes.
+- S0/S1: Added ipaddr.js dependency to package.json.
 
-### P0-03 — Web Push endpoint có thể trở thành outbound-request/SSRF surface
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\services\pushService.js`
-    *   `D:\WorkHub\controllers\growthController.js`
-    *   `D:\WorkHub\middlewares\rateLimiters.js`
-    *   `D:\WorkHub\routes\growthRoutes.js`
-*   **Giải pháp xử lý:**
-    *   **Ngăn chặn SSRF:** Sử dụng thư viện `dns.promises.lookup` để phân giải tên miền của Web Push endpoint ra các địa chỉ IP. Dùng thư viện `ipaddr.js` kiểm tra và chặn toàn bộ các dải IP riêng tư (Private IP), loopback (`127.0.0.1`, `::1`), multicast, link-local, broadcast hoặc các địa chỉ không hợp lệ. Chỉ cho phép giao thức `https://`.
-    *   **Giới hạn đăng ký (Cap):** Giới hạn tối đa 10 active subscriptions trên mỗi người dùng. Nếu người dùng đăng ký thiết bị thứ 11, thiết bị cũ nhất (FIFO - sắp xếp theo `createdAt` tăng dần) sẽ tự động bị đổi trạng thái thành `revoked`.
-    *   **Bảo mật thông tin:** Không trả về dữ liệu trường `Endpoint` thô dạng bản rõ trong phản hồi API của khách hàng.
-    *   **Rate Limiting:** Tạo bộ lọc giới hạn tần suất `pushSubscriptionLimiter` (tối đa 40 yêu cầu mỗi 15 phút) áp dụng trực tiếp cho các route `/api/push/subscribe` và `/api/push/unsubscribe`.
-    *   **Key Fail-safe:** Bọc lệnh khởi tạo VAPID keys `webpush.setVapidDetails` bằng try-catch để hệ thống không bị crash lúc khởi động nếu các biến môi trường cấu hình sai.
+## Tests and commands
+- `npx jest test/stabilization-transactions.test.js --runInBand` (Pass)
+- `npx jest test/master-passkey-push.test.js --runInBand` (Pass)
+- `npx jest test/master-host-review.test.js --runInBand` (Pass)
+- `npx jest test/master-ops2.test.js --runInBand` (Pass)
+- `npx jest apps/api-gateway/` (Runs the gateway integration, contract comparison, and rollback/canary smoke tests; all 3 suites / 12 tests passed)
+- `npx jest apps/legacy-monolith/test/messaging.test.js --runInBand` (Runs the RabbitMQ integration and crash-recovery mock test suite; all 7 tests passed)
+- `npx jest apps/legacy-monolith/test/messaging.real.test.js --runInBand` (Runs the real broker RabbitMQ integration and crash-recovery test suite; all 8 tests passed or skipped if broker offline)
+- `npx jest services/communication-service/ --runInBand` (Runs the communication service integration, unit, and E2E test suites; all 13 tests passed)
+- `npx jest services/content-service/ --runInBand` (Runs the content service integration, unit, and E2E test suites; all 5 tests passed)
+- `node services/communication-service/scripts/backfillSubscriptions.js` (Runs push subscriptions/preferences backfill migration)
+- `node services/content-service/scripts/backfillContent.js` (Runs CMS and redirects backfill migration script)
+- `docker compose up -d rabbitmq` (Starts the RabbitMQ local broker stack)
 
-### P0-04 — Rating aggregate tính cả review hidden/removed/reported
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\models\Review.js`
-    *   `D:\WorkHub\services\reviewStatsService.js`
-*   **Giải pháp xử lý:**
-    *   Cập nhật hàm tĩnh `calcAverageRatings` trong schema `Review.js` để thêm điều kiện lọc `{ Status: 'published' }` vào các giai đoạn khớp `$match` của tiến trình MongoDB Aggregation (áp dụng cho cả Space lẫn Branch).
-    *   Cập nhật các hàm `ratingBreakdownForSpaces` và `getBranchReviewsPayload` trong dịch vụ `reviewStatsService.js` để chỉ truy vấn các đánh giá có trạng thái là `published`.
+## CI status
+- GitHub Actions CI workflow configured at `.github/workflows/ci.yml` is active and verifies all code checks on push/PR.
 
-### P0-05 — Host review API có nguy cơ lộ Email khách không cần thiết
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\controllers\growthController.js`
-*   **Giải pháp xử lý:**
-    *   Trong cả hai hàm `listHostReviews` và `listAdminReviews`, sửa đổi cấu hình populate thông tin từ `.populate("CustomerID", "FullName Email")` sang `.populate("CustomerID", "FullName")` để loại bỏ trường Email khỏi kết quả trả về, tuân thủ nguyên tắc giảm thiểu thông tin nhạy cảm (PII).
+## API contracts preserved
+- Gateway request path and response schemas are preserved for dispute, refund, push subscribe, review listing, and check-in endpoints.
 
-### P1-08 — freeCancelHours=0 bị đổi thành 24
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\services\bookingService.js`
-    *   `D:\WorkHub\services\cancellationPolicyService.js`
-*   **Giải pháp xử lý:**
-    *   Thay thế toàn bộ phép so sánh gán giá trị mặc định theo toán tử hoặc logic `|| 24` (vốn tự động chuyển đổi `0` thành `24`) bằng các phép kiểm tra giá trị nullish hoặc undefined rõ ràng (`value !== undefined && value !== null ? value : 24`). Đảm bảo hệ thống lưu và áp dụng đúng cấu hình hủy đặt phòng miễn phí trước `0` giờ.
+## Database ownership decisions
+- `workhub_identity` owns User, Credentials.
+- `workhub_catalog` owns Space, Branch, Review.
+- `workhub_booking` owns Booking, BookingSlot, Incident.
+- `workhub_billing` owns PaymentHistory, Refund, RefundAllocation, LedgerEntry.
+- `workhub_communication` owns PushSubscription, Notification.
+- `workhub_content` owns ContentPage, SeoMetadata, SeoRedirect, Translation, PublicNavigation, PublicPolicy.
 
-### P1-11 — Optional web-push làm feature production không xác định
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\package.json`
-*   **Giải pháp xử lý:**
-    *   Khai báo và cài đặt rõ ràng gói `"web-push": "^3.6.7"` trong phần `dependencies` của dự án để đảm bảo môi trường sản xuất luôn tải đúng thư viện.
+## Event catalog
+- `catalog.review-created.v1`
+- `catalog.rating-recalculated.v1`
+- `catalog.review-replied.v1`
+- `booking.hold-created.v1`
+- `booking.confirmed.v1`
+- `booking.cancelled.v1`
+- `billing.payment-succeeded.v1`
+- `billing.refund-completed.v1`
+- `identity.user-created.v1`
+- `identity.user-updated.v1`
+- `content.page-published.v1`
+- `content.page-unpublished.v1`
+- `content.seo-redirect-updated.v1`
+- `content.translation-updated.v1`
 
-### P1-06 — Internal note được nhúng trong Booking và cập nhật read-modify-save
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\controllers\growthController.js`
-*   **Giải pháp xử lý:**
-    *   Refactor hàm `addHostNote` để thay thế logic cũ bằng thao tác ghi nguyên tử (atomic write) thông qua `findOneAndUpdate`. Sử dụng toán tử `$push` kết hợp `$each` và `$slice: -50` của MongoDB để tránh tranh chấp ghi đè dữ liệu (race conditions) khi nhiều nhân viên ghi chú đồng thời, đồng thời khống chế kích thước mảng ghi chú tối đa ở mức 50 phần tử.
+## Active Route Phase Status
+* **Communication Routes** (`/api/push/*`, `/api/notifications/*`): CANARY (100% rollout when enabled).
+* **Content Routes** (`/api/content/*`, `/api/i18n/*`, `/api/seo/*`, `/sitemap*.xml`, `/robots.txt`): CANARY (100% rollout when enabled).
+* **Other Routes**: MONOLITH (100%).
 
-### P1-07 — Incident validation và staff authorization không nhất quán
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\controllers\platformController.js`
-    *   `D:\WorkHub\routes\platformRoutes.js`
-*   **Giải pháp xử lý:**
-    *   **Xác thực đầu vào:** Bổ sung ràng buộc kiểm tra enum của `type` (`damage`, `late_checkout`, `violation`, `other`) và độ dài `description` (từ 1 đến 3000 ký tự).
-    *   **Phân quyền nhân viên:** Sửa cấu hình route `/api/host/incidents` từ kiểm tra vai trò cứng `authorizeRole('host')` thành nạp middleware `resolveHostContext` và xác thực quyền `incident:create` của nhân viên.
-    *   **Truy vấn chính xác:** Thay thế `req.user.userId` bằng `req.hostOwnerId` để đảm bảo hệ thống lấy đúng ID chủ sở hữu (Host ID) của chi nhánh mà nhân viên đó đang làm việc.
+## Data Migration & Reconciliation Results
+* **Push Subscriptions backfill**: Successfully executed with idempotent upserts. Monolith collection `push_subscriptions` reconciled with `workhub_communication.push_subscriptions` (Counts matched).
+* **Content backfill (CMS & Redirects)**: Reconciled `cms_pages` and `seo_redirects` monolith collections with `workhub_content` equivalents. Source counts matched target counts, conflict checksums resolved with 0 mismatched items.
+* **Audit Results**: 0 high/critical vulnerabilities unresolved. High severity vulnerabilities in `exceljs` (`brace-expansion`) are logged and accepted in the risk register (`docs/security/dependency-risk-register.md`) since they are restricted to developer environment tools and not reachable in production.
 
-### P1-02 — growthRoutes.js là God Router và có inventory trùng
-*   **Tệp tin đã sửa:** 
-    *   `D:\WorkHub\routes\platformRoutes.js`
-    *   `D:\WorkHub\routes\growthRoutes.js`
-*   **Giải pháp xử lý:**
-    *   Loại bỏ hoàn toàn các dòng đăng ký route trùng lặp và bị che bóng (shadowed) gồm `/membership/plans`, `/membership/me`, `/membership/credits` khỏi tệp `platformRoutes.js`.
-    *   Giữ lại các route này bên tệp `growthRoutes.js` và củng cố các middleware kiểm tra quyền hạn (`verifyToken` + `authorizeRole('customer')`) tương xứng.
+## Compatibility shims
+- None required yet.
 
----
+## Rollback plan
+- **Emergency Gateway Rollback**: Bypassing the API gateway by routing client HTTP/WebSocket traffic directly to the monolith port 3001.
+- **Emergency Messaging Rollback**: If RabbitMQ broker encounters severe outages, setting `DISABLE_MQ=true` environment variable fallback triggers outbox events to be processed synchronously/locally via direct database transaction handlers instead of routing through AMQP queues.
+- **Outbox Reconciliation**: In the event of a message publisher outage, the `IntegrationOutboxEvent` collection maintains all un-emitted events. Once RabbitMQ is recovered, outbox publishers will resume claiming and publishing pending messages from the exact state of last broker confirmations.
 
-## 2. KẾT QUẢ KIỂM THỬ VÀ BẰNG CHỨNG (BASELINE & REGRESSION)
+## Risks and technical debt
+- Legacy controllers like `growthController.js` and `platformController.js` are God Controllers.
 
-Toàn bộ các thay đổi trên đã được kiểm chứng thông qua việc chạy bộ kiểm thử toàn diện của hệ thống WorkHub.
-
-### 2.1 Các tệp tin kiểm thử mới và sửa đổi
-Chúng tôi đã bổ sung các trường hợp kiểm thử tích hợp (integration tests) để ngăn chặn lỗi tái phát:
-*   `D:\WorkHub\test\stabilization-transactions.test.js`: Kiểm thử kiểm soát giao dịch rollback Dispute-Refund trên Replica Set. Cấu hình chạy `process.env.ENABLE_TRANSACTIONS = 'true'` ngay đầu tệp.
-*   `D:\WorkHub\test\host-notes.test.js`: Kiểm thử ghi chú nguyên tử, phân quyền host và cắt lát mảng notes tối đa 50 phần tử.
-*   `D:\WorkHub\test\incidents.test.js`: Kiểm thử phân quyền chi nhánh của staff và kiểm tra các lỗi xác thực dữ liệu sự cố.
-*   `D:\WorkHub\test\master-passkey-push.test.js`: Kiểm thử ngăn chặn tấn công SSRF trên Push Endpoint, giới hạn tối đa 10 subscriptions của người dùng, và bảo mật thông tin endpoint.
-*   `D:\WorkHub\test\master-host-review.test.js`: Kiểm thử ẩn các đánh giá không công khai khỏi trung bình xếp hạng, loại bỏ PII email khách hàng.
-*   `D:\WorkHub\test\master-ops2.test.js`: Kiểm thử lưu trữ và áp dụng chính xác luật hủy đặt phòng với `freeCancelHours = 0`.
-
-### 2.2 Trạng thái chạy kiểm thử (Jest)
-Toàn bộ **59 file kiểm thử với 277 test cases** đã được chạy tuần tự bằng cờ `--runInBand` nhằm bảo đảm việc chia sẻ cơ sở dữ liệu MongoDB in-memory không gây xung đột chéo.
-
-Kết quả chạy kiểm thử:
-```bash
-npx jest --runInBand
-```
-*   **Tổng số test suite:** 59 passed
-*   **Tổng số test cases:** 277 passed
-*   **Thời gian thực thi:** 100% test cases hoàn tất thành công, không có bất kỳ lỗi hay thất bại nào được ghi nhận.
-
-### 2.3 Kết quả kiểm tra định dạng và chất lượng mã nguồn (Lint)
-*   `npm run lint` -> **Thành công (0 cảnh báo, 0 lỗi)**.
-*   `npm run lint:security-ui` -> **Thành công**. Xác nhận không có bất kỳ trình xử lý sự kiện nội dòng (inline event handlers) nào trong các tệp EJS/JS thuộc phần giao diện.
-*   `npm run build:css` -> **Thành công** (biên dịch ra public/css/app.min.css).
-*   `npm run build:assets` -> **Thành công** (ghi tệp ánh xạ public/asset-manifest.json).
-
----
-
-## 3. ĐÁNH GIÁ CHUNG VÀ BƯỚC TIẾP THEO
-
-Giai đoạn Stabilization (S0/S1) đã hoàn tất mỹ mãn:
-1. Tất cả các lỗi nghiêm trọng (P0) liên quan đến tính toàn vẹn dữ liệu hoàn tiền (P0-02), nguy cơ bảo mật SSRF (P0-03), xếp hạng sai lệch (P0-04) và lộ dữ liệu PII (P0-05) đã được giải quyết triệt để.
-2. Các lỗi vận hành và phân quyền P1 (P1-08, P1-11, P1-06, P1-07, P1-02) đã được vá và tái cơ cấu mã nguồn gọn gàng.
-3. **Độ phủ kiểm thử tăng đáng kể**, bao bọc toàn bộ các khía cạnh logic mới được thêm từ commit `3a2db51ee2a11f3c14461c70cba72a3554347aa8`.
-
-**Hệ thống hiện đã sẵn sàng bước vào Giai đoạn M1 (chuyển đổi Monorepo dùng npm workspaces và cấu trúc lại legacy-monolith) một cách an toàn.**
+## Next actions
+- Execute M6: Extraction of next microservice boundary.

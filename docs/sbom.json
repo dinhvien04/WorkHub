@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-24T02:44:12.480Z",
+    "timestamp": "2026-07-24T13:37:50.851Z",
     "component": {
       "type": "application",
       "name": "workhubmvc",
@@ -1844,16 +1844,24 @@
     {
       "type": "library",
       "name": "body-parser",
-      "version": "2.2.2",
-      "purl": "pkg:npm/body-parser@2.2.2",
+      "version": "2.3.0",
+      "purl": "pkg:npm/body-parser@2.3.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "body-parser>content-type",
+      "version": "2.0.0",
+      "purl": "pkg:npm/body-parser%3Econtent-type@2.0.0",
       "dev": false,
       "license": "MIT"
     },
     {
       "type": "library",
       "name": "brace-expansion",
-      "version": "1.1.15",
-      "purl": "pkg:npm/brace-expansion@1.1.15",
+      "version": "1.1.16",
+      "purl": "pkg:npm/brace-expansion@1.1.16",
       "dev": false,
       "license": "MIT"
     },
@@ -5217,8 +5225,8 @@
     {
       "type": "library",
       "name": "readdir-glob>brace-expansion",
-      "version": "2.1.1",
-      "purl": "pkg:npm/readdir-glob%3Ebrace-expansion@2.1.1",
+      "version": "2.1.2",
+      "purl": "pkg:npm/readdir-glob%3Ebrace-expansion@2.1.2",
       "dev": false,
       "license": "MIT"
     },
@@ -5920,8 +5928,16 @@
     {
       "type": "library",
       "name": "type-is",
-      "version": "2.0.1",
-      "purl": "pkg:npm/type-is@2.0.1",
+      "version": "2.1.0",
+      "purl": "pkg:npm/type-is@2.1.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "type-is>content-type",
+      "version": "2.0.0",
+      "purl": "pkg:npm/type-is%3Econtent-type@2.0.0",
       "dev": false,
       "license": "MIT"
     },
