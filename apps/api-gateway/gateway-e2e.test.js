@@ -118,6 +118,27 @@ beforeAll(async () => {
     }
   ]);
 
+  // Seed default E2E users inside the identity DB so the Introspect endpoint succeeds
+  const IdentityUser = identityConn.model("User", new mongoose.Schema({}, { strict: false }), "users");
+  await IdentityUser.create([
+    {
+      _id: new mongoose.Types.ObjectId(adminId),
+      Email: "admin@workhub.local",
+      FullName: "Admin User",
+      Role: "admin",
+      Status: "active",
+      tokenVersion: 0,
+    },
+    {
+      _id: new mongoose.Types.ObjectId(customerId),
+      Email: "cust@workhub.local",
+      FullName: "Customer User",
+      Role: "customer",
+      Status: "active",
+      tokenVersion: 0,
+    }
+  ]);
+
   // Allow Mongo Memory ReplSet catalog changes to settle before running tests
   await delay(2000);
 

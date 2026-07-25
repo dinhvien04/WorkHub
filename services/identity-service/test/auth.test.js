@@ -19,6 +19,22 @@ describe("Identity Service full auth contract", () => {
     await EmailVerificationToken.deleteMany({});
   });
 
+  test("Argon2id password hashing benchmark execution timing", async () => {
+    const argon2 = require("argon2");
+    const password = "my-secure-passphrase-12345";
+
+    const startHash = Date.now();
+    const hash = await argon2.hash(password, { type: argon2.argon2id });
+    const durationHash = Date.now() - startHash;
+    expect(durationHash).toBeLessThan(1000); // verify hashing takes under 1s
+
+    const startVerify = Date.now();
+    const isMatch = await argon2.verify(hash, password);
+    const durationVerify = Date.now() - startVerify;
+    expect(isMatch).toBe(true);
+    expect(durationVerify).toBeLessThan(1000); // verify matching takes under 1s
+  });
+
   test("register + login + me preserves cookie/session contract", async () => {
     const registerRes = await request(app).post("/api/auth/register").send({
       email: "user@example.com",

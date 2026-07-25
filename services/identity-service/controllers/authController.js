@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const argon2 = require('argon2');
 const User = require('../models/User');
 const PasswordResetToken = require('../models/PasswordResetToken');
 const logActivity = require('../utils/auditLogger');
@@ -41,16 +42,27 @@ function authCookieOptions() {
 }
 
 function signToken(user, { sid } = {}) {
+  const keyManager = require("../services/keyManager");
+  const key = keyManager.getActiveKey();
+
   const payload = {
-    userId: user._id.toString(),
+    sub: user._id.toString(),
     role: user.Role,
     tokenVersion: user.tokenVersion || 0,
+    jti: crypto.randomUUID(),
+    typ: "access",
   };
   if (sid) payload.sid = String(sid);
-  return jwt.sign(payload, env.JWT_SECRET, {
+
+  return jwt.sign(payload, key.privateKey, {
+    algorithm: "RS256",
     expiresIn: env.JWT_EXPIRES_IN,
-    issuer: "workhub-auth",
-    audience: "workhub-app"
+    issuer: "workhub-identity",
+    audience: "workhub-api-gateway",
+    header: {
+      kid: key.kid,
+      typ: "JWT",
+    },
   });
 }
 
@@ -77,7 +89,7 @@ const registerUser = asyncHandler(async (req, res) => {
   const existingUser = await User.findOne({ Email: normalizedEmail });
   if (existingUser) throw new ValidationError('Email này đã được đăng ký!');
 
-  const passwordHash = await bcrypt.hash(String(password), 12);
+  const passwordHash = await argon2.hash(String(password), { type: argon2.argon2id });
   const initialStatus = 'inactive';
   const EmailVerificationToken = require('../models/EmailVerificationToken');
   const { withTransaction } = require('../utils/mongoTransaction');
@@ -238,8 +250,35 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ForbiddenError('Vui lòng xác minh email trước khi đăng nhập.');
   }
 
-  const isMatch = await bcrypt.compare(String(password), user.PasswordHash);
+  let isMatch = false;
+  let rehashNeeded = false;
+  const passwordStr = String(password);
+  const hashStr = String(user.PasswordHash);
+
+  if (hashStr.startsWith("$argon2")) {
+    try {
+      isMatch = await argon2.verify(hashStr, passwordStr);
+    } catch (_) {
+      isMatch = false;
+    }
+  } else if (hashStr.startsWith("$2")) {
+    isMatch = await bcrypt.compare(passwordStr, hashStr);
+    if (isMatch) {
+      rehashNeeded = true;
+    }
+  }
+
   if (!isMatch) throw new UnauthorizedError('Tài khoản hoặc mật khẩu không chính xác.');
+
+  if (rehashNeeded) {
+    const { withTransaction } = require("../utils/mongoTransaction");
+    await withTransaction(async (session) => {
+      const newHash = await argon2.hash(passwordStr, { type: argon2.argon2id });
+      await User.updateOne({ _id: user._id }, { $set: { PasswordHash: newHash } }, { session });
+    }).catch((err) => {
+      console.error("[Auth] Failed to rehash password to Argon2id in transaction:", err.message);
+    });
+  }
 
   // Step-up: if TOTP enabled, issue short-lived pending token (no auth cookie yet)
   if (user.TotpEnabled) {
@@ -565,10 +604,22 @@ const changePassword = asyncHandler(async (req, res) => {
   const user = await User.findById(userId);
   if (!user) throw new NotFoundError('Tài khoản không tồn tại trên hệ thống!');
 
-  const isMatch = await bcrypt.compare(String(oldPassword), user.PasswordHash);
+  let isMatch = false;
+  const oldPasswordStr = String(oldPassword);
+  const hashStr = String(user.PasswordHash);
+  if (hashStr.startsWith("$argon2")) {
+    try {
+      isMatch = await argon2.verify(hashStr, oldPasswordStr);
+    } catch (_) {
+      isMatch = false;
+    }
+  } else if (hashStr.startsWith("$2")) {
+    isMatch = await bcrypt.compare(oldPasswordStr, hashStr);
+  }
+
   if (!isMatch) throw new ValidationError('Mật khẩu cũ không chính xác!');
 
-  const newPasswordHash = await bcrypt.hash(String(newPassword), 12);
+  const newPasswordHash = await argon2.hash(String(newPassword), { type: argon2.argon2id });
   user.PasswordHash = newPasswordHash;
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
@@ -675,7 +726,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new ValidationError('Mã xác nhận không hợp lệ hoặc đã hết hạn.');
   }
 
-  const passwordHash = await bcrypt.hash(String(newPassword), 12);
+  const passwordHash = await argon2.hash(String(newPassword), { type: argon2.argon2id });
   const user = await User.findById(record.UserID);
   if (!user) throw new NotFoundError('Tài khoản không tồn tại.');
 

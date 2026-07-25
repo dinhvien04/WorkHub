@@ -114,6 +114,102 @@ function getDbConnection() {
   return { User, UserSession };
 }
 
+const introspectCache = new Map();
+
+async function introspectToken(token, isMutating = false) {
+  const cached = introspectCache.get(token);
+  if (cached && cached.expires > Date.now()) {
+    return cached.result;
+  }
+
+  const IDENTITY_SERVICE_ENABLED = process.env.IDENTITY_SERVICE_ENABLED === "true";
+  const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || "http://localhost:3004";
+  const IDENTITY_INTERNAL_SECRET = process.env.IDENTITY_INTERNAL_SECRET || "default_test_identity_internal_secret_key";
+
+  // Decode JWT header to inspect algorithm and separation parameters (Phase G)
+  let decodedHeader;
+  try {
+    decodedHeader = jwt.decode(token, { complete: true });
+  } catch (_) {
+    return null;
+  }
+  const alg = decodedHeader?.header?.alg;
+
+  // Monolith compatibility path for legacy HS256 tokens
+  if (alg === "HS256") {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET, {
+        algorithms: ["HS256"],
+        issuer: "workhub-auth",
+        audience: "workhub-app"
+      });
+
+      const userId = decoded.userId || decoded.id || decoded._id;
+      const role = decoded.role;
+
+      if (!userId || !role) return null;
+
+      const { User: UserModel, UserSession: SessionModel } = getDbConnection();
+      const user = await UserModel.findById(userId).select("Status tokenVersion").lean();
+      if (!user || user.Status !== "active") return null;
+
+      const tokenVersion = typeof decoded.tokenVersion === "number" ? decoded.tokenVersion : 0;
+      const dbVersion = typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
+      if (tokenVersion !== dbVersion) return null;
+
+      if (decoded.sid) {
+        const sidHash = crypto.createHash("sha256").update(String(decoded.sid)).digest("hex");
+        const sess = await SessionModel.findOne({
+          UserID: userId,
+          RevokedAt: null,
+          $or: [{ SidHash: sidHash }, { Sid: String(decoded.sid) }],
+        }).lean();
+        if (!sess) return null;
+        if (sess.ExpiresAt && new Date(sess.ExpiresAt) < new Date()) return null;
+      }
+
+      return { active: true, user: { userId, role } };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Identity Service path for RS256 tokens
+  if (!IDENTITY_SERVICE_ENABLED) return null;
+
+  try {
+    const res = await globalThis.fetch(`${IDENTITY_SERVICE_URL}/internal/auth/introspect`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Token": IDENTITY_INTERNAL_SECRET,
+        "X-Service-Name": "api-gateway",
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    if (!res.ok) {
+      if (isMutating) {
+        throw new Error("Identity Service Unavailable");
+      }
+      return null;
+    }
+
+    const body = await res.json();
+    if (body && body.active) {
+      const result = { active: true, user: body.user };
+      introspectCache.set(token, { result, expires: Date.now() + 15000 }); // 15s cache
+      return result;
+    }
+    return null;
+  } catch (err) {
+    if (isMutating) {
+      throw err;
+    }
+    return null;
+  }
+}
+
 // Cryptographically verify JWT token at Gateway boundary
 app.use(async (req, res, next) => {
   let token = null;
@@ -137,59 +233,21 @@ app.use(async (req, res, next) => {
     return next();
   }
 
+  const isMutating = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
-      algorithms: ["HS256"],
-      issuer: "workhub-auth",
-      audience: "workhub-app"
-    });
-
-    const userId = decoded.userId || decoded.id || decoded._id;
-    const role = decoded.role;
-
-    if (!userId || !role) {
-      return res.status(401).json({ error: "Token không hợp lệ (sai cấu trúc payload)." });
+    const result = await introspectToken(token, isMutating);
+    if (!result || !result.active) {
+      return res.status(401).json({ error: "Phiên làm việc hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại." });
     }
 
-    // Connect and verify against database (Session revocation gap check)
-    const { User: UserModel, UserSession: SessionModel } = getDbConnection();
-    const user = await UserModel.findById(userId).select("Status tokenVersion").lean();
-    if (!user) {
-      return res.status(401).json({ error: "Tài khoản không tồn tại." });
-    }
-    if (user.Status === "banned") {
-      return res.status(403).json({ error: "Tài khoản của bạn đã bị khóa." });
-    }
-    if (user.Status !== "active") {
-      return res.status(403).json({ error: "Tài khoản chưa được kích hoạt." });
-    }
-
-    const tokenVersion = typeof decoded.tokenVersion === "number" ? decoded.tokenVersion : 0;
-    const dbVersion = typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
-    if (tokenVersion !== dbVersion) {
-      return res.status(401).json({ error: "Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại." });
-    }
-
-    if (decoded.sid) {
-      const sidHash = crypto.createHash("sha256").update(String(decoded.sid)).digest("hex");
-      const sess = await SessionModel.findOne({
-        UserID: userId,
-        RevokedAt: null,
-        $or: [{ SidHash: sidHash }, { Sid: String(decoded.sid) }],
-      }).lean();
-
-      if (!sess) {
-        return res.status(401).json({ error: "Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại." });
-      }
-      if (sess.ExpiresAt && new Date(sess.ExpiresAt) < new Date()) {
-        return res.status(401).json({ error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
-      }
-    }
-
-    req.user = { userId, role };
+    req.user = result.user;
     next();
   } catch (err) {
-    return res.status(401).json({ error: "Token không hợp lệ hoặc đã hết hạn." });
+    if (isMutating) {
+      return res.status(502).json({ error: "Identity Service Unavailable" });
+    }
+    return res.status(401).json({ error: "Phiên làm việc hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại." });
   }
 });
 
