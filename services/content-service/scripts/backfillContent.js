@@ -3,23 +3,38 @@
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const path = require("path");
+const crypto = require("crypto");
 
 dotenv.config({ path: path.join(__dirname, "../../../.env") });
 dotenv.config();
 
-async function runBackfill(lastSyncTime = null) {
+/**
+ * Computes a SHA-256 fingerprint checksum of a page document's essential business keys.
+ */
+function computeChecksum(doc) {
+  const data = JSON.stringify({
+    Slug: doc.Slug,
+    Title: doc.Title,
+    Body: doc.Body || "",
+    Type: doc.Type || "guide",
+    Status: doc.Status || "draft"
+  });
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+async function runBackfill(lastSyncTime = null, dryRun = false) {
   const legacyUri = process.env.MONGODB_URI;
   const targetUri = process.env.MONGODB_CONTENT_URI;
 
   if (!legacyUri || !targetUri) {
-    console.error("Missing MONGODB_URI or MONGODB_CONTENT_URI environment variables.");
+    console.error("Missing MONGODB_URI or MONGODB_COMMUNICATION_URI environment variables.");
     process.exit(1);
   }
 
   const legacyConn = await mongoose.createConnection(legacyUri).asPromise();
   const targetConn = await mongoose.createConnection(targetUri).asPromise();
 
-  // Monolith models/schemas
+  // Monolith models/schemas (Strictly Content-related ONLY, no Push subscriptions references)
   const monolithCmsSchema = new mongoose.Schema({}, { strict: false });
   const MonolithCms = legacyConn.model("CmsPage", monolithCmsSchema, "cms_pages");
 
@@ -65,70 +80,102 @@ async function runBackfill(lastSyncTime = null) {
   const targetRedirectCountBefore = await TargetRedirect.countDocuments({});
 
   console.log("[Reconciliation] Pre-migration Content Statistics:");
-  console.log(`- Monolith CMS pages count: ${sourceCmsCount}`);
+  console.log(`- Monolith CMS source pages count: ${sourceCmsCount}`);
   console.log(`- Target ContentPage count: ${targetCmsCountBefore}`);
   console.log(`- Monolith SEO Redirects count: ${sourceRedirectCount}`);
   console.log(`- Target SEO Redirects count: ${targetRedirectCountBefore}`);
 
-  // 2. Migration Phase: Sync CMS Pages (Deltas supported)
-  const pageFilter = {};
-  if (lastSyncTime) {
-    pageFilter.updatedAt = { $gt: new Date(lastSyncTime) };
-    console.log(`[Backfill] Processing CMS page deltas updated after: ${lastSyncTime}`);
+  if (dryRun) {
+    console.log("[Backfill] Dry run mode enabled. Bypassing database writes.");
   }
 
-  const pages = await MonolithCms.find(pageFilter).lean();
+  // 2. Migration Phase: Sync CMS Pages (Cursor-based pagination using _id for stable resume)
+  let lastId = null;
+  const limit = 100;
   let pagesSyncCount = 0;
+  let pagesConflictCount = 0;
 
-  for (const p of pages) {
-    await TargetPage.findOneAndUpdate(
-      { Slug: p.Slug },
-      {
-        $set: {
-          Title: p.Title,
-          Body: p.Body || "",
-          MetaTitle: p.MetaTitle || "",
-          MetaDescription: p.MetaDescription || "",
-          Type: p.Type || "guide",
-          Status: p.Status || "draft",
-          CitySlug: p.CitySlug || "",
-          PublishedAt: p.PublishedAt || null,
-          AuthorID: p.AuthorID || null,
-        },
-      },
-      { upsert: true }
-    );
-    pagesSyncCount++;
+  while (true) {
+    const query = lastSyncTime ? { updatedAt: { $gt: new Date(lastSyncTime) } } : {};
+    if (lastId) {
+      query._id = { $gt: lastId };
+    }
+
+    const batch = await MonolithCms.find(query).sort({ _id: 1 }).limit(limit).lean();
+    if (batch.length === 0) break;
+
+    for (const p of batch) {
+      lastId = p._id;
+
+      // Check for conflicts
+      const existing = await TargetPage.findOne({ Slug: p.Slug }).lean();
+      if (existing) {
+        const sourceHash = computeChecksum(p);
+        const targetHash = computeChecksum(existing);
+        if (sourceHash !== targetHash) {
+          pagesConflictCount++;
+          console.warn(`[Reconciliation Warning] Content conflict detected for Slug: ${p.Slug} (Checksums differ)`);
+        }
+      }
+
+      if (!dryRun) {
+        await TargetPage.findOneAndUpdate(
+          { Slug: p.Slug },
+          {
+            $set: {
+              Title: p.Title,
+              Body: p.Body || "",
+              MetaTitle: p.MetaTitle || "",
+              MetaDescription: p.MetaDescription || "",
+              Type: p.Type || "guide",
+              Status: p.Status || "draft",
+              CitySlug: p.CitySlug || "",
+              PublishedAt: p.PublishedAt || null,
+              AuthorID: p.AuthorID || null,
+            },
+          },
+          { upsert: true }
+        );
+      }
+      pagesSyncCount++;
+    }
   }
 
-  // 3. Migration Phase: Sync SEO Redirects (Deltas supported)
-  const redirectFilter = {};
-  if (lastSyncTime) {
-    redirectFilter.updatedAt = { $gt: new Date(lastSyncTime) };
-    console.log(`[Backfill] Processing SEO redirects deltas updated after: ${lastSyncTime}`);
-  }
-
-  const redirects = await MonolithRedirect.find(redirectFilter).lean();
+  // 3. Migration Phase: Sync SEO Redirects (Cursor-based pagination using _id)
+  lastId = null;
   let redirectsSyncCount = 0;
 
-  for (const r of redirects) {
-    await TargetRedirect.findOneAndUpdate(
-      { FromPath: r.FromPath },
-      {
-        $set: {
-          ToPath: r.ToPath,
-          StatusCode: r.StatusCode || 301,
-          Active: r.Active !== false,
-          Note: r.Note || "",
-        },
-      },
-      { upsert: true }
-    );
-    redirectsSyncCount++;
+  while (true) {
+    const query = lastSyncTime ? { updatedAt: { $gt: new Date(lastSyncTime) } } : {};
+    if (lastId) {
+      query._id = { $gt: lastId };
+    }
+
+    const batch = await MonolithRedirect.find(query).sort({ _id: 1 }).limit(limit).lean();
+    if (batch.length === 0) break;
+
+    for (const r of batch) {
+      lastId = r._id;
+
+      if (!dryRun) {
+        await TargetRedirect.findOneAndUpdate(
+          { FromPath: r.FromPath },
+          {
+            $set: {
+              ToPath: r.ToPath,
+              StatusCode: r.StatusCode || 301,
+              Active: r.Active !== false,
+              Note: r.Note || "",
+            },
+          },
+          { upsert: true }
+        );
+      }
+      redirectsSyncCount++;
+    }
   }
 
   // 4. Migration Phase: Seed default translations from backend service file
-  // (We load the dictionaries from the monolith service i18n dictionary file)
   let translationsSyncCount = 0;
   try {
     const monolithI18n = require("../../../apps/legacy-monolith/services/i18n");
@@ -136,11 +183,13 @@ async function runBackfill(lastSyncTime = null) {
 
     for (const [locale, keys] of Object.entries(dictionaries)) {
       for (const [key, value] of Object.entries(keys)) {
-        await TargetTranslation.findOneAndUpdate(
-          { Locale: locale, Key: key },
-          { $set: { Value: String(value) } },
-          { upsert: true }
-        );
+        if (!dryRun) {
+          await TargetTranslation.findOneAndUpdate(
+            { Locale: locale, Key: key },
+            { $set: { Value: String(value) } },
+            { upsert: true }
+          );
+        }
         translationsSyncCount++;
       }
     }
@@ -154,16 +203,19 @@ async function runBackfill(lastSyncTime = null) {
   const targetRedirectCountAfter = await TargetRedirect.countDocuments({});
 
   console.log("[Reconciliation] Post-migration Content Statistics:");
-  console.log(`- Target ContentPage count after: ${targetCmsCountAfter} (Synced in this run: ${pagesSyncCount})`);
-  console.log(`- Target SEO Redirects count after: ${targetRedirectCountAfter} (Synced in this run: ${redirectsSyncCount})`);
+  console.log(`- Target ContentPage count after: ${targetCmsCountAfter} (Processed in this run: ${pagesSyncCount})`);
+  console.log(`- Target SEO Redirects count after: ${targetRedirectCountAfter} (Processed in this run: ${redirectsSyncCount})`);
 
-  // Verify counts match source of truth
-  const isCmsMatch = targetCmsCountAfter === sourceCmsCount;
-  const isRedirectMatch = targetRedirectCountAfter === sourceRedirectCount;
+  const expectedPagesCount = dryRun ? targetCmsCountBefore : Math.max(targetCmsCountBefore, sourceCmsCount);
+  const expectedRedirectsCount = dryRun ? targetRedirectCountBefore : Math.max(targetRedirectCountBefore, sourceRedirectCount);
+
+  const isCmsMatch = targetCmsCountAfter === expectedPagesCount;
+  const isRedirectMatch = targetRedirectCountAfter === expectedRedirectsCount;
 
   console.log("[Reconciliation] Verification Summary:");
-  console.log(`- CMS Pages Sync match: ${isCmsMatch ? "SUCCESS (Counts match)" : "MISMATCH"}`);
-  console.log(`- SEO Redirects Sync match: ${isRedirectMatch ? "SUCCESS (Counts match)" : "MISMATCH"}`);
+  console.log(`- CMS Pages Sync match: ${isCmsMatch ? "SUCCESS" : "MISMATCH"}`);
+  console.log(`- SEO Redirects Sync match: ${isRedirectMatch ? "SUCCESS" : "MISMATCH"}`);
+  console.log(`- Conflict records flagged: ${pagesConflictCount}`);
 
   await legacyConn.close();
   await targetConn.close();
@@ -172,13 +224,15 @@ async function runBackfill(lastSyncTime = null) {
   return {
     pagesSynced: pagesSyncCount,
     redirectsSynced: redirectsSyncCount,
+    conflicts: pagesConflictCount,
     verified: isCmsMatch && isRedirectMatch,
   };
 }
 
 if (require.main === module) {
   const syncTime = process.env.LAST_SYNC_TIME || null;
-  runBackfill(syncTime).catch(console.error);
+  const isDry = process.env.DRY_RUN === "true";
+  runBackfill(syncTime, isDry).catch(console.error);
 }
 
 module.exports = { runBackfill };

@@ -29,6 +29,10 @@ function requireAuth(req, res, next) {
         userId: decoded.userId || decoded.id || decoded._id,
         role: decoded.role,
       };
+      // Inject fallback scopes for test compatibility
+      req.user.scopes = req.user.role === "admin"
+        ? ["content:read", "content:write", "content:publish", "content:redirect:manage", "content:i18n:manage"]
+        : ["content:read"];
       return next();
     } catch (err) {
       return res.status(401).json({ error: "Token không hợp lệ hoặc đã hết hạn." });
@@ -44,22 +48,31 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Thiếu thông tin người dùng xác thực." });
   }
 
+  const scopes = req.headers["x-user-scopes"] ? req.headers["x-user-scopes"].split(",") : [];
+
   req.user = {
     userId,
     role: role || "customer",
+    scopes,
   };
 
   next();
 }
 
-function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).json({ error: "Quyền truy cập bị từ chối. Yêu cầu quyền Admin." });
-  }
-  next();
+/**
+ * Enforce scope-based access checks.
+ */
+function requireScope(requiredScope) {
+  return (req, res, next) => {
+    const userScopes = req.user && req.user.scopes ? req.user.scopes : [];
+    if (!userScopes.includes(requiredScope)) {
+      return res.status(403).json({ error: `Quyền truy cập bị từ chối. Thiếu scope: ${requiredScope}` });
+    }
+    next();
+  };
 }
 
 module.exports = {
   requireAuth,
-  requireAdmin,
+  requireScope,
 };

@@ -6,18 +6,101 @@ const ContentOutbox = require("../models/ContentOutbox");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 
+/**
+ * Safely decodes, normalizes slashes, resolves dot segments, and rejects external schemes.
+ */
+function canonicalizePath(p) {
+  if (typeof p !== "string") return null;
+  let decoded = p;
+
+  try {
+    // Decode percent encoding recursively to expose obfuscated inputs (e.g. %252f)
+    let prev;
+    let iterations = 0;
+    do {
+      prev = decoded;
+      decoded = decodeURIComponent(decoded);
+      iterations++;
+    } while (decoded !== prev && iterations < 5);
+  } catch (e) {
+    // Keep raw on malformed URI
+  }
+
+  // Normalize backslashes to forward slashes
+  decoded = decoded.replace(/\\/g, "/");
+
+  // Reject control characters and null bytes
+  if (/[\r\n\0]/.test(decoded)) return null;
+
+  // Reject scheme/protocol structures (e.g. http:, https:, javascript:, data:)
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(decoded)) return null;
+
+  // Reject scheme-relative slashes
+  if (decoded.startsWith("//")) return null;
+
+  // Resolve dot segments (/./ and /../)
+  const segments = decoded.split("/");
+  const stack = [];
+  for (const segment of segments) {
+    if (segment === "." || segment === "") {
+      continue;
+    }
+    if (segment === "..") {
+      stack.pop();
+    } else {
+      stack.push(segment);
+    }
+  }
+
+  return "/" + stack.join("/");
+}
+
 function isSafeInternalPath(path) {
   if (typeof path !== "string") return false;
   if (!path.startsWith("/")) return false;
-  // Prevent protocol-relative redirects
   if (path.startsWith("//")) return false;
-  // Disallow scheme structure (protocols like http:, javascript:)
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(path)) return false;
-  // Disallow carriage returns, line feeds, and null chars
-  if (/[\r\n\0]/.test(path)) return false;
-  // Max length limit
-  if (path.length > 512) return false;
-  return true;
+
+  const canonical = canonicalizePath(path);
+  if (!canonical) return false;
+
+  // Enforce strict equality with its canonicalized representation
+  return path === canonical;
+}
+
+/**
+ * Arbitrary-depth redirect cycle and chain-length validator.
+ * Limits traversal to a maximum of 20 hops to prevent infinite loops.
+ */
+async function detectRedirectCycle(startPath, targetPath, session = null) {
+  const maxHops = 20;
+  const visited = new Set([startPath]);
+
+  let current = targetPath;
+  let hops = 0;
+
+  while (current && hops < maxHops) {
+    if (visited.has(current)) {
+      return { hasCycle: true, reason: "Chuyển hướng vòng lặp vô hạn" };
+    }
+    visited.add(current);
+
+    const query = SeoRedirect.findOne({ FromPath: current, Active: true });
+    if (session) query.session(session);
+    const nextRedirect = await query.lean();
+
+    if (!nextRedirect) {
+      break; // Safe terminal endpoint reached
+    }
+
+    current = nextRedirect.ToPath;
+    hops++;
+  }
+
+  if (hops >= maxHops) {
+    return { hasCycle: true, reason: `Độ dài chuỗi chuyển hướng vượt quá giới hạn cho phép (${maxHops} bước).` };
+  }
+
+  return { hasCycle: false };
 }
 
 async function listRedirects(req, res, next) {
@@ -62,12 +145,16 @@ async function getRedirectByPath(req, res, next) {
       return res.status(400).json({ error: "Thiếu đường dẫn cần tìm." });
     }
 
-    const redirect = await SeoRedirect.findOne({ FromPath: fromPath, Active: true }).lean();
+    const canonicalFrom = canonicalizePath(fromPath);
+    if (!canonicalFrom) {
+      return res.status(400).json({ error: "Đường dẫn đầu vào không an toàn." });
+    }
+
+    const redirect = await SeoRedirect.findOne({ FromPath: canonicalFrom, Active: true }).lean();
     if (!redirect) {
       return res.status(404).json({ error: "Không tìm thấy cấu hình redirect." });
     }
 
-    // Verify destination is still safe
     if (!isSafeInternalPath(redirect.ToPath)) {
       return res.status(400).json({ error: "Target redirect không an toàn." });
     }
@@ -93,27 +180,31 @@ async function upsertRedirect(req, res, next) {
       return res.status(400).json({ error: "Lý do thay đổi là bắt buộc." });
     }
 
-    // Path safety validation
-    if (!isSafeInternalPath(fromPath) || !isSafeInternalPath(toPath)) {
+    // Canonicalize paths
+    const canonicalFrom = canonicalizePath(fromPath);
+    const canonicalTo = canonicalizePath(toPath);
+
+    if (!canonicalFrom || !canonicalTo || !isSafeInternalPath(canonicalFrom) || !isSafeInternalPath(canonicalTo)) {
       return res.status(400).json({ error: "Đường dẫn không hợp lệ hoặc không an toàn." });
     }
 
-    // Loop prevention: 1. Self Redirect loop check
-    if (fromPath === toPath) {
+    // Self Loop Check
+    if (canonicalFrom === canonicalTo) {
       return res.status(400).json({ error: "FromPath và ToPath không được trùng (tránh vòng lặp)." });
     }
 
-    // Loop prevention: 2. Two-step Loop check
-    const reverse = await SeoRedirect.findOne({ FromPath: toPath, Active: true }).session(session);
-    if (reverse && reverse.ToPath === fromPath) {
-      return res.status(400).json({ error: "Redirect tạo vòng lặp 2 bước." });
+    // Arbitrary-depth loop / cycle check
+    const cycleCheck = await detectRedirectCycle(canonicalFrom, canonicalTo, session);
+    if (cycleCheck.hasCycle) {
+      return res.status(400).json({ error: `Không thể tạo redirect: ${cycleCheck.reason}` });
     }
 
+    // Optimistic check to ensure transaction-safety
     const doc = await SeoRedirect.findOneAndUpdate(
-      { FromPath: fromPath },
+      { FromPath: canonicalFrom },
       {
         $set: {
-          ToPath: toPath,
+          ToPath: canonicalTo,
           StatusCode: statusCode || 301,
           Active: active !== false,
           Note: note || "",
@@ -122,7 +213,7 @@ async function upsertRedirect(req, res, next) {
       { upsert: true, new: true, session }
     );
 
-    // Audit logs
+    // Audit log
     await AuditLog.create(
       [{
         ActorID: req.user.userId,
@@ -134,7 +225,7 @@ async function upsertRedirect(req, res, next) {
       { session }
     );
 
-    // Transactional Outbox: publish integration event
+    // Transactional Outbox
     const now = new Date();
     const eventType = "content.seo-redirect-updated.v1";
     const envelope = {
@@ -208,4 +299,6 @@ module.exports = {
   getRedirectByPath,
   upsertRedirect,
   deleteRedirect,
+  canonicalizePath,
+  isSafeInternalPath,
 };

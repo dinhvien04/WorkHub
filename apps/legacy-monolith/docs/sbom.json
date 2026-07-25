@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-24T14:59:53.044Z",
+    "timestamp": "2026-07-25T01:02:22.217Z",
     "component": {
       "type": "application",
       "name": "@workhub/legacy-monolith",
@@ -1488,6 +1488,32 @@
     },
     {
       "type": "library",
+      "name": "@workhub/communication-service",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/communication-service",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Fcommunication-service@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/content-service",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/content-service",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Fcontent-service@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
       "name": "@workhub/contracts",
       "version": null,
       "dev": false
@@ -1577,6 +1603,14 @@
       "version": "6.15.0",
       "purl": "pkg:npm/ajv@6.15.0",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "amqplib",
+      "version": "0.10.9",
+      "purl": "pkg:npm/amqplib@0.10.9",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -1901,6 +1935,14 @@
     },
     {
       "type": "library",
+      "name": "bintrees",
+      "version": "1.0.2",
+      "purl": "pkg:npm/bintrees@1.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "bl",
       "version": "4.1.0",
       "purl": "pkg:npm/bl@4.1.0",
@@ -2016,6 +2058,14 @@
       "name": "buffer-indexof-polyfill",
       "version": "1.0.2",
       "purl": "pkg:npm/buffer-indexof-polyfill@1.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "buffer-more-ints",
+      "version": "1.0.0",
+      "purl": "pkg:npm/buffer-more-ints@1.0.0",
       "dev": false,
       "license": "MIT"
     },
@@ -2454,7 +2504,7 @@
       "name": "deepmerge",
       "version": "4.3.1",
       "purl": "pkg:npm/deepmerge@4.3.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -2488,6 +2538,46 @@
       "purl": "pkg:npm/dezalgo@1.0.4",
       "dev": false,
       "license": "ISC"
+    },
+    {
+      "type": "library",
+      "name": "dom-serializer",
+      "version": "2.0.0",
+      "purl": "pkg:npm/dom-serializer@2.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "dom-serializer>entities",
+      "version": "4.5.0",
+      "purl": "pkg:npm/dom-serializer%3Eentities@4.5.0",
+      "dev": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "domelementtype",
+      "version": "2.3.0",
+      "purl": "pkg:npm/domelementtype@2.3.0",
+      "dev": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "domhandler",
+      "version": "5.0.3",
+      "purl": "pkg:npm/domhandler@5.0.3",
+      "dev": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "domutils",
+      "version": "3.2.2",
+      "purl": "pkg:npm/domutils@3.2.2",
+      "dev": false,
+      "license": "BSD-2-Clause"
     },
     {
       "type": "library",
@@ -2726,7 +2816,7 @@
       "name": "escape-string-regexp",
       "version": "4.0.0",
       "purl": "pkg:npm/escape-string-regexp@4.0.0",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -3354,6 +3444,22 @@
     },
     {
       "type": "library",
+      "name": "htmlparser2",
+      "version": "10.1.0",
+      "purl": "pkg:npm/htmlparser2@10.1.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "htmlparser2>entities",
+      "version": "7.0.1",
+      "purl": "pkg:npm/htmlparser2%3Eentities@7.0.1",
+      "dev": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
       "name": "http_ece",
       "version": "1.2.0",
       "purl": "pkg:npm/http_ece@1.2.0",
@@ -3589,7 +3695,7 @@
       "name": "is-stream",
       "version": "2.0.1",
       "purl": "pkg:npm/is-stream@2.0.1",
-      "dev": true,
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -4126,6 +4232,14 @@
       "version": "4.5.4",
       "purl": "pkg:npm/keyv@4.5.4",
       "dev": true,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "launder",
+      "version": "1.7.1",
+      "purl": "pkg:npm/launder@1.7.1",
+      "dev": false,
       "license": "MIT"
     },
     {
@@ -4754,6 +4868,14 @@
     },
     {
       "type": "library",
+      "name": "nanoid",
+      "version": "3.3.16",
+      "purl": "pkg:npm/nanoid@3.3.16",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "napi-postinstall",
       "version": "0.3.4",
       "purl": "pkg:npm/napi-postinstall@0.3.4",
@@ -4994,6 +5116,14 @@
     },
     {
       "type": "library",
+      "name": "parse-srcset",
+      "version": "1.0.2",
+      "purl": "pkg:npm/parse-srcset@1.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "parse5",
       "version": "8.0.1",
       "purl": "pkg:npm/parse5@8.0.1",
@@ -5069,7 +5199,7 @@
       "name": "picocolors",
       "version": "1.1.1",
       "purl": "pkg:npm/picocolors@1.1.1",
-      "dev": true,
+      "dev": false,
       "license": "ISC"
     },
     {
@@ -5186,6 +5316,14 @@
     },
     {
       "type": "library",
+      "name": "postcss",
+      "version": "8.5.23",
+      "purl": "pkg:npm/postcss@8.5.23",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "prelude-ls",
       "version": "1.2.1",
       "purl": "pkg:npm/prelude-ls@1.2.1",
@@ -5231,6 +5369,14 @@
       "purl": "pkg:npm/process-warning@5.0.0",
       "dev": false,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "prom-client",
+      "version": "15.1.3",
+      "purl": "pkg:npm/prom-client@15.1.3",
+      "dev": false,
+      "license": "Apache-2.0"
     },
     {
       "type": "library",
@@ -5295,6 +5441,14 @@
       "purl": "pkg:npm/qs@6.15.3",
       "dev": false,
       "license": "BSD-3-Clause"
+    },
+    {
+      "type": "library",
+      "name": "querystringify",
+      "version": "2.2.0",
+      "purl": "pkg:npm/querystringify@2.2.0",
+      "dev": false,
+      "license": "MIT"
     },
     {
       "type": "library",
@@ -5482,6 +5636,14 @@
     },
     {
       "type": "library",
+      "name": "sanitize-html",
+      "version": "2.17.5",
+      "purl": "pkg:npm/sanitize-html@2.17.5",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "saxes",
       "version": "5.0.1",
       "purl": "pkg:npm/saxes@5.0.1",
@@ -5519,6 +5681,254 @@
       "purl": "pkg:npm/serve-static@2.2.1",
       "dev": false,
       "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/@types/whatwg-url",
+      "version": "11.0.5",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2F%40types%2Fwhatwg-url@11.0.5",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/agent-base",
+      "version": "6.0.2",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fagent-base@6.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/bson",
+      "version": "6.10.4",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fbson@6.10.4",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/gaxios",
+      "version": "5.1.3",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fgaxios@5.1.3",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/gcp-metadata",
+      "version": "5.3.0",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fgcp-metadata@5.3.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/https-proxy-agent",
+      "version": "5.0.1",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fhttps-proxy-agent@5.0.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/ipaddr.js",
+      "version": "2.4.0",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fipaddr.js@2.4.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/kareem",
+      "version": "2.6.3",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fkareem@2.6.3",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/mongodb",
+      "version": "6.20.0",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fmongodb@6.20.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/mongodb-connection-string-url",
+      "version": "3.0.2",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fmongodb-connection-string-url@3.0.2",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/mongoose",
+      "version": "8.24.1",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fmongoose@8.24.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/mquery",
+      "version": "5.0.0",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fmquery@5.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/node-fetch",
+      "version": "2.7.0",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fnode-fetch@2.7.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/node-fetch/node_modules/whatwg-url",
+      "version": "5.0.0",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fnode-fetch%2Fnode_modules%2Fwhatwg-url@5.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/tr46",
+      "version": "0.0.3",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Ftr46@0.0.3",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/communication-service/node_modules/webidl-conversions",
+      "version": "3.0.1",
+      "purl": "pkg:npm/services%2Fcommunication-service%2Fnode_modules%2Fwebidl-conversions@3.0.1",
+      "dev": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/@types/whatwg-url",
+      "version": "11.0.5",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2F%40types%2Fwhatwg-url@11.0.5",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/agent-base",
+      "version": "6.0.2",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fagent-base@6.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/bson",
+      "version": "6.10.4",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fbson@6.10.4",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/gaxios",
+      "version": "5.1.3",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fgaxios@5.1.3",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/gcp-metadata",
+      "version": "5.3.0",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fgcp-metadata@5.3.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/https-proxy-agent",
+      "version": "5.0.1",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fhttps-proxy-agent@5.0.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/kareem",
+      "version": "2.6.3",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fkareem@2.6.3",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/mongodb",
+      "version": "6.20.0",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fmongodb@6.20.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/mongodb-connection-string-url",
+      "version": "3.0.2",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fmongodb-connection-string-url@3.0.2",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/mongoose",
+      "version": "8.24.1",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fmongoose@8.24.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/mquery",
+      "version": "5.0.0",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fmquery@5.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/node-fetch",
+      "version": "2.7.0",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fnode-fetch@2.7.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/node-fetch/node_modules/whatwg-url",
+      "version": "5.0.0",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fnode-fetch%2Fnode_modules%2Fwhatwg-url@5.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/tr46",
+      "version": "0.0.3",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Ftr46@0.0.3",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/content-service/node_modules/webidl-conversions",
+      "version": "3.0.1",
+      "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fwebidl-conversions@3.0.1",
+      "dev": false,
+      "license": "BSD-2-Clause"
     },
     {
       "type": "library",
@@ -5693,7 +6103,7 @@
       "name": "source-map-js",
       "version": "1.2.1",
       "purl": "pkg:npm/source-map-js@1.2.1",
-      "dev": true,
+      "dev": false,
       "license": "BSD-3-Clause"
     },
     {
@@ -5892,6 +6302,14 @@
       "name": "tar-stream",
       "version": "2.2.0",
       "purl": "pkg:npm/tar-stream@2.2.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "tdigest",
+      "version": "0.1.2",
+      "purl": "pkg:npm/tdigest@0.1.2",
       "dev": false,
       "license": "MIT"
     },
@@ -6166,6 +6584,14 @@
       "purl": "pkg:npm/uri-js@4.4.1",
       "dev": true,
       "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "url-parse",
+      "version": "1.5.10",
+      "purl": "pkg:npm/url-parse@1.5.10",
+      "dev": false,
+      "license": "MIT"
     },
     {
       "type": "library",

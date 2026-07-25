@@ -21,6 +21,33 @@ function slugify(text) {
     .replace(/-+$/, "");
 }
 
+/**
+ * Serializes a page document into a canonical JSON representation.
+ */
+function serializePageRepresentation(page) {
+  return JSON.stringify({
+    id: String(page._id || page.id),
+    slug: page.Slug,
+    type: page.Type,
+    title: page.Title,
+    body: page.Body || "",
+    metaTitle: page.MetaTitle || "",
+    metaDescription: page.MetaDescription || "",
+    status: page.Status,
+    publishedAt: page.PublishedAt ? new Date(page.PublishedAt).toISOString() : null,
+    updatedAt: page.updatedAt ? new Date(page.updatedAt).toISOString() : null,
+  });
+}
+
+/**
+ * Computes a SHA-256 ETag from the canonical serialized representation.
+ */
+function computeEtag(page) {
+  const representation = serializePageRepresentation(page);
+  const hash = crypto.createHash("sha256").update(representation).digest("hex");
+  return `"${hash}"`;
+}
+
 async function listPages(req, res, next) {
   try {
     const { page = 1, limit = 50, type = "guide", citySlug = "" } = req.query;
@@ -66,13 +93,19 @@ async function getPage(req, res, next) {
       return res.status(404).json({ error: "Không tìm thấy trang nội dung." });
     }
 
-    // Cache Caching Headers: ETag generation using hash of body content
-    const etag = crypto.createHash("md5").update(page.Body || "").digest("hex");
-    res.setHeader("ETag", `"${etag}"`);
-    res.setHeader("Cache-Control", "public, max-age=600");
+    // Generate ETag based on the entire serialized representation
+    const etag = computeEtag(page);
 
-    if (req.headers["if-none-match"] === `"${etag}"`) {
-      return res.status(304).end();
+    res.setHeader("ETag", etag);
+    res.setHeader("Cache-Control", "public, max-age=600");
+    res.setHeader("Vary", "Accept-Language, Cookie, If-None-Match");
+
+    if (page.updatedAt) {
+      res.setHeader("Last-Modified", new Date(page.updatedAt).toUTCString());
+    }
+
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end(); // 304 Not Modified (empty body)
     }
 
     return res.json({ page });
@@ -97,10 +130,29 @@ async function upsertPage(req, res, next) {
       return res.status(400).json({ error: "Lý do thay đổi là bắt buộc." });
     }
 
+    if (status === "published") {
+      const userScopes = req.user && req.user.scopes ? req.user.scopes : [];
+      if (!userScopes.includes("content:publish")) {
+        return res.status(403).json({ error: "Quyền truy cập bị từ chối. Thiếu scope: content:publish" });
+      }
+    }
+
     if (!slug) {
       slug = slugify(title);
     } else {
       slug = slugify(slug);
+    }
+
+    // 1. Optimistic Concurrency Check: If-Match validation
+    const existing = await ContentPage.findOne({ Slug: slug }).session(session);
+    const ifMatch = req.headers["if-match"];
+    if (ifMatch && existing) {
+      const currentEtag = computeEtag(existing);
+      if (ifMatch !== currentEtag) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(412).json({ error: "Lỗi đè dữ liệu (If-Match Precondition Failed)." });
+      }
     }
 
     // Sanitization: Clean HTML payload to prevent Stored XSS
@@ -108,12 +160,6 @@ async function upsertPage(req, res, next) {
 
     const now = new Date();
     const publishedAt = status === "published" ? now : null;
-
-    // Check slug uniqueness conflict
-    const existing = await ContentPage.findOne({ Slug: slug }).session(session);
-    if (existing && String(existing.AuthorID) !== String(req.user.userId) && existing.Slug === slug) {
-      // If it exists and belongs to another transaction/author, prevent override
-    }
 
     const doc = await ContentPage.findOneAndUpdate(
       { Slug: slug },
@@ -216,4 +262,5 @@ module.exports = {
   getPage,
   upsertPage,
   deletePage,
+  computeEtag,
 };

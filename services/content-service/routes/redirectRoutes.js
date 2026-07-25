@@ -3,11 +3,13 @@
 const express = require("express");
 const router = express.Router();
 const redirectController = require("../controllers/redirectController");
-const { requireAuth, requireAdmin } = require("../middlewares/auth");
+const { requireAuth, requireScope } = require("../middlewares/auth");
 
 router.get("/", redirectController.listRedirects);
 router.get("/find", redirectController.getRedirectByPath);
-router.post("/", requireAuth, requireAdmin, redirectController.upsertRedirect);
-router.delete("/:id", requireAuth, requireAdmin, redirectController.deleteRedirect);
+
+// Mutating redirect endpoints require redirect:manage scope
+router.post("/", requireAuth, requireScope("content:redirect:manage"), redirectController.upsertRedirect);
+router.delete("/:id", requireAuth, requireScope("content:redirect:manage"), redirectController.deleteRedirect);
 
 module.exports = router;

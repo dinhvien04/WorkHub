@@ -14,8 +14,6 @@ const Translation = require("../models/Translation");
 const AuditLog = require("../models/AuditLog");
 const ContentOutbox = require("../models/ContentOutbox");
 
-const { runBackfill } = require("../scripts/backfillContent");
-
 function signToken(userId, role = "customer") {
   return jwt.sign({ userId, role }, env.JWT_SECRET, { expiresIn: "1h" });
 }
@@ -126,7 +124,7 @@ describe("Content Service E2E Integration and Logic Tests", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ fromPath: "/page-b", toPath: "/page-a", reason: "loop test" });
     expect(resTwoStep.status).toBe(400);
-    expect(resTwoStep.body.error).toContain("vòng lặp 2 bước");
+    expect(resTwoStep.body.error).toContain("vòng lặp vô hạn");
   });
 
   test("5. Idempotent Backfill and Reconciliation runs cleanly", async () => {

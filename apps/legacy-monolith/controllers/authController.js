@@ -49,7 +49,11 @@ function signToken(user, { sid } = {}) {
     tokenVersion: user.tokenVersion || 0,
   };
   if (sid) payload.sid = String(sid);
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
+  return jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: env.JWT_EXPIRES_IN,
+    issuer: "workhub-auth",
+    audience: "workhub-app"
+  });
 }
 
 const registerUser = asyncHandler(async (req, res) => {

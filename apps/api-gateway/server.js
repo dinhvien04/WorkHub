@@ -20,12 +20,19 @@ const CONTENT_CANARY_PERCENT = Number(process.env.CONTENT_CANARY_PERCENT) || 0;
 const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
 
+const CONTENT_INTERNAL_SECRET = process.env.CONTENT_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing CONTENT_INTERNAL_SECRET in production."); })() : "default_test_content_internal_secret_key");
+
 const app = express();
 
-// Sanitize identity headers globally from incoming client requests
+// Sanitize identity headers globally from incoming client requests to prevent header spoofing
 app.use((req, res, next) => {
+  delete req.headers["x-internal-token"];
+  delete req.headers["x-service-name"];
   delete req.headers["x-user-id"];
   delete req.headers["x-user-role"];
+  delete req.headers["x-user-scopes"];
+  delete req.headers["x-actor-id"];
+  delete req.headers["x-actor-role"];
   next();
 });
 
@@ -50,6 +57,50 @@ app.use((req, res, next) => {
   req.id = reqId;
   res.setHeader("X-Request-Id", reqId);
   next();
+});
+
+// Cryptographically verify JWT token at Gateway boundary
+app.use((req, res, next) => {
+  let token = null;
+
+  const authHeader = req.headers["authorization"];
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  } else if (req.headers.cookie) {
+    const cookies = req.headers.cookie.split(";").reduce((acc, c) => {
+      const parts = c.trim().split("=");
+      if (parts.length >= 2) {
+        acc[parts[0]] = parts.slice(1).join("=");
+      }
+      return acc;
+    }, {});
+    token = cookies["authToken"];
+  }
+
+  if (!token) {
+    // Unauthenticated guest user
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: ["HS256"],
+      issuer: "workhub-auth",
+      audience: "workhub-app"
+    });
+
+    const userId = decoded.userId || decoded.id || decoded._id;
+    const role = decoded.role;
+
+    if (!userId || !role) {
+      return res.status(401).json({ error: "Token không hợp lệ (sai cấu trúc payload)." });
+    }
+
+    req.user = { userId, role };
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Token không hợp lệ hoặc đã hết hạn." });
+  }
 });
 
 // Gateway health endpoints
@@ -97,42 +148,9 @@ const proxyOptions = {
 function shouldRouteToCommunication(req) {
   if (!COMMUNICATION_SERVICE_ENABLED) return false;
   if (COMMUNICATION_CANARY_PERCENT <= 0) return false;
+  if (!req.user) return false; // Anonymous requests default to monolith
 
-  // Extract Auth Token from Header or Cookies
-  let token = null;
-  const authHeader = req.headers["authorization"];
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.slice(7).trim();
-  } else if (req.cookie || req.headers.cookie) {
-    const cookieHeader = req.cookie || req.headers.cookie;
-    const cookies = cookieHeader.split(";").reduce((acc, c) => {
-      const parts = c.trim().split("=");
-      if (parts.length >= 2) {
-        acc[parts[0]] = parts.slice(1).join("=");
-      }
-      return acc;
-    }, {});
-    token = cookies["authToken"];
-  }
-
-  if (!token) return false; // Anonymous requests default to monolith
-
-  let userId;
-  let role;
-  try {
-    // Cryptographically verify signature and algorithms
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-    userId = decoded.userId || decoded.id || decoded._id;
-    role = decoded.role;
-    if (!userId) return false;
-
-    // Attach verified user context to request
-    req.user = { userId, role };
-  } catch (err) {
-    // Invalid/expired token: fallback to monolith (which handles unauthorized responses)
-    return false;
-  }
-
+  const userId = req.user.userId;
   if (COMMUNICATION_CANARY_PERCENT >= 100) return true;
 
   // Stable hashing percentage bucket based on verified userId
@@ -145,40 +163,10 @@ function shouldRouteToContent(req) {
   if (!CONTENT_SERVICE_ENABLED) return false;
   if (CONTENT_CANARY_PERCENT <= 0) return false;
 
-  // Attempt to identify user for sticky routing; fallback to client IP
-  let token = null;
-  const authHeader = req.headers["authorization"];
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.slice(7).trim();
-  } else if (req.cookie || req.headers.cookie) {
-    const cookieHeader = req.cookie || req.headers.cookie;
-    const cookies = cookieHeader.split(";").reduce((acc, c) => {
-      const parts = c.trim().split("=");
-      if (parts.length >= 2) {
-        acc[parts[0]] = parts.slice(1).join("=");
-      }
-      return acc;
-    }, {});
-    token = cookies["authToken"];
-  }
-
-  let userId = null;
-  let role = null;
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-      userId = decoded.userId || decoded.id || decoded._id;
-      role = decoded.role;
-      req.user = { userId, role };
-    } catch (err) {
-      // Ignore invalid token errors, treat as guest
-    }
-  }
-
   if (CONTENT_CANARY_PERCENT >= 100) return true;
 
-  // Guest users use IP address for stable bucket routing
-  const identifier = userId || req.ip || "anon";
+  // Stable hashing percentage bucket based on verified userId or IP
+  const identifier = req.user ? req.user.userId : (req.ip || "anon");
   const hash = crypto.createHash("sha256").update(`content-canary:${identifier}`).digest();
   const bucket = hash[0] % 100;
   return bucket < CONTENT_CANARY_PERCENT;
@@ -205,7 +193,7 @@ const commProxyOptions = {
         proxyReq.setHeader("traceparent", req.headers["traceparent"]);
       }
 
-      // Sanitize and inject verified identity headers
+      // Sanitize and inject verified identity headers for Communication Service
       proxyReq.removeHeader("X-User-Id");
       proxyReq.removeHeader("X-User-Role");
       proxyReq.removeHeader("X-Internal-Token");
@@ -244,14 +232,26 @@ const contentProxyOptions = {
         proxyReq.setHeader("traceparent", req.headers["traceparent"]);
       }
 
-      // Sanitize and inject verified identity headers
+      // Sanitize and inject verified identity headers for Content Service
       proxyReq.removeHeader("X-User-Id");
       proxyReq.removeHeader("X-User-Role");
+      proxyReq.removeHeader("X-User-Scopes");
+      proxyReq.removeHeader("X-Actor-Id");
+      proxyReq.removeHeader("X-Actor-Role");
       proxyReq.removeHeader("X-Internal-Token");
+      proxyReq.removeHeader("X-Service-Name");
+
+      proxyReq.setHeader("X-Service-Name", "api-gateway");
+      proxyReq.setHeader("X-Internal-Token", CONTENT_INTERNAL_SECRET);
       if (req.user) {
         proxyReq.setHeader("X-User-Id", req.user.userId);
         proxyReq.setHeader("X-User-Role", req.user.role || "");
-        proxyReq.setHeader("X-Internal-Token", JWT_SECRET);
+        proxyReq.setHeader("X-Actor-Id", req.user.userId);
+        proxyReq.setHeader("X-Actor-Role", req.user.role || "");
+        const scopes = req.user.role === "admin"
+          ? ["content:read", "content:write", "content:publish", "content:redirect:manage", "content:i18n:manage"]
+          : ["content:read"];
+        proxyReq.setHeader("X-User-Scopes", scopes.join(","));
       }
     },
     proxyRes: (proxyRes, req, res) => {

@@ -2,9 +2,9 @@
 
 ## Repository state
 - Current branch: refactor/microservices-strangler
-- Current HEAD: 02959590a4311758f9a9a037053d9eeb07c24d89
+- Current HEAD: 9a6c6fa5344232e387c8c12158cb8e0c44b3c454
 - Working tree: Modified
-- Last verified date: 2026-07-24
+- Last verified date: 2026-07-25
 
 ## Current phase
 CURRENT_PHASE: M5
@@ -20,8 +20,7 @@ STATUS: VERIFIED
 | M2 | VERIFIED | apps/api-gateway created with Express/http-proxy-middleware v3 pass-through proxy; request ID, rate limits, health checks, error formatting, gateway.test.js pass. Added WebSocket upgrade forwarding, graceful shutdown, automated contract comparison test (contract-comparison.test.js), and rollback smoke test (rollback-smoke.test.js). | None |
 | M3 | VERIFIED | Local RabbitMQ compose setup, durable exchanges/queues topology with publisher confirms. Validation of event envelopes using Zod schemas. Transactional Outbox reference implementation (IntegrationOutboxEvent) and Inbox idempotent deduplication (InboxMessage) enforcing at-least-once message delivery with effectively-once business effect within local transaction. OpenTelemetry tracecontext propagation. Integration and crash-recovery tests (messaging.test.js and messaging.real.test.js) successfully cover all required mock and real broker scenarios. | None |
 | M4 | VERIFIED | Extracted push subscriptions, push worker, notification inbox, and email worker to services/communication-service. Owns isolated workhub_communication database (push_subscriptions, notifications, preferences, outbox, etc.) with zero monolith dependencies. Local user caches updated via AMQP identity events. Strangler migration setup (shadow-mode comparison logs, API Gateway canary routing, fallback rollback). E2E scenarios validated. | None |
-| M5 | VERIFIED | Extracted CMS/Pages, SEO redirects, SEO metadata, sitemaps, robots, and i18n translations to services/content-service. Owns workhub_content database. Implemented rich text HTML sanitization (preventing stored XSS), 2-step redirect loop prevention, ETag cache validation, and audit logs. Gateway canary routing and rollback procedure validated. | None |
-| M6 | NOT_STARTED | | |
+| M5 | VERIFIED | Extracted CMS/Pages, SEO redirects, SEO metadata, sitemaps, robots, and i18n translations to services/content-service. Owns workhub_content database. Implemented secure user-auth (cryptographic JWT signature, exp, nbf, iss, and aud checks at gateway) and service-auth (CONTENT_INTERNAL_SECRET and service name verification on microservice). Enforced scope-based validation (content:read, content:write, content:publish, content:redirect:manage, content:i18n:manage). Web Push code was cleanly stripped from the backfill content script. Caching (representation-based ETags & Vary), HTML sanitization allowlist (preventing XSS), and redirect cycle loop check (up to 20 hops) implemented and E2E tested. | None |
 | M6 | NOT_STARTED | | |
 | M7 | NOT_STARTED | | |
 | M8 | NOT_STARTED | | |
@@ -74,14 +73,33 @@ STATUS: VERIFIED
 - `workhub_booking` owns Booking, BookingSlot, Incident.
 - `workhub_billing` owns PaymentHistory, Refund, RefundAllocation, LedgerEntry.
 - `workhub_communication` owns PushSubscription, Notification.
+- `workhub_content` owns ContentPage, SeoMetadata, SeoRedirect, Translation, PublicNavigation, PublicPolicy.
 
 ## Event catalog
 - `catalog.review-created.v1`
 - `catalog.rating-recalculated.v1`
+- `catalog.review-replied.v1`
 - `booking.hold-created.v1`
 - `booking.confirmed.v1`
+- `booking.cancelled.v1`
 - `billing.payment-succeeded.v1`
 - `billing.refund-completed.v1`
+- `identity.user-created.v1`
+- `identity.user-updated.v1`
+- `content.page-published.v1`
+- `content.page-unpublished.v1`
+- `content.seo-redirect-updated.v1`
+- `content.translation-updated.v1`
+
+## Active Route Phase Status
+* **Communication Routes** (`/api/push/*`, `/api/notifications/*`): CANARY (100% rollout when enabled).
+* **Content Routes** (`/api/content/*`, `/api/i18n/*`, `/api/seo/*`, `/sitemap*.xml`, `/robots.txt`): CANARY (100% rollout when enabled).
+* **Other Routes**: MONOLITH (100%).
+
+## Data Migration & Reconciliation Results
+* **Push Subscriptions backfill**: Successfully executed with idempotent upserts. Monolith collection `push_subscriptions` reconciled with `workhub_communication.push_subscriptions` (Counts matched).
+* **Content backfill (CMS & Redirects)**: Reconciled `cms_pages` and `seo_redirects` monolith collections with `workhub_content` equivalents. Source counts matched target counts, conflict checksums resolved with 0 mismatched items.
+* **Audit Results**: 0 high/critical vulnerabilities unresolved. High severity vulnerabilities in `exceljs` (`brace-expansion`) are logged and accepted in the risk register (`docs/security/dependency-risk-register.md`) since they are restricted to developer environment tools and not reachable in production.
 
 ## Compatibility shims
 - None required yet.
