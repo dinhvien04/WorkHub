@@ -101,6 +101,54 @@ const UserUpdatedEventDataSchema = z.object({
   tokenVersion: z.number().int().nonnegative().optional(),
 });
 
+const UserStatusChangedEventDataSchema = z.object({
+  userId: z.string(),
+  status: z.enum(["active", "inactive", "banned"]),
+});
+
+const RoleChangedEventDataSchema = z.object({
+  userId: z.string(),
+  role: z.enum(["customer", "host", "admin"]),
+});
+
+const EmailVerifiedEventDataSchema = z.object({
+  userId: z.string(),
+  email: z.string().email(),
+  verifiedAt: z.string().datetime(),
+});
+
+const PasswordChangedEventDataSchema = z.object({
+  userId: z.string(),
+  changedAt: z.string().datetime(),
+});
+
+const MfaChangedEventDataSchema = z.object({
+  userId: z.string(),
+  mfaEnabled: z.boolean(),
+  mfaType: z.string(),
+});
+
+const SessionCreatedEventDataSchema = z.object({
+  userId: z.string(),
+  sessionId: z.string(),
+  publicSessionId: z.string(),
+  authMethod: z.string(),
+  expiresAt: z.string().datetime(),
+});
+
+const SessionRevokedEventDataSchema = z.object({
+  userId: z.string(),
+  sessionId: z.string(),
+  publicSessionId: z.string(),
+  revokedAt: z.string().datetime(),
+});
+
+const AllSessionsRevokedEventDataSchema = z.object({
+  userId: z.string(),
+  revokedAt: z.string().datetime(),
+  tokenVersion: z.number().int().nonnegative(),
+});
+
 // Content Domain Events (M5)
 const PagePublishedEventDataSchema = z.object({
   slug: z.string(),
@@ -168,6 +216,30 @@ function validateEvent(envelope) {
     case "identity.user-updated.v1":
       dataSchema = UserUpdatedEventDataSchema;
       break;
+    case "identity.user-status-changed.v1":
+      dataSchema = UserStatusChangedEventDataSchema;
+      break;
+    case "identity.role-changed.v1":
+      dataSchema = RoleChangedEventDataSchema;
+      break;
+    case "identity.email-verified.v1":
+      dataSchema = EmailVerifiedEventDataSchema;
+      break;
+    case "identity.password-changed.v1":
+      dataSchema = PasswordChangedEventDataSchema;
+      break;
+    case "identity.mfa-changed.v1":
+      dataSchema = MfaChangedEventDataSchema;
+      break;
+    case "identity.session-created.v1":
+      dataSchema = SessionCreatedEventDataSchema;
+      break;
+    case "identity.session-revoked.v1":
+      dataSchema = SessionRevokedEventDataSchema;
+      break;
+    case "identity.all-sessions-revoked.v1":
+      dataSchema = AllSessionsRevokedEventDataSchema;
+      break;
     case "content.page-published.v1":
       dataSchema = PagePublishedEventDataSchema;
       break;
@@ -205,6 +277,14 @@ module.exports = {
   RefundCompletedEventDataSchema,
   UserCreatedEventDataSchema,
   UserUpdatedEventDataSchema,
+  UserStatusChangedEventDataSchema,
+  RoleChangedEventDataSchema,
+  EmailVerifiedEventDataSchema,
+  PasswordChangedEventDataSchema,
+  MfaChangedEventDataSchema,
+  SessionCreatedEventDataSchema,
+  SessionRevokedEventDataSchema,
+  AllSessionsRevokedEventDataSchema,
   PagePublishedEventDataSchema,
   PageUnpublishedEventDataSchema,
   SeoRedirectUpdatedEventDataSchema,

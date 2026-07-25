@@ -4,6 +4,7 @@ const env = require("./config/env");
 const db = require("./config/db");
 const express = require("express");
 const http = require("http");
+const crypto = require("crypto");
 const cookieParser = require("cookie-parser");
 const client = require("prom-client");
 
@@ -78,7 +79,7 @@ app.post("/internal/auth/introspect", async (req, res) => {
       audience: "workhub-api-gateway",
     });
 
-    const userId = decoded.userId || decoded.id || decoded._id;
+    const userId = decoded.userId || decoded.id || decoded._id || decoded.sub;
     if (!userId) return res.json({ active: false });
 
     // Query DB to check user status and tokenVersion

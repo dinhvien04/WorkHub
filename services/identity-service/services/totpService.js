@@ -123,6 +123,54 @@ async function consumeRecoveryCode(hashedList, plainCode) {
   return { ok: matched, remaining };
 }
 
+const KEY_VERSION = process.env.IDENTITY_TOTP_KEY_VERSION || "v1";
+
+function getEncryptionKey() {
+  const envKey = process.env.IDENTITY_TOTP_ENCRYPTION_KEY;
+  if (envKey) {
+    const buf = Buffer.from(envKey, "hex");
+    if (buf.length === 32) return buf;
+  }
+  const internalSecret = process.env.IDENTITY_INTERNAL_SECRET || "default_test_identity_internal_secret_key";
+  return crypto.createHash("sha256").update(internalSecret).digest();
+}
+
+function encryptSecret(plaintextSecret, userId) {
+  if (!plaintextSecret) return null;
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+
+  cipher.setAAD(Buffer.from(String(userId)));
+
+  let encrypted = cipher.update(plaintextSecret, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  const tag = cipher.getAuthTag().toString("hex");
+
+  return `${KEY_VERSION}:${iv.toString("hex")}:${tag}:${encrypted}`;
+}
+
+function decryptSecret(encryptedSecret, userId) {
+  if (!encryptedSecret) return null;
+  const parts = String(encryptedSecret).split(":");
+  if (parts.length !== 4) {
+    return encryptedSecret; // fallback for legacy plaintext
+  }
+
+  const [_version, ivHex, tagHex, ciphertextHex] = parts;
+  const key = getEncryptionKey();
+  const iv = Buffer.from(ivHex, "hex");
+  const tag = Buffer.from(tagHex, "hex");
+
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  decipher.setAAD(Buffer.from(String(userId)));
+
+  let decrypted = decipher.update(ciphertextHex, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
 module.exports = {
   generateSecret,
   totpAt,
@@ -133,4 +181,6 @@ module.exports = {
   consumeRecoveryCode,
   base32Encode,
   base32Decode,
+  encryptSecret,
+  decryptSecret,
 };

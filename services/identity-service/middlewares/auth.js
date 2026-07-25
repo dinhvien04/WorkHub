@@ -59,12 +59,28 @@ async function verifyToken(req, res, next) {
       return res.status(401).json({ error: "Yêu cầu đăng nhập để truy cập." });
     }
 
-    const decoded = jwt.verify(token, env.JWT_SECRET, {
-      algorithms: ["HS256"],
-      issuer: "workhub-auth",
-      audience: "workhub-app",
-    });
-    const userId = decoded.userId || decoded.id || decoded._id;
+    let decoded;
+    const decodedHeader = jwt.decode(token, { complete: true });
+    const alg = decodedHeader?.header?.alg;
+
+    if (alg === "RS256") {
+      const keyManager = require("../services/keyManager");
+      const key = keyManager.getActiveKey();
+      decoded = jwt.verify(token, key.publicKey, {
+        algorithms: ["RS256"],
+        issuer: "workhub-identity",
+        audience: "workhub-api-gateway",
+      });
+    } else {
+      // Legacy HS256 verification
+      decoded = jwt.verify(token, env.JWT_SECRET, {
+        algorithms: ["HS256"],
+        issuer: "workhub-auth",
+        audience: "workhub-app",
+      });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded._id || decoded.sub;
     if (!userId) {
       return res.status(401).json({ error: "Token không chứa userId." });
     }
@@ -141,12 +157,28 @@ async function optionalToken(req, res, next) {
   const token = extractToken(req);
   if (!token) return next();
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET, {
-      algorithms: ["HS256"],
-      issuer: "workhub-auth",
-      audience: "workhub-app",
-    });
-    const userId = decoded.userId || decoded.id || decoded._id;
+    let decoded;
+    const decodedHeader = jwt.decode(token, { complete: true });
+    const alg = decodedHeader?.header?.alg;
+
+    if (alg === "RS256") {
+      const keyManager = require("../services/keyManager");
+      const key = keyManager.getActiveKey();
+      decoded = jwt.verify(token, key.publicKey, {
+        algorithms: ["RS256"],
+        issuer: "workhub-identity",
+        audience: "workhub-api-gateway",
+      });
+    } else {
+      // Legacy HS256 verification
+      decoded = jwt.verify(token, env.JWT_SECRET, {
+        algorithms: ["HS256"],
+        issuer: "workhub-auth",
+        audience: "workhub-app",
+      });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded._id || decoded.sub;
     if (!userId) return next();
     const user = await User.findById(userId).select(
       "_id Role Status Email FullName tokenVersion",
@@ -172,10 +204,18 @@ async function optionalToken(req, res, next) {
   return next();
 }
 
+function requireAdmin(req, res, next) {
+  if (req.user && req.user.role === "admin") {
+    return next();
+  }
+  return res.status(403).json({ error: "Quyền truy cập bị từ chối. Chỉ dành cho Admin." });
+}
+
 module.exports = {
   safeCompare,
   extractToken,
   requireInternalService,
   verifyToken,
   optionalToken,
+  requireAdmin,
 };

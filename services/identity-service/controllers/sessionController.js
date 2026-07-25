@@ -61,8 +61,19 @@ const logoutAll = asyncHandler(async (req, res) => {
   res.json({ message: "Đã đăng xuất tất cả phiên." });
 });
 
+const adminForceLogout = asyncHandler(async (req, res) => {
+  const userId = String(req.params.userId || "");
+  await UserSession.updateMany(
+    { UserID: userId, RevokedAt: null },
+    { $set: { RevokedAt: new Date() } }
+  );
+  await User.updateOne({ _id: userId }, { $inc: { tokenVersion: 1 } });
+  res.json({ message: "Đã buộc đăng xuất tất cả phiên của người dùng." });
+});
+
 module.exports = {
   listSessions,
   revokeSession,
   logoutAll,
+  adminForceLogout,
 };

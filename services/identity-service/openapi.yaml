@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: WorkHub Identity Service
+  description: Authentication, session management, TOTP, and passkey credentials service (M6).
+  version: 1.1.0
+paths:
+  /api/auth/register:
+    post:
+      summary: Register a new user principal.
+      responses:
+        '201':
+          description: User registered successfully.
+  /api/auth/login:
+    post:
+      summary: Authenticate user credentials and create session.
+      responses:
+        '200':
+          description: Logged in successfully.
+  /api/auth/logout:
+    post:
+      summary: Revoke current session.
+      responses:
+        '200':
+          description: Logged out successfully.
+  /api/auth/me:
+    get:
+      summary: Retrieve current authenticated user details.
+      responses:
+        '200':
+          description: Me details retrieved.
+  /api/sessions:
+    get:
+      summary: List all active sessions for current user.
+      responses:
+        '200':
+          description: Sessions list retrieved.
+    delete:
+      summary: Revoke a specific session by public ID.
+      responses:
+        '200':
+          description: Session revoked.
+  /api/sessions/logout-all:
+    post:
+      summary: Revoke all sessions for current user.
+      responses:
+        '200':
+          description: All sessions revoked.
+  /.well-known/jwks.json:
+    get:
+      summary: Retrieve standard JWKS public keys.
+      responses:
+        '200':
+          description: JWKS retrieved.
+  /internal/auth/introspect:
+    post:
+      summary: Introspect access token active state (Internal-only).
+      responses:
+        '200':
+          description: Token introspected.
+  /internal/auth/revoke:
+    post:
+      summary: Revoke session by public ID (Internal-only).
+      responses:
+        '200':
+          description: Session revoked.

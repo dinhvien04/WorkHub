@@ -1,0 +1,44 @@
+asyncapi: 2.6.0
+info:
+  title: WorkHub Identity Event Stream
+  version: 1.1.0
+  description: Event specification emitted by Identity Service outbox (M6).
+channels:
+  identity-events:
+    publish:
+      summary: Emit identity mutations to workspaces.
+      message:
+        oneOf:
+          - $ref: '#/components/messages/UserCreated'
+          - $ref: '#/components/messages/SessionCreated'
+          - $ref: '#/components/messages/SessionRevoked'
+components:
+  messages:
+    UserCreated:
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          email:
+            type: string
+          role:
+            type: string
+          status:
+            type: string
+    SessionCreated:
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          publicSessionId:
+            type: string
+    SessionRevoked:
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          publicSessionId:
+            type: string

@@ -3,6 +3,7 @@
 require("./setup");
 
 const request = require("supertest");
+const mongoose = require("mongoose");
 const { app } = require("../server");
 const User = require("../models/User");
 const UserSession = require("../models/Session");
@@ -229,5 +230,78 @@ describe("Identity Service full auth contract", () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("configured");
     expect(res.body).toHaveProperty("mockAllowed");
+  });
+
+  test("admin force logout revokes sessions and bumps tokenVersion", async () => {
+    await User.create({
+      Email: "admin@example.com",
+      PasswordHash: await bcrypt.hash("password12345", 10),
+      FullName: "Admin User",
+      Role: "admin",
+      Status: "active",
+      EmailVerified: true,
+      AuthProvider: "local",
+    });
+
+    const user = await User.create({
+      Email: "victim@example.com",
+      PasswordHash: await bcrypt.hash("password12345", 10),
+      FullName: "Victim User",
+      Role: "customer",
+      Status: "active",
+      EmailVerified: true,
+      AuthProvider: "local",
+      tokenVersion: 0,
+    });
+
+    const adminLogin = await request(app).post("/api/auth/login").send({
+      email: "admin@example.com",
+      password: "password12345",
+    });
+
+    const userLogin = await request(app).post("/api/auth/login").send({
+      email: "victim@example.com",
+      password: "password12345",
+    });
+
+    const failRes = await request(app)
+      .post(`/api/admin/users/${user._id}/force-logout`)
+      .set("Cookie", userLogin.headers["set-cookie"]);
+    expect(failRes.status).toBe(403);
+
+    const successRes = await request(app)
+      .post(`/api/admin/users/${user._id}/force-logout`)
+      .set("Cookie", adminLogin.headers["set-cookie"]);
+    expect(successRes.status).toBe(200);
+
+    const updatedUser = await User.findById(user._id).lean();
+    expect(updatedUser.tokenVersion).toBe(1);
+
+    const openSessions = await UserSession.countDocuments({
+      UserID: user._id,
+      RevokedAt: null,
+    });
+    expect(openSessions).toBe(0);
+  });
+
+  test("TOTP secret is encrypted at rest using AES-256-GCM and bound to userId", async () => {
+    const totpService = require("../services/totpService");
+    const userId = new mongoose.Types.ObjectId();
+    const secret = totpService.generateSecret();
+
+    // Encrypt
+    const encrypted = totpService.encryptSecret(secret, userId);
+    expect(encrypted).not.toBe(secret);
+    expect(encrypted).toContain("v1:");
+
+    // Decrypt
+    const decrypted = totpService.decryptSecret(encrypted, userId);
+    expect(decrypted).toBe(secret);
+
+    // Decrypt with a different userId (associated data mismatch) -> must throw GCM authentication error!
+    const differentUserId = new mongoose.Types.ObjectId();
+    expect(() => {
+      totpService.decryptSecret(encrypted, differentUserId);
+    }).toThrow();
   });
 });

@@ -393,7 +393,7 @@ const verify2faLogin = asyncHandler(async (req, res) => {
   if (!user || !user.TotpEnabled) throw new UnauthorizedError('2FA chưa bật.');
   if (user.Status !== 'active') throw new ForbiddenError('Tài khoản chưa được kích hoạt.');
 
-  let ok = totpService.verifyTotp(user.TotpSecret, code);
+  let ok = totpService.verifyTotp(totpService.decryptSecret(user.TotpSecret, user._id), code);
   if (!ok) {
     const consumed = await totpService.consumeRecoveryCode(user.TotpRecoveryHashes, code);
     if (consumed.ok) {
@@ -420,7 +420,7 @@ const setup2fa = asyncHandler(async (req, res) => {
   if (user.TotpEnabled) throw new ValidationError('2FA đã được bật.');
 
   const secret = totpService.generateSecret();
-  user.TotpSecret = secret;
+  user.TotpSecret = totpService.encryptSecret(secret, user._id);
   await user.save();
 
   res.json({
@@ -438,7 +438,8 @@ const enable2fa = asyncHandler(async (req, res) => {
   );
   if (!user) throw new NotFoundError('User not found');
   if (!user.TotpSecret) throw new ValidationError('Gọi setup 2FA trước.');
-  if (!totpService.verifyTotp(user.TotpSecret, code)) {
+  const decrypted = totpService.decryptSecret(user.TotpSecret, user._id);
+  if (!totpService.verifyTotp(decrypted, code)) {
     throw new ValidationError('Mã xác nhận không đúng.');
   }
 
@@ -466,7 +467,8 @@ const disable2fa = asyncHandler(async (req, res) => {
   if (!user.TotpEnabled) throw new ValidationError('2FA chưa bật.');
 
   const passOk = password && (await bcrypt.compare(String(password), user.PasswordHash));
-  const totpOk = totpService.verifyTotp(user.TotpSecret, code);
+  const decrypted = totpService.decryptSecret(user.TotpSecret, user._id);
+  const totpOk = totpService.verifyTotp(decrypted, code);
   if (!passOk || !totpOk) throw new UnauthorizedError('Mật khẩu hoặc mã 2FA không đúng.');
 
   user.TotpEnabled = false;
