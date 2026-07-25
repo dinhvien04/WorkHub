@@ -18,6 +18,7 @@ const contentPageSchema = new mongoose.Schema(
     CitySlug: { type: String, default: "", index: true },
     PublishedAt: { type: Date, default: null },
     AuthorID: { type: mongoose.Schema.Types.ObjectId, default: null },
+    Version: { type: Number, default: 1 },
   },
   { collection: "content_pages", timestamps: true }
 );

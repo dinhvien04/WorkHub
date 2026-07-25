@@ -6,6 +6,7 @@ process.env.MONGODB_URI = "mongodb://127.0.0.1:27017/test-db";
 
 const request = require("supertest");
 const http = require("http");
+const mongoose = require("mongoose");
 const { createApp } = require("../legacy-monolith/app");
 const { startMemoryMongo, stopMemoryMongo } = require("../legacy-monolith/test/helpers");
 
@@ -115,5 +116,96 @@ describe("API Gateway Contract Comparison", () => {
 
   test("GET /api/auth/csrf is equivalent", async () => {
     await compareEndpoint("/api/auth/csrf");
+  });
+
+  test("GET /robots.txt is equivalent", async () => {
+    const [monoRes, gateRes] = await Promise.all([
+      request(`http://localhost:${monolithPort}`).get("/robots.txt"),
+      request(`http://localhost:${gatewayPort}`).get("/robots.txt")
+    ]);
+    expect(gateRes.status).toBe(monoRes.status);
+    expect(gateRes.headers["content-type"]).toBe(monoRes.headers["content-type"]);
+    expect(gateRes.text).toContain("User-agent: *");
+    expect(gateRes.text).toContain("Disallow: /admin/");
+  });
+
+  test("GET /sitemap_index.xml is equivalent", async () => {
+    const [monoRes, gateRes] = await Promise.all([
+      request(`http://localhost:${monolithPort}`).get("/sitemap_index.xml"),
+      request(`http://localhost:${gatewayPort}`).get("/sitemap_index.xml")
+    ]);
+    expect(gateRes.status).toBe(monoRes.status);
+    expect(gateRes.headers["content-type"]).toContain("xml");
+    expect(gateRes.text).toContain("<?xml");
+    expect(gateRes.text).toContain("<sitemapindex");
+  });
+
+  test("GET /sitemap.xml is equivalent", async () => {
+    const [monoRes, gateRes] = await Promise.all([
+      request(`http://localhost:${monolithPort}`).get("/sitemap.xml"),
+      request(`http://localhost:${gatewayPort}`).get("/sitemap.xml")
+    ]);
+    expect(gateRes.status).toBe(monoRes.status);
+    expect(gateRes.headers["content-type"]).toContain("xml");
+    expect(gateRes.text).toContain("<?xml");
+    expect(gateRes.text).toContain("<urlset");
+  });
+
+  test("GET /sitemap-cities.xml is equivalent", async () => {
+    const [monoRes, gateRes] = await Promise.all([
+      request(`http://localhost:${monolithPort}`).get("/sitemap-cities.xml"),
+      request(`http://localhost:${gatewayPort}`).get("/sitemap-cities.xml")
+    ]);
+    expect(gateRes.status).toBe(monoRes.status);
+    expect(gateRes.headers["content-type"]).toContain("xml");
+  });
+
+  test("GET /sitemap-guides.xml is equivalent", async () => {
+    const [monoRes, gateRes] = await Promise.all([
+      request(`http://localhost:${monolithPort}`).get("/sitemap-guides.xml"),
+      request(`http://localhost:${gatewayPort}`).get("/sitemap-guides.xml")
+    ]);
+    expect(gateRes.status).toBe(monoRes.status);
+    expect(gateRes.headers["content-type"]).toContain("xml");
+  });
+
+  test("Sitemap handles over 50,000 URLs correctly without crashing", async () => {
+    const BranchModel = mongoose.model("Branch");
+    const originalFind = BranchModel.find;
+
+    // Create 51,000 mock branches
+    const mockBranches = [];
+    for (let i = 1; i <= 51000; i++) {
+      mockBranches.push({
+        Slug: `branch-${i}`,
+        CitySlug: "ha-noi",
+        DistrictSlug: "cau-giay",
+        Name: `Branch ${i}`,
+        City: "Hà Nội",
+        District: "Cầu Giấy",
+        Status: "active",
+        updatedAt: new Date(),
+      });
+    }
+
+    // Mock Branch.find
+    BranchModel.find = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue(mockBranches),
+      }),
+    });
+
+    try {
+      const res = await request(`http://localhost:${gatewayPort}`).get("/sitemap.xml");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("xml");
+      expect(res.text).toContain("<?xml");
+      expect(res.text).toContain("<urlset");
+      expect(res.text).toContain("<loc>");
+      // Verify it contains a sample from the large set
+      expect(res.text).toContain("branch-51000");
+    } finally {
+      BranchModel.find = originalFind;
+    }
   });
 });

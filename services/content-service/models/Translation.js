@@ -6,7 +6,8 @@ const translationSchema = new mongoose.Schema(
   {
     Locale: { type: String, required: true, index: true },
     Key: { type: String, required: true },
-    Value: { type: String, required: true }
+    Value: { type: String, required: true },
+    Version: { type: Number, default: 1 }
   },
   { collection: "translations", timestamps: true }
 );

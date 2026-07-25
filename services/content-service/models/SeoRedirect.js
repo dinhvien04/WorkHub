@@ -8,7 +8,8 @@ const seoRedirectSchema = new mongoose.Schema(
     ToPath: { type: String, required: true, trim: true },
     StatusCode: { type: Number, enum: [301, 302], default: 301 },
     Active: { type: Boolean, default: true, index: true },
-    Note: { type: String, default: "" }
+    Note: { type: String, default: "" },
+    Version: { type: Number, default: 1 }
   },
   { collection: "seo_redirects", timestamps: true }
 );

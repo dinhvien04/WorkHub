@@ -176,7 +176,10 @@ jobs:
 
           ready=0
           for i in $(seq 1 40); do
-            if curl -sf http://127.0.0.1:3000/health/ready; then
+            if curl -sf http://127.0.0.1:3000/gateway/health/ready && \
+               curl -sf http://127.0.0.1:3001/health/ready && \
+               curl -sf http://127.0.0.1:3002/ready && \
+               curl -sf http://127.0.0.1:3003/ready; then
               ready=1
               break
             fi
@@ -207,10 +210,18 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Docker build
-        run: docker build -t workhub:ci .
-      - name: Report Node version in image
-        run: docker run --rm workhub:ci node -p "process.versions.node"
+      - name: Validate Compose Config
+        run: |
+          export JWT_SECRET=test_jwt_secret_key_at_least_32_characters_long_for_workhub
+          export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
+          export CONTENT_INTERNAL_SECRET=test_content_internal_secret_key_at_least_32_chars
+          docker compose config
+      - name: Docker Build Compose Stack
+        run: |
+          export JWT_SECRET=test_jwt_secret_key_at_least_32_characters_long_for_workhub
+          export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
+          export CONTENT_INTERNAL_SECRET=test_content_internal_secret_key_at_least_32_chars
+          docker compose build
 
   # Final gate — fails the workflow if any required job failed
   final-gate:

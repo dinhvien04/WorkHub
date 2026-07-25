@@ -212,6 +212,7 @@ async function upsertRedirect(req, res, next) {
           Active: active !== false,
           Note: note || "",
         },
+        $inc: { Version: 1 },
       },
       { upsert: true, new: true, session }
     );
@@ -231,14 +232,14 @@ async function upsertRedirect(req, res, next) {
     // Transactional Outbox
     const now = new Date();
     const eventType = "content.seo-redirect-updated.v1";
-    const idempotencyKey = `${eventType}:${doc._id}:1`;
+    const idempotencyKey = req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || `${eventType}:${doc._id}:${doc.Version}`;
     const envelope = {
-      eventId: crypto.randomUUID(),
+      eventId: req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || crypto.randomUUID(),
       eventType,
       occurredAt: now.toISOString(),
       producer: "content-service",
       aggregateId: String(doc._id),
-      aggregateVersion: 1,
+      aggregateVersion: doc.Version,
       correlationId: crypto.randomUUID(),
       data: {
         fromPath: doc.FromPath,
@@ -266,6 +267,10 @@ async function upsertRedirect(req, res, next) {
     try {
       await session.abortTransaction();
     } catch (_) {}
+    if (err.code === 11000 || (err.writeErrors && err.writeErrors.some(e => e.code === 11000))) {
+      const currentDoc = await SeoRedirect.findOne({ FromPath: canonicalFrom });
+      return res.json({ message: "Cập nhật redirect thành công.", redirect: currentDoc });
+    }
     next(err);
   } finally {
     session.endSession();

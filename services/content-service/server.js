@@ -4,7 +4,6 @@ const env = require("./config/env");
 const db = require("./config/db");
 const express = require("express");
 const http = require("http");
-const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const client = require("prom-client");
 
@@ -14,10 +13,6 @@ client.collectDefaultMetrics({ register });
 
 const app = express();
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ limit: "2mb", extended: true }));
 app.use(cookieParser());

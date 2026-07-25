@@ -137,6 +137,10 @@ async function main() {
   await visit("/login");
   await visit("/status");
 
+  // Verify Gateway-to-microservices integration E2E paths
+  await visit("/api/content/pages", { expectStatus: 401 });
+  await visit("/api/push/subscribe", { expectStatus: 401 });
+
   // Production CSS present
   try {
     const css = await fetch(`${base}/css/app.min.css`);

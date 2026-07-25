@@ -175,6 +175,7 @@ async function upsertPage(req, res, next) {
           PublishedAt: publishedAt,
           AuthorID: req.user.userId,
         },
+        $inc: { Version: 1 },
       },
       { upsert: true, new: true, session }
     );
@@ -193,18 +194,18 @@ async function upsertPage(req, res, next) {
 
     // Transactional Outbox integration: publish events
     const eventType = status === "published" ? "content.page-published.v1" : "content.page-unpublished.v1";
-    const idempotencyKey = `${eventType}:${doc._id}:1`;
+    const idempotencyKey = req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || `${eventType}:${doc._id}:${doc.Version}`;
     const eventData = status === "published"
       ? { slug: doc.Slug, title: doc.Title, type: doc.Type, publishedAt: now.toISOString() }
       : { slug: doc.Slug, type: doc.Type };
 
     const envelope = {
-      eventId: crypto.randomUUID(),
+      eventId: req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || crypto.randomUUID(),
       eventType,
       occurredAt: now.toISOString(),
       producer: "content-service",
       aggregateId: String(doc._id),
-      aggregateVersion: 1,
+      aggregateVersion: doc.Version,
       correlationId: crypto.randomUUID(),
       data: eventData,
     };
@@ -227,6 +228,10 @@ async function upsertPage(req, res, next) {
     try {
       await session.abortTransaction();
     } catch (_) {}
+    if (err.code === 11000 || (err.writeErrors && err.writeErrors.some(e => e.code === 11000))) {
+      const currentDoc = await ContentPage.findOne({ Slug: slug });
+      return res.json({ message: "Cập nhật trang thành công.", page: currentDoc });
+    }
     next(err);
   } finally {
     session.endSession();

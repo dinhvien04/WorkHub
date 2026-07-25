@@ -13,7 +13,7 @@
     "test": "npm test --workspaces --if-present",
     "test:noforce": "npm run test:noforce --workspace=@workhub/legacy-monolith",
     "test:transactions": "npm run test:transactions --workspace=@workhub/legacy-monolith",
-    "test:e2e": "npm run test:e2e --workspace=@workhub/legacy-monolith",
+    "test:e2e": "npm run test:e2e --workspace=@workhub/legacy-monolith && jest test/real-gateway-e2e.test.js --runInBand",
     "lint": "eslint apps/legacy-monolith apps/api-gateway services/communication-service services/content-service packages/contracts packages/observability packages/test-utils --max-warnings=0",
     "lint:security-ui": "npm run lint:security-ui --workspace=@workhub/legacy-monolith",
     "build": "npm run build --workspaces --if-present",

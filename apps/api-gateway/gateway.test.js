@@ -133,6 +133,8 @@ describe("API Gateway Proxy & Middleware Tests", () => {
       .get("/gateway/health")
       .set("Origin", "http://malicious.com");
 
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Forbidden by CORS" });
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
@@ -176,5 +178,50 @@ describe("API Gateway Proxy & Middleware Tests", () => {
         }
       });
     });
+  });
+
+  test("Canary routing hash distribution and determinism on 100,000 identifiers", () => {
+    const { shouldRouteToContent } = require("./server");
+
+    // Enable content service
+    process.env.CONTENT_SERVICE_ENABLED = "true";
+
+    const testCanaryPercentage = (percent) => {
+      process.env.CONTENT_CANARY_PERCENT = String(percent);
+      let routedCount = 0;
+      const count = 100000;
+
+      // 1. Determinism check
+      const sampleReq = { user: { userId: "user-test-123" } };
+      const firstResult = shouldRouteToContent(sampleReq);
+      for (let i = 0; i < 10; i++) {
+        expect(shouldRouteToContent(sampleReq)).toBe(firstResult);
+      }
+
+      // 2. Uniform distribution check
+      for (let i = 0; i < count; i++) {
+        const req = { user: { userId: `user-${i}` } };
+        if (shouldRouteToContent(req)) {
+          routedCount++;
+        }
+      }
+
+      const actualPercent = (routedCount / count) * 100;
+      // Allow minor tolerance (e.g. within 1.5% absolute deviation)
+      if (percent === 0) {
+        expect(routedCount).toBe(0);
+      } else if (percent === 100) {
+        expect(routedCount).toBe(count);
+      } else {
+        const diff = Math.abs(actualPercent - percent);
+        expect(diff).toBeLessThan(1.5); // Within 1.5% tolerance limit
+      }
+    };
+
+    testCanaryPercentage(0);
+    testCanaryPercentage(1);
+    testCanaryPercentage(10);
+    testCanaryPercentage(50);
+    testCanaryPercentage(100);
   });
 });

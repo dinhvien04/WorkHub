@@ -52,7 +52,10 @@ async function upsertTranslation(req, res, next) {
   try {
     const doc = await Translation.findOneAndUpdate(
       { Locale: cleanLocale, Key: key },
-      { $set: { Value: String(value) } },
+      {
+        $set: { Value: String(value) },
+        $inc: { Version: 1 }
+      },
       { upsert: true, new: true, session }
     );
 
@@ -71,14 +74,14 @@ async function upsertTranslation(req, res, next) {
     // Transactional Outbox: publish translation-updated event
     const now = new Date();
     const eventType = "content.translation-updated.v1";
-    const idempotencyKey = `${eventType}:${doc._id}:1`;
+    const idempotencyKey = req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || `${eventType}:${doc._id}:${doc.Version}`;
     const envelope = {
-      eventId: crypto.randomUUID(),
+      eventId: req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || crypto.randomUUID(),
       eventType,
       occurredAt: now.toISOString(),
       producer: "content-service",
       aggregateId: String(doc._id),
-      aggregateVersion: 1,
+      aggregateVersion: doc.Version,
       correlationId: crypto.randomUUID(),
       data: {
         locale: doc.Locale,
@@ -105,6 +108,10 @@ async function upsertTranslation(req, res, next) {
     try {
       await session.abortTransaction();
     } catch (_) {}
+    if (err.code === 11000 || (err.writeErrors && err.writeErrors.some(e => e.code === 11000))) {
+      const currentDoc = await Translation.findOne({ Locale: cleanLocale, Key: key });
+      return res.json({ message: "Cập nhật dịch thuật thành công.", translation: currentDoc });
+    }
     next(err);
   } finally {
     session.endSession();

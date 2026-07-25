@@ -12,13 +12,14 @@ const jwt = require("jsonwebtoken");
 const PORT = Number(process.env.PORT) || 3000;
 const LEGACY_MONOLITH_URL = process.env.LEGACY_MONOLITH_URL || "http://localhost:3001";
 const COMMUNICATION_SERVICE_URL = process.env.COMMUNICATION_SERVICE_URL || "http://localhost:3002";
-const COMMUNICATION_SERVICE_ENABLED = process.env.COMMUNICATION_SERVICE_ENABLED === "true";
-const COMMUNICATION_CANARY_PERCENT = Number(process.env.COMMUNICATION_CANARY_PERCENT) || 0;
 const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || "http://localhost:3003";
-const CONTENT_SERVICE_ENABLED = process.env.CONTENT_SERVICE_ENABLED === "true";
-const CONTENT_CANARY_PERCENT = Number(process.env.CONTENT_CANARY_PERCENT) || 0;
 const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
+if (process.env.NODE_ENV === "production") {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === "replace_with_a_long_random_secret" || process.env.JWT_SECRET === "default_test_jwt_secret_at_least_32_chars_long") {
+    throw new Error("Missing or default JWT_SECRET in production.");
+  }
+}
 
 const CONTENT_INTERNAL_SECRET = process.env.CONTENT_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing CONTENT_INTERNAL_SECRET in production."); })() : "default_test_content_internal_secret_key");
 const COMMUNICATION_INTERNAL_SECRET = process.env.COMMUNICATION_INTERNAL_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("Missing COMMUNICATION_INTERNAL_SECRET in production."); })() : "default_test_communication_internal_secret_key");
@@ -51,15 +52,23 @@ const CORS_ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",").map(o => o.trim())
   : ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"];
 
+if (process.env.NODE_ENV === "production") {
+  if (!process.env.CORS_ALLOWED_ORIGINS || process.env.CORS_ALLOWED_ORIGINS.trim() === "") {
+    throw new Error("Missing CORS_ALLOWED_ORIGINS in production.");
+  }
+}
+
+// Intercept and reject disallowed CORS origins cleanly without throwing errors / logging stack traces
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !CORS_ALLOWED_ORIGINS.includes(origin)) {
+    return res.status(403).json({ error: "Forbidden by CORS" });
+  }
+  next();
+});
+
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like curl or mobile apps)
-    if (!origin) return callback(null, true);
-    if (CORS_ALLOWED_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error("Not allowed by CORS"));
-  },
+  origin: CORS_ALLOWED_ORIGINS,
   credentials: true,
 }));
 
@@ -158,30 +167,34 @@ const proxyOptions = {
 };
 
 function shouldRouteToCommunication(req) {
-  if (!COMMUNICATION_SERVICE_ENABLED) return false;
-  if (COMMUNICATION_CANARY_PERCENT <= 0) return false;
+  const enabled = process.env.COMMUNICATION_SERVICE_ENABLED === "true";
+  if (!enabled) return false;
+  const canaryPercent = Number(process.env.COMMUNICATION_CANARY_PERCENT) || 0;
+  if (canaryPercent <= 0) return false;
   if (!req.user) return false; // Anonymous requests default to monolith
 
   const userId = req.user.userId;
-  if (COMMUNICATION_CANARY_PERCENT >= 100) return true;
+  if (canaryPercent >= 100) return true;
 
   // Stable hashing percentage bucket based on verified userId
   const hash = crypto.createHash("sha256").update(`comm-canary:${userId}`).digest();
-  const bucket = hash[0] % 100;
-  return bucket < COMMUNICATION_CANARY_PERCENT;
+  const bucket = hash.readUInt32BE(0) % 100;
+  return bucket < canaryPercent;
 }
 
 function shouldRouteToContent(req) {
-  if (!CONTENT_SERVICE_ENABLED) return false;
-  if (CONTENT_CANARY_PERCENT <= 0) return false;
+  const enabled = process.env.CONTENT_SERVICE_ENABLED === "true";
+  if (!enabled) return false;
+  const canaryPercent = Number(process.env.CONTENT_CANARY_PERCENT) || 0;
+  if (canaryPercent <= 0) return false;
 
-  if (CONTENT_CANARY_PERCENT >= 100) return true;
+  if (canaryPercent >= 100) return true;
 
   // Stable hashing percentage bucket based on verified userId or IP
   const identifier = req.user ? req.user.userId : (req.ip || "anon");
   const hash = crypto.createHash("sha256").update(`content-canary:${identifier}`).digest();
-  const bucket = hash[0] % 100;
-  return bucket < CONTENT_CANARY_PERCENT;
+  const bucket = hash.readUInt32BE(0) % 100;
+  return bucket < canaryPercent;
 }
 
 // Proxy configurations for Communication Service
@@ -274,13 +287,11 @@ const contentProxyOptions = {
 
 const contentProxy = createProxyMiddleware(contentProxyOptions);
 
-// Route content, i18n, seo, sitemaps, and robots to content microservice when enabled (preserving original path)
+// Route content, i18n, and seo to content microservice when enabled (preserving original path)
 app.use((req, res, next) => {
-  const isContentPath = req.path.startsWith("/api/content") ||
-                        req.path.startsWith("/api/i18n") ||
-                        req.path.startsWith("/api/seo") ||
-                        /^\/sitemap.*/.test(req.path) ||
-                        /^\/robots\.txt$/.test(req.path);
+  const isContentPath = req.path === "/api/content" || req.path.startsWith("/api/content/") ||
+                        req.path === "/api/i18n" || req.path.startsWith("/api/i18n/") ||
+                        req.path === "/api/seo" || req.path.startsWith("/api/seo/");
   if (isContentPath && shouldRouteToContent(req)) {
     return contentProxy(req, res, next);
   }
@@ -289,8 +300,8 @@ app.use((req, res, next) => {
 
 // Route push and notification requests to communication microservice when enabled (preserving original path)
 app.use((req, res, next) => {
-  const isCommPath = req.path.startsWith("/api/push") ||
-                     req.path.startsWith("/api/notifications");
+  const isCommPath = req.path === "/api/push" || req.path.startsWith("/api/push/") ||
+                     req.path === "/api/notifications" || req.path.startsWith("/api/notifications/");
   if (isCommPath && shouldRouteToCommunication(req)) {
     return communicationProxy(req, res, next);
   }
@@ -356,4 +367,4 @@ if (require.main === module) {
   process.on("SIGINT", () => handleShutdown("SIGINT"));
 }
 
-module.exports = { app, server };
+module.exports = { app, server, shouldRouteToCommunication, shouldRouteToContent };

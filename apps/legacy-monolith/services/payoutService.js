@@ -457,15 +457,18 @@ async function listHostPayouts(hostId) {
  * @deprecated Direct balance credit is forbidden — use ledgerService.postEntry.
  * Kept as thin wrapper that posts a ledger credit for compatibility.
  */
-async function creditAvailable(hostId, amount) {
+async function creditAvailable(hostId, amount, idempotencyKey = null) {
   const amt = Math.round(Math.abs(amount));
+  if (!idempotencyKey) {
+    throw new Error("idempotencyKey is required for creditAvailable compatibility wrapper");
+  }
   return ledgerService.postEntry({
     hostId,
     type: "payment",
     amount: amt,
     direction: "credit",
     description: "creditAvailable compatibility wrapper",
-    idempotencyKey: `compat-credit:${hostId}:${amt}:${require("crypto").randomUUID()}`,
+    idempotencyKey: `compat-credit:${hostId}:${amt}:${idempotencyKey}`,
     meta: { via: "creditAvailable_deprecated" },
   });
 }

@@ -3,7 +3,6 @@
 require("./setup");
 
 const request = require("supertest");
-const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const { app } = require("../server");
 const env = require("../config/env");
@@ -11,17 +10,17 @@ const env = require("../config/env");
 const Notification = require("../models/Notification");
 const NotificationPreference = require("../models/NotificationPreference");
 
-function signToken(userId, role = "customer") {
-  return jwt.sign({ userId, role }, env.JWT_SECRET, { expiresIn: "1h" });
-}
-
 describe("Notifications & Preferences API Routes Integration", () => {
   let userId;
-  let token;
+  let internalHeaders;
 
   beforeEach(async () => {
     userId = new mongoose.Types.ObjectId().toString();
-    token = signToken(userId);
+    internalHeaders = {
+      "x-internal-token": env.COMMUNICATION_INTERNAL_SECRET || "default_test_communication_internal_secret_key",
+      "x-user-id": userId,
+      "x-user-role": "customer",
+    };
 
     await Notification.deleteMany({});
     await NotificationPreference.deleteMany({});
@@ -41,7 +40,7 @@ describe("Notifications & Preferences API Routes Integration", () => {
 
     const res = await request(app)
       .get("/api/notifications")
-      .set("Authorization", `Bearer ${token}`);
+      .set(internalHeaders);
 
     expect(res.status).toBe(200);
     expect(res.body.notifications.length).toBe(2);
@@ -59,7 +58,7 @@ describe("Notifications & Preferences API Routes Integration", () => {
 
     const res = await request(app)
       .patch(`/api/notifications/${notif._id}/read`)
-      .set("Authorization", `Bearer ${token}`);
+      .set(internalHeaders);
 
     expect(res.status).toBe(200);
     expect(res.body.notification.IsRead).toBe(true);
@@ -76,7 +75,7 @@ describe("Notifications & Preferences API Routes Integration", () => {
 
     const res = await request(app)
       .post("/api/notifications/read-all")
-      .set("Authorization", `Bearer ${token}`);
+      .set(internalHeaders);
 
     expect(res.status).toBe(200);
 
@@ -92,7 +91,7 @@ describe("Notifications & Preferences API Routes Integration", () => {
 
     const res = await request(app)
       .delete(`/api/notifications/${notif._id}`)
-      .set("Authorization", `Bearer ${token}`);
+      .set(internalHeaders);
 
     expect(res.status).toBe(200);
 
@@ -104,7 +103,7 @@ describe("Notifications & Preferences API Routes Integration", () => {
     // 1. GET default preferences
     const resGet = await request(app)
       .get("/api/notifications/preferences")
-      .set("Authorization", `Bearer ${token}`);
+      .set(internalHeaders);
 
     expect(resGet.status).toBe(200);
     expect(resGet.body.preferences.NotifyEmail).toBe(true);
@@ -112,7 +111,7 @@ describe("Notifications & Preferences API Routes Integration", () => {
     // 2. PUT updates preferences
     const resPut = await request(app)
       .put("/api/notifications/preferences")
-      .set("Authorization", `Bearer ${token}`)
+      .set(internalHeaders)
       .send({ notifyEmail: false, timezone: "Asia/Ho_Chi_Minh" });
 
     expect(resPut.status).toBe(200);

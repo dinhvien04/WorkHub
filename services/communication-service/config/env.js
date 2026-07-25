@@ -10,7 +10,6 @@ dotenv.config();
 const required = [
   "MONGODB_COMMUNICATION_URI",
   "RABBITMQ_URL",
-  "JWT_SECRET",
   "COMMUNICATION_INTERNAL_SECRET",
 ];
 
@@ -30,7 +29,6 @@ module.exports = {
   PORT: Number(process.env.COMMUNICATION_PORT) || Number(process.env.PORT) || 3002,
   MONGODB_COMMUNICATION_URI: process.env.MONGODB_COMMUNICATION_URI || "mongodb://127.0.0.1:27017/workhub_communication",
   RABBITMQ_URL: process.env.RABBITMQ_URL || "amqp://localhost:5672",
-  JWT_SECRET: process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long",
   COMMUNICATION_INTERNAL_SECRET: process.env.COMMUNICATION_INTERNAL_SECRET || "default_test_communication_internal_secret_key",
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || "",
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || "",
