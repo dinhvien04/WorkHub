@@ -122,6 +122,7 @@ async function verifyToken(req, res, next) {
       email: user.Email,
       fullName: user.FullName,
       tokenVersion: user.tokenVersion || 0,
+      sid: decoded.sid || null,
     };
     return next();
   } catch (err) {
@@ -131,9 +132,50 @@ async function verifyToken(req, res, next) {
   }
 }
 
+/**
+ * Attach user when a valid token is present; otherwise continue anonymously.
+ * Used for logout and public email verification resend.
+ * Invalid/expired tokens are ignored (never hard-fail).
+ */
+async function optionalToken(req, res, next) {
+  const token = extractToken(req);
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET, {
+      algorithms: ["HS256"],
+      issuer: "workhub-auth",
+      audience: "workhub-app",
+    });
+    const userId = decoded.userId || decoded.id || decoded._id;
+    if (!userId) return next();
+    const user = await User.findById(userId).select(
+      "_id Role Status Email FullName tokenVersion",
+    );
+    if (!user || user.Status !== "active") return next();
+    const tokenVersion =
+      typeof decoded.tokenVersion === "number" ? decoded.tokenVersion : 0;
+    const dbVersion =
+      typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
+    if (tokenVersion !== dbVersion) return next();
+    req.user = {
+      userId: user._id.toString(),
+      role: user.Role,
+      email: user.Email,
+      fullName: user.FullName,
+      tokenVersion: user.tokenVersion || 0,
+      sid: decoded.sid || null,
+    };
+    req.sid = decoded.sid || null;
+  } catch {
+    /* ignore invalid token for optional auth */
+  }
+  return next();
+}
+
 module.exports = {
   safeCompare,
   extractToken,
   requireInternalService,
   verifyToken,
+  optionalToken,
 };

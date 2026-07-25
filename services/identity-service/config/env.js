@@ -6,6 +6,12 @@ const path = require("path");
 dotenv.config({ path: path.join(__dirname, "../../../.env") });
 dotenv.config();
 
+function boolEnv(name, defaultValue = false) {
+  const v = process.env[name];
+  if (v === undefined || v === "") return defaultValue;
+  return v === "1" || v === "true" || v === "TRUE" || v === "yes";
+}
+
 const required = [
   "MONGODB_IDENTITY_URI",
   "RABBITMQ_URL",
@@ -24,8 +30,13 @@ if (missing.length > 0 && process.env.NODE_ENV !== "test") {
   );
 }
 
+const nodeEnv = process.env.NODE_ENV || "development";
+const isProduction = nodeEnv === "production";
+const isTest = nodeEnv === "test";
+const isDev = !isProduction;
+
 if (
-  process.env.NODE_ENV === "production" &&
+  isProduction &&
   (!process.env.JWT_SECRET ||
     process.env.JWT_SECRET === "replace_with_a_long_random_secret" ||
     process.env.JWT_SECRET === "default_test_jwt_secret_at_least_32_chars_long")
@@ -34,7 +45,7 @@ if (
 }
 
 module.exports = {
-  NODE_ENV: process.env.NODE_ENV || "development",
+  NODE_ENV: nodeEnv,
   PORT: Number(process.env.IDENTITY_PORT) || Number(process.env.PORT) || 3004,
   MONGODB_IDENTITY_URI:
     process.env.MONGODB_IDENTITY_URI ||
@@ -46,11 +57,24 @@ module.exports = {
   IDENTITY_INTERNAL_SECRET:
     process.env.IDENTITY_INTERNAL_SECRET ||
     "default_test_identity_internal_secret_key",
-  COOKIE_SECURE:
-    process.env.NODE_ENV === "production" ||
-    process.env.COOKIE_SECURE === "1" ||
-    process.env.COOKIE_SECURE === "true",
+  COOKIE_SECURE: isProduction || boolEnv("COOKIE_SECURE", false),
   AUTH_COOKIE_NAME: process.env.AUTH_COOKIE_NAME || "authToken",
-  isProduction: process.env.NODE_ENV === "production",
-  isTest: process.env.NODE_ENV === "test",
+  PUBLIC_BASE_URL: (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, ""),
+  EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || "",
+  EMAIL_FROM: process.env.EMAIL_FROM || "",
+  RESEND_API_KEY: process.env.RESEND_API_KEY || "",
+  WEBAUTHN_ENABLED: boolEnv("WEBAUTHN_ENABLED", false),
+  WEBAUTHN_RP_ID: process.env.WEBAUTHN_RP_ID || "localhost",
+  WEBAUTHN_ORIGIN:
+    process.env.WEBAUTHN_ORIGIN ||
+    process.env.PUBLIC_BASE_URL ||
+    "http://localhost:3000",
+  WEBAUTHN_USER_VERIFICATION: (
+    process.env.WEBAUTHN_USER_VERIFICATION ||
+    (isProduction ? "required" : "preferred")
+  ).toLowerCase(),
+  SESSION_REQUIRE_SID: boolEnv("SESSION_REQUIRE_SID", isProduction),
+  isProduction,
+  isTest,
+  isDev,
 };

@@ -5,7 +5,8 @@ const env = require("./env");
 
 async function connectDb() {
   if (mongoose.connection.readyState === 1) return mongoose.connection;
-  await mongoose.connect(env.MONGODB_IDENTITY_URI, { autoIndex: true });
+  const autoIndex = env.NODE_ENV !== "test" && env.NODE_ENV !== "e2e-test";
+  await mongoose.connect(env.MONGODB_IDENTITY_URI, { autoIndex });
   console.log("[Db] Connected to Identity Database successfully.");
   return mongoose.connection;
 }
