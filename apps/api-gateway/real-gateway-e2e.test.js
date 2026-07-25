@@ -21,8 +21,6 @@ let mockAmqpPath;
 
 const http = require("http");
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function waitReady(url, timeoutMs = 15000) {
   return new Promise((resolve) => {
     const start = Date.now();
