@@ -2,8 +2,8 @@
 
 ## Repository state
 - Current branch: main
-- Current HEAD: pending-commit (will match after push of CI/M6 scaffold work)
-- Working tree: active cleanup + M6 scaffold
+- Current HEAD: bbcaca3 fix: close CI lint gap and scaffold Identity Service (M6)
+- Working tree: clean
 - Last verified date: 2026-07-25
 
 ## Current phase
