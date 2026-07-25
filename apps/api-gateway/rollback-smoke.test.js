@@ -18,7 +18,7 @@ beforeAll(async () => {
   monolithServer = http.createServer(monolithApp);
   await new Promise((resolve) => monolithServer.listen(0, resolve));
   monolithPort = monolithServer.address().port;
-});
+}, 60000);
 
 afterAll(async () => {
   if (monolithServer) {

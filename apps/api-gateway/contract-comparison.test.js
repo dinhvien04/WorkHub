@@ -35,7 +35,7 @@ beforeAll(async () => {
 
   await new Promise((resolve) => gatewayServer.listen(0, resolve));
   gatewayPort = gatewayServer.address().port;
-});
+}, 60000);
 
 afterAll(async () => {
   if (gatewayServer) {

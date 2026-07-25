@@ -9,7 +9,7 @@ async function connectDb() {
   }
 
   const options = {
-    autoIndex: true,
+    autoIndex: env.NODE_ENV !== "test" && env.NODE_ENV !== "e2e-test",
   };
 
   try {

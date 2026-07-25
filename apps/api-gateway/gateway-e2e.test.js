@@ -15,12 +15,16 @@ let processes = {};
 let contentConn;
 let commConn;
 let monoConn;
+let identityConn;
 let replset;
 let uriContent;
 let uriComm;
+let uriIdentity;
 let mockAmqpPath;
 
 const http = require("http");
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function waitReady(url, timeoutMs = 15000) {
   return new Promise((resolve) => {
@@ -59,11 +63,13 @@ beforeAll(async () => {
   const uriMonolith = `${urlObj.protocol}//${urlObj.host}/workhub_e2e_monolith${urlObj.search || ""}`;
   uriContent = `${urlObj.protocol}//${urlObj.host}/workhub_e2e_content${urlObj.search || ""}`;
   uriComm = `${urlObj.protocol}//${urlObj.host}/workhub_e2e_comm${urlObj.search || ""}`;
+  uriIdentity = `${urlObj.protocol}//${urlObj.host}/workhub_e2e_identity${urlObj.search || ""}`;
 
   // Setup database connections for direct inspection
   contentConn = await mongoose.createConnection(uriContent).asPromise();
   commConn = await mongoose.createConnection(uriComm).asPromise();
   monoConn = await mongoose.createConnection(uriMonolith).asPromise();
+  identityConn = await mongoose.createConnection(uriIdentity).asPromise();
 
   // Pre-create collections to prevent replica set catalog changes transaction errors
   await contentConn.createCollection("content_pages");
@@ -81,6 +87,13 @@ beforeAll(async () => {
 
   await monoConn.createCollection("users");
   await monoConn.createCollection("user_sessions");
+
+  await identityConn.createCollection("users");
+  await identityConn.createCollection("user_sessions");
+  await identityConn.createCollection("email_verification_tokens");
+  await identityConn.createCollection("password_reset_tokens");
+  await identityConn.createCollection("webauthn_challenges");
+  await identityConn.createCollection("webauthn_credentials");
 
   // Seed default E2E users inside the monolith DB so the Gateway verify checks succeed
   const adminId = "507f1f77bcf86cd799439011";
@@ -104,6 +117,9 @@ beforeAll(async () => {
       tokenVersion: 0,
     }
   ]);
+
+  // Allow Mongo Memory ReplSet catalog changes to settle before running tests
+  await delay(2000);
 
   mockAmqpPath = path.join(__dirname, "mock-amqp.js");
 
@@ -152,6 +168,22 @@ beforeAll(async () => {
   processes.comm.stdout.on("data", (d) => console.log(`[Comm] ${d}`));
   processes.comm.stderr.on("data", (d) => console.error(`[Comm Err] ${d}`));
 
+  // Spawn Identity Service
+  processes.identity = spawn("node", ["-r", mockAmqpPath, path.join(__dirname, "../../services/identity-service/server.js")], {
+    env: {
+      ...process.env,
+      PORT: "3004",
+      MONGODB_IDENTITY_URI: uriIdentity,
+      IDENTITY_INTERNAL_SECRET: "test_identity_internal_secret",
+      RABBITMQ_URL: "amqp://localhost:5672",
+      JWT_SECRET,
+      NODE_ENV: "e2e-test",
+      ENABLE_TRANSACTIONS: "true",
+    },
+  });
+  processes.identity.stdout.on("data", (d) => console.log(`[Identity] ${d}`));
+  processes.identity.stderr.on("data", (d) => console.error(`[Identity Err] ${d}`));
+
   // Spawn API Gateway
   processes.gateway = spawn("node", [path.join(__dirname, "server.js")], {
     env: {
@@ -167,6 +199,10 @@ beforeAll(async () => {
       COMMUNICATION_SERVICE_ENABLED: "true",
       COMMUNICATION_CANARY_PERCENT: "100",
       COMMUNICATION_INTERNAL_SECRET: COMM_SECRET,
+      IDENTITY_SERVICE_URL: "http://127.0.0.1:3004",
+      IDENTITY_SERVICE_ENABLED: "true",
+      IDENTITY_CANARY_PERCENT: "100",
+      IDENTITY_INTERNAL_SECRET: "test_identity_internal_secret",
       JWT_SECRET,
       CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000",
       NODE_ENV: "e2e-test",
@@ -179,10 +215,11 @@ beforeAll(async () => {
   const monolithReady = await waitReady("http://127.0.0.1:3001/health/ready");
   const contentReady = await waitReady("http://127.0.0.1:3003/ready");
   const commReady = await waitReady("http://127.0.0.1:3002/ready");
+  const identityReady = await waitReady("http://127.0.0.1:3004/ready");
   const gatewayReady = await waitReady("http://127.0.0.1:3000/gateway/health/ready");
 
-  if (!monolithReady || !contentReady || !commReady || !gatewayReady) {
-    throw new Error(`Failed to initialize E2E services: Monolith=${monolithReady}, Content=${contentReady}, Comm=${commReady}, Gateway=${gatewayReady}`);
+  if (!monolithReady || !contentReady || !commReady || !identityReady || !gatewayReady) {
+    throw new Error(`Failed to initialize E2E services: Monolith=${monolithReady}, Content=${contentReady}, Comm=${commReady}, Identity=${identityReady}, Gateway=${gatewayReady}`);
   }
 }, 60000);
 
@@ -218,12 +255,14 @@ afterAll(async () => {
   await killProcess(processes.monolith, "Monolith");
   await killProcess(processes.content, "Content Service");
   await killProcess(processes.comm, "Communication Service");
+  await killProcess(processes.identity, "Identity Service");
   await killProcess(processes.gateway, "API Gateway");
 
   // Close database connections
   if (contentConn) await contentConn.close();
   if (commConn) await commConn.close();
   if (monoConn) await monoConn.close();
+  if (identityConn) await identityConn.close();
   if (replset) await replset.stop();
 });
 
@@ -412,5 +451,56 @@ describe("Real Gateway-to-Service E2E Integration Tests", () => {
       },
     });
     await waitReady("http://127.0.0.1:3003/ready");
+  });
+
+  test("8. POST register through Gateway saves in Identity Service DB", async () => {
+    const payload = {
+      email: "e2e-auth-user@example.com",
+      password: "password12345",
+      fullName: "E2E Auth User",
+      role: "customer",
+      phone: "0900000000",
+    };
+
+    const res = await request("http://127.0.0.1:3000")
+      .post("/api/auth/register")
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.email).toBe("e2e-auth-user@example.com");
+
+    // Inspect database directly
+    const userModel = identityConn.model("User", new mongoose.Schema({}, { strict: false }), "users");
+    const saved = await userModel.findOne({ Email: "e2e-auth-user@example.com" });
+    expect(saved).toBeTruthy();
+    expect(saved.get("FullName")).toBe("E2E Auth User");
+  });
+
+  test("9. Gateway returns 502 when Identity Service is down", async () => {
+    // Kill the identity service
+    processes.identity.kill();
+
+    // Verify requesting identity endpoint returns 502
+    const res = await request("http://127.0.0.1:3000")
+      .post("/api/auth/register")
+      .send({ email: "down@example.com" });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBe("Identity Service Unavailable");
+
+    // Respawn Identity Service to prevent cleanup issues in afterAll
+    processes.identity = spawn("node", ["-r", mockAmqpPath, path.join(__dirname, "../../services/identity-service/server.js")], {
+      env: {
+        ...process.env,
+        PORT: "3004",
+        MONGODB_IDENTITY_URI: uriIdentity,
+        IDENTITY_INTERNAL_SECRET: "test_identity_internal_secret",
+        RABBITMQ_URL: "amqp://localhost:5672",
+        JWT_SECRET,
+        NODE_ENV: "e2e-test",
+        ENABLE_TRANSACTIONS: "true",
+      },
+    });
+    await waitReady("http://127.0.0.1:3004/ready");
   });
 });
