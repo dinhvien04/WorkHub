@@ -624,8 +624,65 @@ async function handleWebhook({
           overpay = true;
         }
 
+        // The booking can die between checkout and callback: expireStaleHolds
+        // runs every 60s and createBooking triggers the same cleanup inline for
+        // the target space, so a customer who completes payment at 14:59 can
+        // land here at 15:01 against an already-expired booking. Crediting the
+        // host in that case takes the customer's money and delivers nothing.
+        //
+        // Only statuses where the customer provably received nothing are
+        // treated this way. completed / in-use / no_show are left alone: the
+        // space was held or used, so a late settlement there is legitimate.
+        const CUSTOMER_GOT_NOTHING = new Set(["expired", "cancelled", "rejected"]);
+        const bookingIsDead =
+          booking && CUSTOMER_GOT_NOTHING.has(booking.Status);
+
         let payment = null;
-        if (overpay) {
+        if (bookingIsDead) {
+          // reconciliation_required is in netPaid's NON_REVENUE_STATUSES, so
+          // this records the money without advancing paid progress or crediting
+          // the host ledger. Finance settles it as a refund.
+          payment = await ensurePaymentOnly(cas, mongoSession, {
+            status: "reconciliation_required",
+          });
+
+          await outboxService.enqueueNotification(
+            {
+              userId: cas.CustomerID,
+              title: "Thanh toán cần đối soát",
+              body:
+                `Đơn đặt chỗ đã ${booking.Status === "expired" ? "hết hạn giữ chỗ" : "bị hủy"} ` +
+                `trước khi thanh toán hoàn tất. Khoản ${cas.Amount.toLocaleString("vi-VN")}đ ` +
+                `sẽ được hoàn lại.`,
+              type: "payment",
+              entityType: "PaymentHistory",
+              entityId: payment?._id,
+              link: "/payment_history",
+            },
+            {
+              session: mongoSession,
+              idempotencyKey: `booking:gw-${cas.SessionId}:notify-dead-customer`,
+            },
+          );
+
+          await outboxService.enqueueNotification(
+            {
+              userId: cas.HostID,
+              title: "Thanh toán cho booking đã đóng — cần hoàn tiền",
+              body:
+                `${cas.Amount.toLocaleString("vi-VN")}đ nhận sau khi booking chuyển ` +
+                `sang "${booking.Status}" (không ghi doanh thu).`,
+              type: "payment",
+              entityType: "PaymentHistory",
+              entityId: payment?._id,
+              link: "/host/payments",
+            },
+            {
+              session: mongoSession,
+              idempotencyKey: `booking:gw-${cas.SessionId}:notify-dead-host`,
+            },
+          );
+        } else if (overpay) {
           // Non-revenue status — never count in net paid / host balance
           payment = await ensurePaymentOnly(cas, mongoSession, {
             status: "overpayment_pending_refund",

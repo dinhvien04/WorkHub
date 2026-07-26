@@ -941,6 +941,9 @@ async function cancelBookingByCustomer(customerId, bookingId, reason = "") {
  * Expire unpaid holds past HoldExpiresAt and free slots.
  * Includes legacy `pending` (createBooking default) plus hold/awaiting_payment.
  */
+/** Gateway sessions that mean money may still be in flight for a booking. */
+const OPEN_GATEWAY_STATUSES = ["created", "redirected", "pending"];
+
 async function expireStaleHolds() {
   const now = new Date();
   const stale = await Booking.find({
@@ -948,7 +951,25 @@ async function expireStaleHolds() {
     HoldExpiresAt: { $ne: null, $lt: now },
   }).select("_id");
   if (!stale.length) return { modifiedCount: 0 };
-  const ids = stale.map((s) => s._id);
+
+  // Never expire a booking whose checkout is still open. The customer may be
+  // on the provider's page right now; expiring underneath them means their
+  // payment lands against a dead booking, which the webhook then has to treat
+  // as a refund case. gatewayService still guards that path, but the cheapest
+  // fix is not to create the race. The session's own expiry closes these out.
+  const GatewayPayment = require("../models/GatewayPayment");
+  const inFlight = await GatewayPayment.find({
+    BookingID: { $in: stale.map((s) => s._id) },
+    Status: { $in: OPEN_GATEWAY_STATUSES },
+  })
+    .select("BookingID")
+    .lean();
+
+  const protectedIds = new Set(inFlight.map((g) => String(g.BookingID)));
+  const ids = stale.map((s) => s._id).filter((id) => !protectedIds.has(String(id)));
+
+  if (!ids.length) return { modifiedCount: 0, skippedInFlight: protectedIds.size };
+
   await Booking.updateMany(
     {
       _id: { $in: ids },
@@ -957,7 +978,7 @@ async function expireStaleHolds() {
     { $set: { Status: "expired" } },
   );
   await BookingSlot.deleteMany({ BookingID: { $in: ids } });
-  return { modifiedCount: ids.length };
+  return { modifiedCount: ids.length, skippedInFlight: protectedIds.size };
 }
 
 async function completeExpiredBookings({ hostId = null } = {}) {

@@ -3,6 +3,7 @@
 const Booking = require("../models/Booking");
 const BookingSlot = require("../models/BookingSlot");
 const bookingService = require("./bookingService");
+const { getNetPaidForBooking } = require("../utils/netPaid");
 const { notifyUser } = require("./notificationService");
 const {
   ValidationError,
@@ -130,6 +131,32 @@ async function previewReschedule({
  * Reschedule: release old slots only after new secured (restore on failure).
  * Recalculates price when unpaid (no successful payment yet).
  */
+/**
+ * Quote a booking's new window using the same path the original booking used.
+ * Returns null when the quote engine declines, in which case the caller keeps
+ * the previous amounts rather than guessing.
+ */
+async function quoteNewWindow(booking, start, end) {
+  try {
+    const bookingQuoteService = require("./bookingQuoteService");
+    const addOns = (booking.AddOns || []).map((a) => ({
+      addOnId: a.AddOnID,
+      quantity: a.Quantity || 1,
+    }));
+    const quote = await bookingQuoteService.quoteBooking({
+      spaceId: booking.SpaceID,
+      startTime: start,
+      endTime: end,
+      addOns,
+      couponCode: booking.CouponCode || null,
+      userId: booking.CustomerID,
+    });
+    return quote && quote.ok !== false ? quote : null;
+  } catch {
+    return null;
+  }
+}
+
 async function rescheduleBooking({
   bookingId,
   userId,
@@ -149,6 +176,24 @@ async function rescheduleBooking({
   const start = new Date(startTime);
   const end = new Date(endTime);
   bookingService.validateBookingWindow(start, end);
+
+  // Price the new window before touching any slot, so a refusal needs no
+  // rollback. This used to run after the swap and only when nothing had been
+  // paid, which meant a customer could pay for the cheapest 30-minute slot and
+  // then reschedule onto a 24-hour peak window for free: the times moved, the
+  // amount did not, and getRemainingForBooking reported nothing outstanding.
+  const quote = await quoteNewWindow(booking, start, end);
+  const netPaid = await getNetPaidForBooking(booking._id);
+
+  if (quote && netPaid > 0 && quote.totalAmount > netPaid) {
+    const delta = quote.totalAmount - netPaid;
+    throw new ValidationError(
+      `Khung giờ mới có giá ${quote.totalAmount.toLocaleString("vi-VN")}đ, ` +
+        `cao hơn số đã thanh toán ${netPaid.toLocaleString("vi-VN")}đ. ` +
+        `Vui lòng liên hệ chủ cơ sở để thanh toán thêm ${delta.toLocaleString("vi-VN")}đ ` +
+        `trước khi đổi lịch.`,
+    );
+  }
 
   const slotStarts = bookingService.buildSlotStarts(start, end);
   const oldSlots = await BookingSlot.find({ BookingID: booking._id }).lean();
@@ -197,38 +242,16 @@ async function rescheduleBooking({
     booking.HoldExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
   }
 
-  // Re-price only when nothing paid successfully
-  try {
-    const PaymentHistory = require("../models/Payment_History");
-    const paid = await PaymentHistory.countDocuments({
-      BookingID: booking._id,
-      Status: "successful",
-    });
-    if (paid === 0) {
-      const bookingQuoteService = require("./bookingQuoteService");
-      const addOns = (booking.AddOns || []).map((a) => ({
-        addOnId: a.AddOnID,
-        quantity: a.Quantity || 1,
-      }));
-      const quote = await bookingQuoteService.quoteBooking({
-        spaceId: booking.SpaceID,
-        startTime: start,
-        endTime: end,
-        addOns,
-        couponCode: booking.CouponCode || null,
-        userId: booking.CustomerID,
-      });
-      if (quote && quote.ok !== false) {
-        booking.BaseAmount = quote.baseAmount;
-        booking.AddOnsTotal = quote.addOnsTotal;
-        booking.DiscountAmount = quote.discountAmount;
-        booking.TotalAmount = quote.totalAmount;
-        booking.DepositAmount = quote.depositAmount;
-        booking.AppliedPricingRules = quote.appliedRules || [];
-      }
-    }
-  } catch {
-    /* keep previous amounts */
+  // Apply the re-quote unconditionally. The times have moved, so the amount
+  // moves with them; the guard above already refused any move that would
+  // leave the customer underpaid.
+  if (quote) {
+    booking.BaseAmount = quote.baseAmount;
+    booking.AddOnsTotal = quote.addOnsTotal;
+    booking.DiscountAmount = quote.discountAmount;
+    booking.TotalAmount = quote.totalAmount;
+    booking.DepositAmount = quote.depositAmount;
+    booking.AppliedPricingRules = quote.appliedRules || [];
   }
 
   await booking.save();
