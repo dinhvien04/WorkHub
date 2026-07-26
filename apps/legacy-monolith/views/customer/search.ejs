@@ -76,40 +76,43 @@
 
         <% branches.forEach(branch => { %>
 
-            <div class="bg-white rounded-2xl border p-4 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 shadow-sm flex flex-col">
+            <article class="wh-card-elevated p-4 flex flex-col wh-fade-up">
 
-                <img
-                    loading="lazy"
-                    decoding="async"
-                    src="<%= (branch.Images && branch.Images.length > 0) ? branch.Images[0] : '/icons/icon.svg' %>"
-                    class="rounded-xl w-full h-48 object-cover mb-4"
-                    alt="<%= branch.Name %>">
+                <div class="wh-media-zoom rounded-xl mb-4">
+                    <%/* wh-media carries the aspect-ratio, so the grid does not
+                         reflow when a late image finally arrives. */%>
+                    <img
+                        loading="lazy"
+                        decoding="async"
+                        src="<%= (branch.Images && branch.Images.length > 0) ? branch.Images[0] : '/icons/icon.svg' %>"
+                        class="wh-media"
+                        alt="<%= branch.Name %>">
+                </div>
 
                 <div class="flex-1">
 
-                    <h4 class="font-bold text-slate-800 text-lg">
+                    <h3 class="font-bold text-lg" style="color: var(--color-text);">
                         <%= branch.Name %>
-                    </h4>
+                    </h3>
 
-                    <p class="text-sm text-slate-500 mt-2">
-                        📍 <%= branch.Address %>
+                    <p class="text-sm mt-2" style="color: var(--color-muted);">
+                        <span aria-hidden="true">📍</span> <%= branch.Address %>
                     </p>
 
-                   
-
                     <% if (branch.Description) { %>
-                        <p class="text-sm text-slate-600 mt-3 line-clamp-2">
+                        <p class="text-sm mt-3 line-clamp-2" style="color: var(--color-text-soft);">
                             <%= branch.Description %>
                         </p>
                     <% } %>
 
-                    <p class="text-xs text-slate-400 mt-3">
-                        🕒 <%= branch.OpeningTime %> - <%= branch.ClosingTime %>
+                    <p class="text-xs mt-3" style="color: var(--color-muted);">
+                        <span aria-hidden="true">🕒</span> <%= branch.OpeningTime %> – <%= branch.ClosingTime %>
                     </p>
 
-                    <div class="flex items-center gap-1 text-amber-500 text-sm mt-2 font-semibold">
-                        ⭐ <%= branch.RatingAvg || 0 %>/5
-                    </div>
+                    <p class="flex items-center gap-1 text-sm mt-2 font-semibold" style="color: var(--color-highlight-dark);">
+                        <span aria-hidden="true">⭐</span>
+                        <span class="wh-sr-only">Đánh giá</span><%= branch.RatingAvg || 0 %>/5
+                    </p>
 
                 </div>
 
@@ -119,12 +122,13 @@
                     _detailHref = '/khong-gian/' + branch.CitySlug + '/' + (branch.DistrictSlug || 'khu-vuc') + '/' + branch.Slug;
                   }
                 %>
-                <a href="<%= _detailHref %>"
-                   class="w-full py-3 bg-teal-50 text-teal-600 font-bold rounded-xl text-sm text-center mt-4 hover:bg-teal-100 transition">
-                    Xem chi tiết
+                <%/* The link text repeats on every card, so name the target for
+                     anyone navigating by link list. */%>
+                <a href="<%= _detailHref %>" class="wh-btn-outline w-full mt-4">
+                    Xem chi tiết<span class="wh-sr-only"> <%= branch.Name %></span>
                 </a>
 
-            </div>
+            </article>
 
         <% }) %>
 

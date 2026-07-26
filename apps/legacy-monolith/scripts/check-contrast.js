@@ -168,6 +168,8 @@ function runTheme(name, tokens) {
  * the same guarantee as the tokens. Checked against the light page background,
  * which is where the views actually use them.
  */
+let utilityPairCount = 0;
+
 function checkUtilities() {
   const cssPath = path.join(__dirname, "..", "public", "css", "utilities.css");
   if (!fs.existsSync(cssPath)) return [];
@@ -176,14 +178,22 @@ function checkUtilities() {
   const failures = [];
   const rows = [];
 
-  // Greys intended for light surfaces. Anything meant for dark surfaces lives
-  // under .text-on-dark* and is excluded here.
+  // Text utilities used on light surfaces. Anything meant for dark surfaces
+  // lives under .text-on-dark* and is excluded here.
   const LIGHT_SURFACE_TEXT = [
     "text-slate-400",
     "text-slate-500",
     "text-slate-600",
     "text-slate-700",
     "text-slate-800",
+    "text-teal-600",
+    "text-teal-700",
+    "text-red-500",
+    "text-red-600",
+    "text-amber-500",
+    "text-amber-600",
+    "text-amber-700",
+    "text-green-600",
   ];
   const backgrounds = ["#ffffff", "#f8fafc"];
 
@@ -207,8 +217,38 @@ function checkUtilities() {
     }
   }
 
+  // Backgrounds that the views pair with white text. bg-teal-500 is absent on
+  // purpose: it is only ever used with dark text, where it already passes, and
+  // darkening it would flatten the brand for no accessibility gain.
+  const WHITE_TEXT_FILLS = [
+    "bg-teal-600",
+    "bg-teal-700",
+    "bg-red-600",
+    "bg-green-600",
+    "bg-indigo-600",
+  ];
+
+  for (const cls of WHITE_TEXT_FILLS) {
+    const match = css.match(
+      new RegExp(`\\.${cls}\\s*\\{\\s*background\\s*:\\s*(#[0-9a-fA-F]{3,8})\\s*\\}`),
+    );
+    if (!match) continue;
+
+    const ratio = contrastRatio("#ffffff", match[1]);
+    const pass = ratio >= AA_NORMAL;
+    if (!pass) {
+      failures.push(
+        `FAIL     [Utilities] white text on .${cls} (${match[1]}) = ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
+      );
+    }
+    rows.push(
+      `  ${pass ? "ok  " : "FAIL"}  ${ratio.toFixed(2).padStart(5)}:1  (min ${AA_NORMAL})  white on .${cls}`,
+    );
+  }
+
   console.log("\nUtilities (light surfaces)\n");
   console.log(rows.join("\n"));
+  utilityPairCount = rows.length;
   return failures;
 }
 
@@ -226,8 +266,11 @@ function main() {
     process.exit(1);
   }
 
-  const total = CHECKS.length * (dark ? 2 : 1);
-  console.log(`\nAll ${total} contrast pairs pass WCAG AA.`);
+  const total = CHECKS.length * (dark ? 2 : 1) + utilityPairCount;
+  console.log(
+    `\nAll ${total} contrast pairs pass WCAG AA ` +
+      `(${CHECKS.length} tokens x ${dark ? 2 : 1} theme(s), ${utilityPairCount} utility pairs).`,
+  );
 }
 
 main();

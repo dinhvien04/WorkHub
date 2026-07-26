@@ -2,135 +2,217 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repository shape
+
+npm-workspaces monorepo mid-way through a strangler-fig extraction from a single
+Express monolith. Paths in this file are repo-relative; almost all application
+code lives under a workspace, not at the root.
+
+| Workspace | Package | Role | Port |
+|---|---|---|---|
+| `apps/api-gateway` | `@workhub/api-gateway` | Edge proxy; verifies JWTs, canary-routes to services | 3000 |
+| `apps/legacy-monolith` | `@workhub/legacy-monolith` | The original app; still owns most domains | 3001 |
+| `services/communication-service` | `@workhub/communication-service` | Push, notifications, **all outbound email** | 3002 |
+| `services/content-service` | `@workhub/content-service` | CMS, i18n, SEO redirects | 3003 |
+| `services/identity-service` | `@workhub/identity-service` | Auth, sessions, MFA, passkeys | 3004 |
+| `packages/contracts` | `@workhub/contracts` | Zod schemas for every integration event | — |
+| `packages/observability` | `@workhub/observability` | OpenTelemetry + RabbitMQ helpers | — |
+| `packages/test-utils` | `@workhub/test-utils` | Shared test helpers | — |
+
+Migration state lives in `MICROSERVICES_MIGRATION_REPORT.md`; architectural
+decisions in `docs/adr/`.
+
 ## Commands
 
+Run from the repo root. Most scripts fan out across workspaces.
+
 ```bash
-# Development
-npm run dev              # nodemon auto-reload
-npm start                # production (PROCESS_ROLE=all)
-npm run start:web        # HTTP + Socket.IO only
-npm run start:worker     # background jobs only
+npm test                 # every workspace
+npm run lint             # ESLint, zero warnings tolerated
+npm run lint:security-ui # asserts no inline event handlers in critical JS
+npm run build            # CSS purge + asset hashing (monolith)
+npm run audit:prod       # npm audit, prod deps, high severity
+```
 
-# Testing
-npm test                 # all tests (jest --runInBand, uses mongodb-memory-server)
-npm run test:watch       # interactive watch mode
-# Run a single test file:
-npx jest test/auth.test.js --runInBand
+Single workspace:
 
-# Linting & formatting
-npm run lint             # ESLint (zero warnings)
-npm run lint:security-ui # checks no inline event handlers in critical JS
-npm run lint:fix         # auto-fix ESLint issues
-npm run format:check     # Prettier check (subset of files)
-npm run format           # Prettier write all
+```bash
+npm test --workspace=@workhub/identity-service
+```
 
-# Full pre-commit check
-npm run check            # lint:security-ui + lint + test
+Single test file:
 
-# Build
-npm run build:css        # purge unused utility classes → public/css/app.min.css
-npm run build:assets     # hash/copy static assets → public/dist/
+```bash
+cd apps/legacy-monolith && npx jest test/auth.test.js --runInBand
+```
 
-# Utilities
-npm run seed:extras      # seed demo coupons + feature flags
-npm run migrate:fields   # dry-run canonical field migration
+`--runInBand` is required: suites share one in-memory MongoDB.
+
+Monolith-only scripts (`cd apps/legacy-monolith` first):
+
+```bash
+npm run check            # lint:security-ui + check:contrast + lint + test
+npm run check:contrast   # WCAG gate over the design tokens
+npm run build:css        # runs the contrast gate, then purges and minifies
 npm run reconcile:finance -- --dry-run
-npm run jobs:expire-holds
-npm run sbom             # generate docs/sbom.json
-npm run audit:prod       # npm audit (prod deps, high severity)
-npm run smoke            # smoke E2E (requires running server)
+```
+
+Identity-only:
+
+```bash
+npm run keys:generate    --workspace=@workhub/identity-service  # production secrets
+npm run rotate:totp-keys --workspace=@workhub/identity-service  # re-encrypt TOTP seeds
+npm run backfill:users   --workspace=@workhub/identity-service
 ```
 
 ## Architecture
 
 ### Process model
 
-`server.js` reads `PROCESS_ROLE` (`web` | `worker` | `all`, default `all`) to decide what to start:
-- **web**: Express HTTP + Socket.IO
-- **worker**: four periodic jobs (complete expired bookings, hold reminders, job worker, booking reminders)
+`apps/legacy-monolith/server.js` reads `PROCESS_ROLE` (`web` | `worker` | `all`):
+**web** runs Express + Socket.IO, **worker** runs the periodic jobs. `app.js` is a
+pure factory (`createApp()`) that never listens, so tests can import it.
 
-`app.js` is a pure factory (`createApp()`) that returns the Express app without listening — imported by both `server.js` and tests.
+### Request lifecycle (monolith)
 
-### Request lifecycle
-
-Every request flows through:
 1. `requestId` → `tracingMiddleware` → `requestTiming` → `apiVersion` → CSP nonce
-2. `helmet` (strict CSP — scripts require per-request nonce; no `unsafe-inline` for scripts)
-3. **Webhook carve-out**: `POST /api/gateway/webhook` uses `express.raw` before JSON parser to preserve the raw body for Stripe/MoMo signature verification
+2. `helmet` with a strict CSP — **script-src is `'self'` plus a per-request nonce**
+3. Webhook carve-out: `POST /api/gateway/webhook` uses `express.raw` *before* the JSON
+   parser so Stripe/MoMo signatures verify against the exact bytes
 4. `optionalAuth` → `ensureCsrfCookie` → `maintenanceMode`
-5. CSRF enforcement for all mutating API routes (except the explicit skip list in `app.js`)
-6. Route handlers → `notFoundHandler` → `errorHandler`
+5. CSRF on every mutating `/api/` route except the explicit skip list in `app.js`
+6. Routes → `notFoundHandler` → `errorHandler`
 
-### Route structure
+### Gateway
 
-| Mount | File | Scope |
-|---|---|---|
-| `/api/auth` | `routes/authRoutes.js` | Login, register, password reset, 2FA, WebAuthn, Google OIDC |
-| `/api/customers` | `routes/customerApiRoutes.js` | All customer-facing API |
-| `/api/me` | `routes/meExtraRoutes.js` | Extra `/me/` endpoints (favorites, coupons, notifications, privacy) |
-| `/api/hosts` | `routes/hostRoutes.js` | Host management API |
-| `/api/admin` | `routes/adminRoutes.js` | Admin API |
-| `/api` | `routes/platformRoutes.js` | Public search, partner API, metrics, health extras |
-| `/api` | `routes/growthRoutes.js` | Gateway webhook, checkout session |
-| `/host/*` | page renders + `routes/paymentRoutes.js` | Host HTML pages |
-| `/` | `routes/customerPageRoutes.js` | Customer HTML pages |
-| (root) | `routes/seoRoutes.js` | Sitemap, robots, redirects — loaded before HTML pages |
+Holds **no database connection**. Identity state is reached only through JWKS
+(local RS256 verification) and `POST /internal/auth/introspect`. Introspection
+results live in a bounded LRU keyed by `SHA-256(token)` — never the raw JWT.
+Canary routing is percentage-based per service via `*_SERVICE_ENABLED` and
+`*_CANARY_PERCENT`.
 
-### Services layer
+Host registration is deliberately kept off identity-service until the M7
+onboarding saga exists; the gateway parses the body of `POST /api/auth/register`
+(the only endpoint it inspects) to route host signups to the monolith facade.
 
-Business logic lives exclusively in `services/`. Controllers are thin — they validate inputs, call services, and return responses. Key services:
+### Services layer (monolith)
 
-- **`bookingService.js`** — the only place booking state transitions are allowed; enforces `allowedTransitions` map. All state changes go through `assertTransition()`.
-- **`paymentService.js`** — payment records and idempotency key validation.
-- **`gatewayService.js`** — payment gateway abstraction (mock / Stripe / MoMo); signature sign/verify via `gatewayProviders.js`.
-- **`outboxService.js`** — transactional outbox pattern: side-effects (emails, notifications) enqueued atomically with DB writes, then dispatched by the job worker.
-- **`ledgerService.js`** / **`payoutService.js`** / **`refundService.js`** — finance operations.
-- **`featureFlagService.js`** — percentage/role/env-based feature flags; check flags before gating features.
-- **`pricingService.js`** — server-side pricing rules applied to bookings (never trust client price).
+Business logic lives in `services/`. Controllers validate, call a service, return.
+
+- **`bookingService.js`** — the only place booking state transitions may happen;
+  all changes go through `assertTransition()` against the `allowedTransitions` map
+- **`outboxService.js`** — transactional outbox; side effects are enqueued in the
+  same transaction as the write and dispatched by the job worker
+- **`pricingService.js`** — server-side pricing; never trust a client-supplied price
+- **`featureFlagService.js`** — percentage/role/env flags
+- `gatewayService.js`, `ledgerService.js`, `payoutService.js`, `refundService.js`
+
+### Identity service
+
+Read `services/identity-service/README.md` before touching it. Load-bearing rules:
+
+- **One key per purpose.** `JWT_SECRET`, `IDENTITY_PREAUTH_JWT_SECRET`,
+  `IDENTITY_CSRF_SECRET`, `PASSWORD_RESET_PEPPER`, `IDENTITY_TOTP_ENCRYPTION_KEY`
+  and `IDENTITY_OUTBOX_PAYLOAD_ENCRYPTION_KEY` are independent. Production boot
+  fails if any is missing or equals `JWT_SECRET`.
+- **Three token types, three validators** (`services/tokenService.js`): RS256
+  access, legacy HS256 access, pre-auth 2FA. Each pins its own `alg`, `iss`,
+  `aud` and `typ`. Never add a permissive `jwt.verify`.
+- **All password checks go through `utils/password.js`.** Argon2id for new hashes,
+  bcrypt still verifies and upgrades on login. A direct `bcrypt.compare` against a
+  stored hash is a bug — that exact mistake once made disable-2FA impossible for
+  every user.
+- **Crypto fails closed.** An undecryptable TOTP seed raises; it is never treated
+  as a successful verification.
+- **Single-use credentials are spent with conditional updates**, so the loser of a
+  race observes the loss. Never read-modify-write a token, OTP attempt counter or
+  recovery code.
+- **No email provider calls.** Identity enqueues `identity.email-requested.v1`;
+  Communication Service owns delivery.
+
+### Messaging
+
+RabbitMQ via `@workhub/observability`. Producers write to a per-service outbox
+table inside the business transaction; a worker claims rows with a lease,
+publishes with confirms, retries with jittered backoff, and moves exhausted rows
+to `dead` with a DLQ mirror. Consumers are idempotent through an inbox table
+(`ProcessedMessage`).
+
+Every event needs a Zod schema in `packages/contracts`; `validateEvent` runs on
+both publish and consume.
 
 ### Background jobs
 
-Jobs run in the worker process (`jobs/jobWorker.js` polls `BackgroundJob` documents via MongoDB claim-based locking for distributed safety):
-- `completeExpiredBookings.js` — `in-use` + `EndTime < now` → `completed`
-- `holdReminders.js` — remind customers about hold expiry
-- `bookingReminders.js` — pre-booking reminders
-
-Do **not** run hold expiry or booking completion on the request hot path — use the worker.
-
-### Auth model
-
-- JWT stored in `HttpOnly` cookie `authToken` (never localStorage).
-- `tokenVersion` field on User invalidates all tokens after ban or password change.
-- Per-session revoke: JWT carries `sid`; sessions stored as `SidHash` in `Session` collection.
-- CSRF: double-submit cookie (`csrfToken` cookie + `X-CSRF-Token` header).
-- Staff can act-as-host via `X-Host-Owner-Id` header through `/api/staff/*` proxy routes.
-
-### Permissions (host staff)
-
-`policies/permissions.js` defines roles: `owner`, `manager`, `receptionist`, `finance`, `content_editor`, `support`. Use `assertHostPermission(hostOwnerId, userId, 'permission:name')` — never roll your own ownership check.
+Worker process only (`apps/legacy-monolith/jobs/jobWorker.js`, claim-based
+locking). Never run hold expiry or booking completion on the request path.
 
 ### Models
 
-All Mongoose models are in `models/`. Field names use PascalCase (e.g. `TotalAmount`, `Status`, `SpaceID`) — match the existing convention when adding fields.
+Mongoose models in each workspace's `models/`. Field names are PascalCase
+(`TotalAmount`, `Status`, `SpaceID`) — match that when adding fields. Booking slot
+locking relies on the unique compound index `{ SpaceID, SlotStart }`.
 
-Booking slot locking uses a unique compound index `{ SpaceID, SlotStart }` on `BookingSlot`. Slot times are floored to `BOOKING_SLOT_MINUTES` intervals.
+### Permissions
+
+`policies/permissions.js` defines `owner`, `manager`, `receptionist`, `finance`,
+`content_editor`, `support`. Always use
+`assertHostPermission(hostOwnerId, userId, 'permission:name')`. Never write an
+ad-hoc ownership check.
 
 ### Errors
 
-Use the typed error classes from `utils/errors.js` (`ValidationError`, `NotFoundError`, `ConflictError`, `ForbiddenError`, `UnauthorizedError`). These carry `statusCode` and `isOperational = true`; the central `errorHandler` renders them correctly.
+Use the typed classes in `utils/errors.js` (`ValidationError`, `NotFoundError`,
+`ConflictError`, `ForbiddenError`, `UnauthorizedError`). They carry `statusCode`
+and `isOperational`, which is what stops internals leaking to clients.
 
-### Frontend
+## Frontend (monolith)
 
-Views are EJS templates under `views/` with `express-ejs-layouts` (layout: `views/layout.ejs`). Each page gets its JS via `res.locals.scriptsFrom([...])`, which injects `<script nonce="...">` tags. Public JS lives in `public/js/` — one file per page/feature.
+EJS under `views/` with `express-ejs-layouts` (`views/layout.ejs`). Page scripts
+go through `res.locals.scriptsFrom([...])`, which injects the CSP nonce — a bare
+`<script src>` pointing at an *external* host will be blocked in production.
 
-CSS: production uses `public/css/app.min.css` (built by `npm run build:css`). In dev, Tailwind CDN is available when `USE_TAILWIND_CDN=1`.
+### Styling
 
-### Testing
+- `public/css/style.css` — design tokens and base
+- `public/css/brand.css` — brand component layer (`wh-*`)
+- `public/css/utilities.css` — utility classes
+- `npm run build:css` concatenates all three into `public/css/app.min.css`
 
-Tests use `mongodb-memory-server` (started in `test/helpers.js`). `test/setup.js` sets `NODE_ENV=test`, minimal JWT/MongoDB env vars, and disables transactions. Tests **must not** set `DISABLE_CSRF` globally — security tests exercise CSRF.
+**Do not add a second stylesheet link to `layout.ejs`** — `app.min.css` already
+contains the others.
 
-Run all tests with `--runInBand` (required — tests share a single in-memory MongoDB instance).
+Reference assets through `res.locals.asset('css/app.min.css')` so the
+content-hashed `/dist` URL is used; that is what makes the immutable cache header
+usable and what busts it on deploy.
 
-### Git workflow (from AGENTS.md)
+### Accessibility is gated, not aspirational
 
-Conventional Commits: `feat`, `fix`, `hotfix`, `refactor`, `docs`, `style`, `chore`, `test`, `perf`. Imperative mood, ≈50–72 char subject. Push to `main`.
+`npm run check:contrast` asserts 42 colour pairs across light and dark themes and
+runs inside `build:css`. Rules that follow from it:
+
+- `--color-primary` is a 3:1 **UI accent**, not a text colour. Prose uses
+  `--color-primary-text`; filled buttons with white labels use
+  `--color-primary-fill`.
+- Text never sits directly on a gradient — put it on a measured scrim.
+- Animate only `transform` and `opacity`, so motion cannot cause layout shift.
+  `prefers-reduced-motion` is honoured globally.
+- Reserve boxes for late-arriving content (`aspect-ratio` on images,
+  `min-height` on stat values) to keep CLS at zero.
+- Every `<label>` needs a `for`; every `<img>` needs an `alt`; icon-only controls
+  need an accessible name.
+- Scroll-reveal hidden states are scoped to `html.js`, so a failed script request
+  cannot blank the page.
+
+## Testing
+
+`mongodb-memory-server`, started in each workspace's test setup. `NODE_ENV=test`.
+Tests **must not** disable CSRF globally — the security suites exercise it.
+Rate limiters skip in tests unless `IDENTITY_ENABLE_RATE_LIMIT_IN_TEST=true`,
+because limiter state is process-wide and leaks between suites.
+
+Real-broker outbox tests run only when `IDENTITY_TEST_RABBITMQ=1` (CI sets it).
+
+## Git workflow
+
+Conventional Commits: `feat`, `fix`, `hotfix`, `refactor`, `docs`, `style`,
+`chore`, `test`, `perf`. Imperative mood, ~50–72 char subject.

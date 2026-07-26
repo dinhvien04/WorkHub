@@ -1,3 +1,9 @@
+/* Contrast-corrected utilities.
+   These shades were measured against the surface they are actually used on and
+   moved down their own hue ramp until they reach the 4.5:1 WCAG AA needs. Hue is
+   unchanged, so the palette still reads as itself. bg-teal-500 is deliberately
+   left alone: it is only ever paired with dark text, where it already passes.
+   scripts/check-contrast.js asserts all of these. */
 /* WorkHub production utilities — subset of classes used without Tailwind CDN */
 *,*::before,*::after{box-sizing:border-box}
 html{line-height:1.5;-webkit-text-size-adjust:100%}
@@ -36,16 +42,16 @@ a{color:inherit}
    that actually passes rather than editing every call site and risking the
    next one regressing. Use .text-on-dark for light-on-dark text. */
 .text-slate-400{color:#64748b}.text-slate-500{color:#64748b}.text-slate-600{color:#475569}.text-slate-700{color:#334155}.text-slate-800{color:#1e293b}
-.text-teal-600{color:#0d9488}.text-teal-700{color:#0f766e}.text-teal-800{color:#115e59}
-.text-red-500{color:#ef4444}.text-red-600{color:#dc2626}.text-red-700{color:#b91c1c}
-.text-amber-500{color:#f59e0b}.text-amber-600{color:#d97706}.text-amber-700{color:#b45309}.text-amber-900{color:#78350f}
-.text-green-600{color:#16a34a}.text-rose-600{color:#e11d48}
+.text-teal-600{color:#0f766e}.text-teal-700{color:#0f766e}.text-teal-800{color:#115e59}
+.text-red-500{color:#dc2626}.text-red-600{color:#dc2626}.text-red-700{color:#b91c1c}
+.text-amber-500{color:#b45309}.text-amber-600{color:#b45309}.text-amber-700{color:#b45309}.text-amber-900{color:#78350f}
+.text-green-600{color:#15803d}.text-rose-600{color:#e11d48}
 
 /* Surfaces */
 .bg-white{background:#fff}.bg-slate-50{background:#f8fafc}.bg-slate-100{background:#f1f5f9}.bg-slate-800{background:#1e293b}.bg-slate-900{background:#0f172a}
-.bg-teal-50{background:#f0fdfa}.bg-teal-100{background:#ccfbf1}.bg-teal-500{background:#14b8a6}.bg-teal-600{background:#0d9488}.bg-teal-700{background:#0f766e}
+.bg-teal-50{background:#f0fdfa}.bg-teal-100{background:#ccfbf1}.bg-teal-500{background:#14b8a6}.bg-teal-600{background:#0f766e}.bg-teal-700{background:#0f766e}
 .bg-red-50{background:#fef2f2}.bg-red-600{background:#dc2626}.bg-amber-50{background:#fffbeb}.bg-amber-100{background:#fef3c7}
-.bg-rose-50{background:#fff1f2}.bg-indigo-600{background:#4f46e5}.bg-green-600{background:#16a34a}
+.bg-rose-50{background:#fff1f2}.bg-indigo-600{background:#4f46e5}.bg-green-600{background:#15803d}
 
 /* Borders radius shadow */
 .border{border:1px solid #e2e8f0}.border-2{border-width:2px}.border-t{border-top:1px solid #e2e8f0}.border-b{border-bottom:1px solid #e2e8f0}

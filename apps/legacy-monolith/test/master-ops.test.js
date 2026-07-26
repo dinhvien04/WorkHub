@@ -110,10 +110,18 @@ describe('QR check-in', () => {
     const host = await createUser({ email: 'hq@test.com', role: 'host' });
     const customer = await createUser({ email: 'cq@test.com', role: 'customer' });
     const { space } = await seedHostSpace(host);
-    // Check-in allows EARLY_MINUTES (30) before start. Align to next 30-min slot
-    // but never more than ~30m ahead so "now" is always inside the window.
+    // Two constraints bracket a valid start:
+    //   createBooking rejects start < now - 60s
+    //   check-in opens at start - EARLY_MINUTES (30)
+    // so start must land in [now - 60s, now + 30m]. That window is wider than
+    // the 30-minute slot grid, so the next boundary always fits.
+    //
+    // This previously did ceil((now + 60s) / step), which can land a full
+    // step + 60s ahead — outside the early window — whenever now is just
+    // under a boundary. That flaked roughly 60s in every 30 minutes, i.e.
+    // about 3% of runs, and only ever showed up in long full-suite runs.
     const step = 30 * 60 * 1000;
-    const start = new Date(Math.ceil((Date.now() + 60_000) / step) * step);
+    const start = new Date(Math.ceil(Date.now() / step) * step);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const booking = await bookingService.createBooking({
       customerId: customer._id,

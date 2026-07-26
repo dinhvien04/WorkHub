@@ -55,7 +55,7 @@
   <% } else { %>
   <div class="grid md:grid-cols-2 gap-4">
     <% host.branches.forEach(function(b) { %>
-    <a href="<%= b.detailPath %>" class="block bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-teal-300 hover:shadow-md transition group">
+    <a href="<%= b.detailPath %>" class="block wh-card-elevated0 overflow-hidden hover:border-teal-300 hover:shadow-md transition group">
       <% if (b.image) { %>
       <img src="<%= b.image %>" alt="" width="640" height="200" class="w-full h-36 object-cover" loading="lazy" decoding="async" />
       <% } else { %>
