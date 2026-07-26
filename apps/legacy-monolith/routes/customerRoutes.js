@@ -61,7 +61,7 @@ router.get('/bookings/:bookingId/review', getReview);
 const protectCustomer = [verifyToken, authorizeRole('customer')];
 
 router.get('/me/profile', ...protectCustomer, getMyProfile);
-router.put('/me/profile', ...protectCustomer, upload.single('customerAvatar'), updateMyProfile);
+router.put('/me/profile', ...protectCustomer, ...upload.singleWithMagic('customerAvatar'), updateMyProfile);
 router.get('/me/bookings', ...protectCustomer, getCustomerBookings);
 router.post('/me/bookings', ...protectCustomer, bookingLimiter, createBooking);
 router.post('/me/bookings/:bookingId/review', ...protectCustomer, submitReview);

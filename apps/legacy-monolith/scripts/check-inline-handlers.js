@@ -76,6 +76,52 @@ if (!fs.existsSync(path.join(process.cwd(), "public/js/ui-bind.js"))) {
   console.error("FAIL: public/js/ui-bind.js missing");
   failed = true;
 }
+/**
+ * Every file upload must go through the validation chain.
+ *
+ * `upload.single(...)` / `upload.array(...)` are the bare multer handlers: the
+ * only check they run is fileFilter, which trusts the Content-Type the client
+ * wrote into its own multipart part. `singleWithMagic` / `arrayWithMagic`
+ * expand to [multer, magic-byte check, malware scan, storage] and are the only
+ * forms that belong in a route.
+ *
+ * The customer avatar route used the bare form for two years because the two
+ * spellings look identical at the call site.
+ */
+const BARE_UPLOAD_RE = /\bupload\.(single|array)\s*\(/;
+const routesDir = path.join(process.cwd(), "routes");
+
+if (fs.existsSync(routesDir)) {
+  let routeFiles = 0;
+  for (const name of fs.readdirSync(routesDir)) {
+    if (!name.endsWith(".js")) continue;
+    routeFiles++;
+    const routeLines = fs
+      .readFileSync(path.join(routesDir, name), "utf8")
+      .split(/\r?\n/);
+
+    routeLines.forEach((line, i) => {
+      // A line that also names the safe helper is the authRoutes fallback,
+      // which only reaches the bare form when singleWithMagic is unavailable.
+      if (
+        line.includes("upload.singleWithMagic") ||
+        line.includes("upload.arrayWithMagic")
+      ) {
+        return;
+      }
+      if (BARE_UPLOAD_RE.test(line)) {
+        console.error(
+          "FAIL: bare multer handler bypasses the magic-byte + scan chain at " +
+            "routes/" + name + ":" + (i + 1) + "\n      " + line.trim(),
+        );
+        failed = true;
+      }
+    });
+  }
+  console.log(
+    "Upload routes checked for bypassed validation (" + routeFiles + " files).",
+  );
+}
 
 console.log(
   "Critical UI modules clean of inline handlers (" +

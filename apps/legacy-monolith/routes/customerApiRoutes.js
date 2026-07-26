@@ -33,7 +33,7 @@ const protectCustomer = [verifyToken, authorizeRole('customer')];
 
 // Preferred /me routes
 router.get('/me/profile', ...protectCustomer, getMyProfile);
-router.put('/me/profile', ...protectCustomer, upload.single('customerAvatar'), updateMyProfile);
+router.put('/me/profile', ...protectCustomer, ...upload.singleWithMagic('customerAvatar'), updateMyProfile);
 router.get('/me/bookings', ...protectCustomer, getCustomerBookings);
 router.get('/me/bookings/:bookingId', ...protectCustomer, getMyBookingById);
 router.post('/me/bookings', ...protectCustomer, bookingLimiter, createBooking);

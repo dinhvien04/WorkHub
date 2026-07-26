@@ -220,23 +220,39 @@ async function updateMyProfile(req, res) {
     if (BankNumber !== undefined) updateData.BankNumber = BankNumber.trim();
 
     if (req.file) {
-      updateData.Avatar = req.file.path; // Đường dẫn URL Cloudinary mới hoàn toàn
+      // The upload chain (magic bytes -> malware scan -> Cloudinary) sets
+      // `path` to the delivered URL. Without it there is nothing to store:
+      // multer's memoryStorage populates only `buffer`/`size`, so the previous
+      // `updateData.Avatar = req.file.path` wrote undefined — which Mongoose
+      // strips from $set — while the old avatar had already been destroyed on
+      // Cloudinary. The row kept pointing at a URL whose file no longer
+      // existed, so the user's avatar broke permanently and the file they
+      // uploaded was discarded.
+      const newAvatarUrl = req.file.path || req.file.url || null;
 
-      // TIẾN HÀNH TÌM VÀ XOÁ AVATAR CŨ TRÊN CLOUDINARY
-      const oldProfile = await CustomerProfile.findOne({ UserID: userId });
-      
-      if (oldProfile && oldProfile.Avatar) {
-         try {
-             // Sử dụng Regex bóc tách lấy public_id từ URL cũ của Cloudinary
-             const matches = oldProfile.Avatar.match(/\/v\d+\/(.+?)\.[a-zA-Z0-9]+$/);
-             if (matches && matches[1]) {
-                 // Gọi lệnh tiêu diệt file cũ tận gốc trên mây
-                 await cloudinary.uploader.destroy(matches[1]);
-                 logger.info("Đã dọn dẹp Avatar Khách hàng cũ trên Cloudinary:", matches[1]);
-             }
-         } catch (cloudErr) {
-             logger.warn("Bỏ qua lỗi xóa Avatar cũ trên Cloudinary:", cloudErr.message);
-         }
+      if (!newAvatarUrl) {
+        logger.warn(
+          "Avatar upload produced no stored URL; leaving the existing avatar untouched.",
+        );
+      } else {
+        updateData.Avatar = newAvatarUrl;
+
+        // Only now is it safe to remove the previous file: we have a
+        // replacement to write in the same request.
+        const oldProfile = await CustomerProfile.findOne({ UserID: userId });
+
+        if (oldProfile && oldProfile.Avatar && oldProfile.Avatar !== newAvatarUrl) {
+           try {
+               // Sử dụng Regex bóc tách lấy public_id từ URL cũ của Cloudinary
+               const matches = oldProfile.Avatar.match(/\/v\d+\/(.+?)\.[a-zA-Z0-9]+$/);
+               if (matches && matches[1]) {
+                   await cloudinary.uploader.destroy(matches[1]);
+                   logger.info("Đã dọn dẹp Avatar Khách hàng cũ trên Cloudinary:", matches[1]);
+               }
+           } catch (cloudErr) {
+               logger.warn("Bỏ qua lỗi xóa Avatar cũ trên Cloudinary:", cloudErr.message);
+           }
+        }
       }
     }
 

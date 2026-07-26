@@ -192,3 +192,76 @@ describe("errorHandler maps every multipart limit to 400", () => {
     expect(res.body.code).toBe(code);
   });
 });
+
+describe("Avatar upload goes through the validation chain", () => {
+  const fs = require("fs");
+  const path = require("path");
+
+  test("no route reaches a bare multer handler", () => {
+    // The bare and safe spellings look identical at a call site, which is how
+    // the customer avatar route ended up skipping magic bytes and the malware
+    // scan while every other upload route was chained correctly.
+    const routesDir = path.join(__dirname, "..", "routes");
+    const offenders = [];
+
+    for (const name of fs.readdirSync(routesDir)) {
+      if (!name.endsWith(".js")) continue;
+      fs.readFileSync(path.join(routesDir, name), "utf8")
+        .split(/\r?\n/)
+        .forEach((line, i) => {
+          if (
+            line.includes("upload.singleWithMagic") ||
+            line.includes("upload.arrayWithMagic")
+          ) {
+            return;
+          }
+          if (/\bupload\.(single|array)\s*\(/.test(line)) {
+            offenders.push(`routes/${name}:${i + 1} ${line.trim()}`);
+          }
+        });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  test("the avatar routes use the chained form", () => {
+    for (const file of ["customerApiRoutes.js", "customerRoutes.js"]) {
+      const text = fs.readFileSync(path.join(__dirname, "..", "routes", file), "utf8");
+      expect(text).toContain("upload.singleWithMagic('customerAvatar')");
+    }
+  });
+
+  test("singleWithMagic really is the full chain, not an alias", () => {
+    const upload = require("../middlewares/upload");
+    const chain = upload.singleWithMagic("customerAvatar");
+
+    // multer + magic bytes + scan + storage. If someone shortens this, the
+    // route-level checks above would still pass while the protection is gone.
+    expect(Array.isArray(chain)).toBe(true);
+    expect(chain.length).toBe(4);
+    expect(chain.every((mw) => typeof mw === "function")).toBe(true);
+  });
+});
+
+describe("Avatar update never destroys the old file without a replacement", () => {
+  const fs = require("fs");
+  const path = require("path");
+
+  test("the controller requires a stored URL before touching Cloudinary", () => {
+    // memoryStorage populates only buffer/size, so `req.file.path` was
+    // undefined: Mongoose stripped it from $set while the old avatar had
+    // already been destroyed, leaving the row pointing at a deleted file.
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "controllers", "customerController.js"),
+      "utf8",
+    );
+
+    const destroyIdx = src.indexOf("cloudinary.uploader.destroy");
+    const guardIdx = src.indexOf("if (!newAvatarUrl)");
+
+    expect(guardIdx).toBeGreaterThan(-1);
+    // The guard must come first — that ordering is the fix.
+    expect(guardIdx).toBeLessThan(destroyIdx);
+    expect(src).not.toContain("updateData.Avatar = req.file.path;");
+  });
+});

@@ -48,9 +48,11 @@ router.get('/csrf', ensureCsrfCookie, (req, res) => {
 router.post(
   '/register',
   registerLimiter,
-  ...(upload.singleWithMagic
-    ? upload.singleWithMagic('verificationDocument')
-    : [upload.single('verificationDocument')]),
+  // singleWithMagic is a plain module export and is always defined. The
+  // ternary that used to sit here fell back to bare multer, which would have
+  // silently dropped the magic-byte and malware checks on an unauthenticated
+  // document upload — a fallback that degrades security is worse than none.
+  ...upload.singleWithMagic('verificationDocument'),
   registerUser
 );
 router.post('/login', loginLimiter, loginUser);
