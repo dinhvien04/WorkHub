@@ -265,3 +265,174 @@ describe("Avatar update never destroys the old file without a replacement", () =
     expect(src).not.toContain("updateData.Avatar = req.file.path;");
   });
 });
+
+describe("Booking creation validates its body", () => {
+  const schemas = require("../validators/schemas");
+
+  test("a Mongo operator in spaceId is rejected", () => {
+    // Mongoose casts {$gte: ...} through findById unchanged, so without this
+    // schema the query returns whichever space mongod orders first and the
+    // booking is created against a space the caller never named.
+    expect(() =>
+      schemas.parse(schemas.bookingCreate, {
+        spaceId: { $gte: "000000000000000000000000" },
+        startTime: "2027-01-01T10:00:00.000Z",
+        endTime: "2027-01-01T11:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  test.each([
+    ["$ne object", { $ne: null }],
+    ["array", ["507f1f77bcf86cd799439011"]],
+    ["regex-ish string", "507f1f77bcf86cd7994390.*"],
+    ["short hex", "507f1f77"],
+  ])("spaceId rejects %s", (_label, spaceId) => {
+    expect(() =>
+      schemas.parse(schemas.bookingCreate, {
+        spaceId,
+        startTime: "2027-01-01T10:00:00.000Z",
+        endTime: "2027-01-01T11:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  test("a well-formed body passes and keeps the addOns shape the service expects", () => {
+    const parsed = schemas.parse(schemas.bookingCreate, {
+      spaceId: "507f1f77bcf86cd799439011",
+      startTime: "2027-01-01T10:00:00.000Z",
+      endTime: "2027-01-01T11:00:00.000Z",
+      addOns: [{ addOnId: "507f1f77bcf86cd799439012", quantity: 2 }],
+      preferInstant: true,
+    });
+
+    expect(parsed.spaceId).toBe("507f1f77bcf86cd799439011");
+    expect(parsed.addOns[0]).toMatchObject({ quantity: 2 });
+  });
+
+  test("an over-long note is rejected rather than persisted", () => {
+    expect(() =>
+      schemas.parse(schemas.bookingCreate, {
+        spaceId: "507f1f77bcf86cd799439011",
+        startTime: "2027-01-01T10:00:00.000Z",
+        endTime: "2027-01-01T11:00:00.000Z",
+        note: "x".repeat(5000),
+      }),
+    ).toThrow();
+  });
+
+  test("the controller parses the body before using it", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "controllers", "customerController.js"),
+      "utf8",
+    );
+    expect(src).toContain("schemas.parse(schemas.bookingCreate, req.body)");
+  });
+
+  test("the service casts spaceId even if a caller skips the schema", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "services", "bookingService.js"),
+      "utf8",
+    );
+    expect(src).toContain("Space.findById(String(spaceId))");
+  });
+});
+
+describe("Staff calendar respects branch scope", () => {
+  const staffService = require("../services/staffService");
+
+  test("an empty branch allowlist is a denial, not a wildcard", () => {
+    // [] is truthy, and [][0] is undefined — which used to collapse to
+    // "no branch filter", i.e. every branch the host owns.
+    expect(() =>
+      staffService.assertBranchAccess(
+        { isOwner: false, allowedBranchIds: [] },
+        null,
+      ),
+    ).toThrow(/chi nhánh/i);
+  });
+
+  test("a missing branch hint is still refused for scoped staff", () => {
+    expect(() =>
+      staffService.assertBranchAccess(
+        { isOwner: false, allowedBranchIds: ["507f1f77bcf86cd799439011"] },
+        null,
+      ),
+    ).toThrow();
+  });
+
+  test("owners and all-branch staff are unaffected", () => {
+    expect(staffService.assertBranchAccess({ isOwner: true }, null)).toBe(true);
+    expect(
+      staffService.assertBranchAccess(
+        { isOwner: false, allowedBranchIds: null },
+        null,
+      ),
+    ).toBe(true);
+  });
+
+  test("the calendar handler no longer indexes allowedBranchIds[0]", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "controllers", "bookingController.js"),
+      "utf8",
+    );
+    // Taking only the first branch also hid the rest from multi-branch staff.
+    expect(src).not.toContain("req.hostContext.allowedBranchIds[0]");
+    expect(src).toContain("assertBranchAccess(req.hostContext, null)");
+  });
+
+  test("getHostCalendar scopes to a branch set when given one", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "services", "calendarService.js"),
+      "utf8",
+    );
+    expect(src).toContain("spaceFilter.BranchID = { $in: branchIds }");
+  });
+});
+
+describe("Operational errors keep their status code", () => {
+  const request = require("supertest");
+  const {
+    createUser,
+    seedHostSpace,
+    getApp,
+    agentWithAuth,
+    getCsrfPair,
+    withCsrf,
+  } = require("./helpers");
+
+  test("a malformed booking body is a 400, not a 500", async () => {
+    // sendServerError used to flatten every error to 500, so a rejected body
+    // was reported as a server fault and the reason was lost. Service-thrown
+    // NotFoundError/ConflictError were masked the same way.
+    const localApp = getApp();
+    const host = await createUser({ email: "opserr-host@test.com", role: "host" });
+    const customer = await createUser({ email: "opserr-cust@test.com", role: "customer" });
+    await seedHostSpace(host);
+
+    const { token } = agentWithAuth(localApp, customer);
+    const csrf = await getCsrfPair(localApp);
+
+    const res = await withCsrf(
+      request(localApp).post("/api/customers/me/bookings"),
+      csrf,
+      `authToken=${token}`,
+    ).send({
+      spaceId: { $gte: "000000000000000000000000" },
+      startTime: "2027-01-01T10:00:00.000Z",
+      endTime: "2027-01-01T11:00:00.000Z",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.status).not.toBe(500);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  }, 20000);
+});

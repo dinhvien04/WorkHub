@@ -10,6 +10,7 @@ const IntegrationOutboxEvent = require("../models/IntegrationOutboxEvent");
 const InboxMessage = require("../models/InboxMessage");
 const ConsumerDeadLetter = require("../models/ConsumerDeadLetter");
 const integrationOutboxService = require("../services/integrationOutboxService");
+const { isTransientTransactionError } = require("../utils/mongoTransaction");
 const inboxService = require("../services/inboxService");
 const { messaging, getTracer } = require("@workhub/observability");
 const { context, trace, propagation, ROOT_CONTEXT } = require("@opentelemetry/api");
@@ -199,23 +200,33 @@ class TestMockConfirmChannel {
 describe("Phase M3 Messaging Foundation Integration & Crash Recovery Tests", () => {
 
   test("1. DB Commit succeeds but publisher has not run", async () => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
+    // This opens a transaction by hand rather than through withTransaction(),
+    // because the point of the test is that the outbox row is written inside
+    // the caller's transaction. Doing so means opting into the retry that
+    // withTransaction() performs for us: MongoDB returns a transient
+    // "catalog changes; please retry" when the collection catalog moves under
+    // a transaction, which the beforeEach deleteMany can trigger. Production
+    // retries it; without this the test was flaky where the app is not.
     let doc;
-    try {
-      doc = await integrationOutboxService.enqueue(
-        "catalog.review-created.v1",
-        "aggregate-123",
-        { reviewId: "rev-456", spaceId: "d3b07384-d113-4886-a511-2b02a2e0a2c1", rating: 5 },
-        { session }
-      );
-      await session.commitTransaction();
-    } catch (err) {
-      await session.abortTransaction();
-      throw err;
-    } finally {
-      session.endSession();
+    for (let attempt = 0; ; attempt++) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        doc = await integrationOutboxService.enqueue(
+          "catalog.review-created.v1",
+          "aggregate-123",
+          { reviewId: "rev-456", spaceId: "d3b07384-d113-4886-a511-2b02a2e0a2c1", rating: 5 },
+          { session }
+        );
+        await session.commitTransaction();
+        break;
+      } catch (err) {
+        await session.abortTransaction().catch(() => {});
+        if (attempt >= 3 || !isTransientTransactionError(err)) throw err;
+        await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
+      } finally {
+        session.endSession();
+      }
     }
 
     // Verify written to database in pending status

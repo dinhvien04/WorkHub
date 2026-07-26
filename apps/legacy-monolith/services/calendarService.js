@@ -12,6 +12,7 @@ async function getHostCalendar({
   from,
   to,
   branchId = null,
+  branchIds = null,
   spaceId = null,
 }) {
   if (!from || !to) throw new ValidationError("Thiếu from/to.");
@@ -26,7 +27,13 @@ async function getHostCalendar({
   }
 
   const spaceFilter = { HostID: hostId };
-  if (branchId) spaceFilter.BranchID = branchId;
+  if (branchId) {
+    spaceFilter.BranchID = branchId;
+  } else if (Array.isArray(branchIds)) {
+    // An explicit empty list means "no branches assigned", which must return
+    // nothing rather than falling through to every branch this host owns.
+    spaceFilter.BranchID = { $in: branchIds };
+  }
   if (spaceId) spaceFilter._id = spaceId;
   const spaces = await Space.find(spaceFilter)
     .select("_id Name SpaceCode BranchID")

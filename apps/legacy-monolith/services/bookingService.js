@@ -142,7 +142,10 @@ async function createBooking({
   const end = new Date(endTime);
   validateBookingWindow(start, end);
 
-  const space = await Space.findById(spaceId).populate(
+  // String() is the defence-in-depth half: a caller that reaches this service
+  // without going through validators/schemas.js cannot smuggle a query
+  // operator, because Mongoose casts {$gte: ...} through findById unchanged.
+  const space = await Space.findById(String(spaceId)).populate(
     "BranchID",
     "Name Address Timezone",
   );

@@ -4,6 +4,30 @@ const mongoose = require("mongoose");
 const env = require("../config/env");
 
 /**
+ * Errors MongoDB itself asks the caller to retry.
+ *
+ * These are not failures — a write conflict or a concurrent catalog change
+ * means "try again", and the server says so in the message. Anything that
+ * opens a transaction by hand rather than through withTransaction() needs the
+ * same predicate, which is why it is exported.
+ */
+function isTransientTransactionError(err) {
+  if (!err) return false;
+  const msg = String(err.message || "");
+  return (
+    err.code === 112 || // WriteConflict
+    err.code === 251 || // NoSuchTransaction
+    err.codeName === "WriteConflict" ||
+    err.codeName === "NoSuchTransaction" ||
+    err.errorLabels?.includes?.("TransientTransactionError") ||
+    msg.includes("Unable to acquire") ||
+    msg.includes("catalog changes") ||
+    msg.includes("TransientTransactionError") ||
+    msg.includes("Please retry")
+  );
+}
+
+/**
  * Run work inside a Mongo multi-doc transaction when ENABLE_TRANSACTIONS is on.
  * When off (memory mongo / tests), runs work(null) without a session.
  *
@@ -44,19 +68,8 @@ async function withTransaction(work, opts = {}) {
       /* ignore abort errors */
     }
     // Retry a few times on transient lock / catalog / write conflict
-    const msg = String(err.message || "");
     const retries = opts._retries || 0;
-    if (
-      retries < 3 &&
-      (err.code === 112 ||
-        err.code === 251 ||
-        err.codeName === "WriteConflict" ||
-        err.codeName === "NoSuchTransaction" ||
-        msg.includes("Unable to acquire") ||
-        msg.includes("catalog changes") ||
-        msg.includes("TransientTransactionError") ||
-        msg.includes("Please retry"))
-    ) {
+    if (retries < 3 && isTransientTransactionError(err)) {
       await new Promise((r) => setTimeout(r, 50 * (retries + 1)));
       return withTransaction(work, { ...opts, _retries: retries + 1 });
     }
@@ -66,4 +79,4 @@ async function withTransaction(work, opts = {}) {
   }
 }
 
-module.exports = { withTransaction };
+module.exports = { withTransaction, isTransientTransactionError };

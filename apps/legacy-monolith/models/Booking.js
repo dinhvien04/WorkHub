@@ -50,7 +50,9 @@ const bookingSchema = new mongoose.Schema({
         default: 'pending',
         index: true 
     },
-    Note: { type: String, default: "" },
+    // Bounded at the model too: an unbounded note is persisted per booking
+    // and later replayed into the host XLSX export.
+    Note: { type: String, default: "", maxlength: 500 },
     // Temporary hold before payment (minutes)
     HoldExpiresAt: { type: Date, default: null, index: true },
     CouponCode: { type: String, default: '' },

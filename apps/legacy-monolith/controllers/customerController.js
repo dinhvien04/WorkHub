@@ -25,7 +25,22 @@ cloudinary.config({
 // ==========================================
 // HÀM HỖ TRỢ CHUNG
 // ==========================================
+const schemas = require('../validators/schemas');
+
+/**
+ * Controller-level error responder.
+ *
+ * Operational errors carry their own statusCode — a 400 from schema validation
+ * must not be reported as a server fault, both because it misleads the client
+ * and because it hides the actual reason the request was rejected.
+ */
 function sendServerError(res, error) {
+  if (error && error.isOperational && error.statusCode) {
+    return res.status(error.statusCode).json({
+      error: error.message,
+      ...(error.code ? { code: error.code } : {}),
+    });
+  }
   logger.error("Lỗi Controller:", error);
   return res.status(500).json({ error: 'Lỗi máy chủ, vui lòng thử lại sau.' });
 }
@@ -432,6 +447,10 @@ async function createBooking(req, res) {
       return res.status(403).json({ error: 'Không được tạo booking cho người dùng khác.' });
     }
 
+    // Validate before anything reaches a query. schemas.bookingCreate already
+    // existed but nothing imported it, so this endpoint took the body verbatim
+    // — and a spaceId of {"$gte": "000000000000000000000000"} survives
+    // Mongoose casting, making findById return an arbitrary space.
     const {
       spaceId,
       startTime,
@@ -441,7 +460,7 @@ async function createBooking(req, res) {
       holdMinutes,
       addOns,
       preferInstant,
-    } = req.body;
+    } = schemas.parse(schemas.bookingCreate, req.body);
     try {
       const booking = await bookingService.createBooking({
         customerId,

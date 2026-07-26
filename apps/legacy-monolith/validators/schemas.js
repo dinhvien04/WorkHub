@@ -9,14 +9,36 @@ const pagination = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+/**
+ * Booking creation.
+ *
+ * `spaceId` must be a plain ObjectId string. Mongoose does not reject a query
+ * operator here — `Space.findById({$gte: "000..."})` casts to
+ * `{_id: {$gte: ...}}` and returns whichever space mongod orders first — so
+ * this regex is what stops a JSON body from booking a space the caller never
+ * named, complete with that space's price snapshot and slot locks.
+ *
+ * `addOns` matches the shape bookingService actually consumes
+ * ({addOnId, quantity}); the earlier `addOnIds` field described a shape no
+ * caller sent, which is part of why this schema went unused.
+ */
 const bookingCreate = z.object({
   spaceId: objectId,
-  startTime: z.string().min(1),
-  endTime: z.string().min(1),
+  startTime: z.string().min(1).max(64),
+  endTime: z.string().min(1).max(64),
   note: z.string().max(500).optional(),
   couponCode: z.string().max(40).optional(),
   holdMinutes: z.coerce.number().int().min(5).max(60).optional(),
-  addOnIds: z.array(objectId).max(20).optional(),
+  preferInstant: z.coerce.boolean().optional(),
+  addOns: z
+    .array(
+      z.object({
+        addOnId: objectId,
+        quantity: z.coerce.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 const reschedule = z.object({

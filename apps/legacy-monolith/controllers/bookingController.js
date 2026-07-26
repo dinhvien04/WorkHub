@@ -667,18 +667,33 @@ const staffHostCalendar = asyncHandler(async (req, res) => {
   const hostOwnerId = req.hostOwnerId || req.user.userId;
   if (req.query.branchId) {
     staffService.assertBranchAccess(req.hostContext, req.query.branchId);
-  } else if (
-    req.hostContext &&
-    !req.hostContext.isOwner &&
-    req.hostContext.allowedBranchIds
-  ) {
-    req.query.branchId = req.hostContext.allowedBranchIds[0];
   }
+
+  // Without an explicit branch this used to do `allowedBranchIds[0]`. For the
+  // default staff membership that array is [] — truthy, so the branch was
+  // taken; [][0] is undefined, so branchId became null, and a null branchId
+  // means *every* branch. Any staff member invited without branches could read
+  // the host's entire cross-branch calendar, customer names and amounts
+  // included. It also showed only the first branch to staff scoped to several.
+  //
+  // assertBranchAccess already rejects an empty allowlist; the fix is to let it.
+  let scopedBranchIds = null;
+  if (!req.query.branchId && req.hostContext && !req.hostContext.isOwner) {
+    const allowed = req.hostContext.allowedBranchIds;
+    if (Array.isArray(allowed)) {
+      if (allowed.length === 0) {
+        staffService.assertBranchAccess(req.hostContext, null); // throws 403
+      }
+      scopedBranchIds = allowed.map(String);
+    }
+  }
+
   const data = await calendarService.getHostCalendar({
     hostId: hostOwnerId,
     from: req.query.from,
     to: req.query.to,
     branchId: req.query.branchId || null,
+    branchIds: scopedBranchIds,
     spaceId: req.query.spaceId || null,
   });
   res.json({
