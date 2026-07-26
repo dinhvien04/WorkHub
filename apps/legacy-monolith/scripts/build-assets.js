@@ -19,6 +19,14 @@ const ENTRIES = [
   { logical: "js/domSafe.js", src: "js/domSafe.js" },
   { logical: "js/ui-bind.js", src: "js/ui-bind.js" },
   { logical: "js/main.js", src: "js/main.js" },
+  { logical: "js/i18n.js", src: "js/i18n.js" },
+  { logical: "js/animations.js", src: "js/animations.js" },
+  // Page scripts injected via res.locals.scriptsFrom([...]). Discovered
+  // at build time so a new page script is hashed without another edit here.
+  ...fs
+    .readdirSync(path.join(__dirname, "..", "public", "js"))
+    .filter((f) => f.endsWith(".js"))
+    .map((f) => ({ logical: `js/${f}`, src: `js/${f}` })),
   { logical: "vendor/chart.min.js", src: "vendor/chart.min.js" },
   { logical: "vendor/choices.min.js", src: "vendor/choices.min.js" },
   { logical: "vendor/choices.min.css", src: "vendor/choices.min.css" },

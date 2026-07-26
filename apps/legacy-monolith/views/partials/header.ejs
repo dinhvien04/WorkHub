@@ -39,6 +39,18 @@
       <button type="button" data-lang-set="en" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white" lang="en">EN</button>
     </div>
 
+    <%/* Sign-up had no entry point anywhere in the shell: /register rendered
+         fine and the API worked, but the only link to it was on the login
+         page, so a first-time visitor had to guess the URL. Paired with the
+         login button and toggled by the same auth check in main.js. */%>
+    <a
+      id="nav-register-link"
+      href="/register"
+      class="wh-btn-outline text-sm"
+    >
+      Đăng ký
+    </a>
+
     <button
       id="nav-login-btn"
       type="button"

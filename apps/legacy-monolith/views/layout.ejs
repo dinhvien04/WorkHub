@@ -83,12 +83,17 @@
     <% if (typeof loadChoices !== 'undefined' && loadChoices) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= typeof asset === 'function' ? asset('vendor/choices.min.js') : '/vendor/choices.min.js' %>" defer></script>
     <% } %>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/api.js"></script>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/domSafe.js"></script>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/ui-bind.js"></script>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/i18n.js"></script>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/main.js"></script>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/animations.js" defer></script>
+    <% /* Hashed through the asset manifest. These were referenced by their
+          unhashed path while express.static serves /js with a 7-day
+          Cache-Control in production — so a deploy that changed main.js
+          would not reach returning visitors for up to a week. */ %>
+    <% const _js = (n) => (typeof asset === 'function') ? asset('js/' + n) : '/js/' + n; %>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= _js('api.js') %>"></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= _js('domSafe.js') %>"></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= _js('ui-bind.js') %>"></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= _js('i18n.js') %>"></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= _js('main.js') %>"></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= _js('animations.js') %>" defer></script>
     <%- typeof scripts !== 'undefined' ? scripts : '' %>
     <nav class="mobile-bottom-nav" aria-label="Điều hướng mobile">
       <a href="/" class="mob-nav-item" data-nav="home">🏠<span>Khám phá</span></a>

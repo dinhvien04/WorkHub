@@ -331,7 +331,14 @@ function createApp() {
     // Helper for page scripts with CSP nonce
     res.locals.scriptSrc = function scriptSrc(src) {
       const n = res.locals.cspNonce || "";
-      return `<script nonce="${n}" src="${src}"></script>`;
+      // Resolve through the asset manifest so page scripts are cache-busted on
+      // deploy like the shell scripts are. express.static serves /js with a
+      // 7-day Cache-Control in production, so an unhashed path means a changed
+      // file can take a week to reach a returning visitor. Falls through
+      // unchanged for anything the manifest does not know about.
+      const logical = String(src).replace(/^\//, "");
+      const resolved = res.locals.asset ? res.locals.asset(logical) : src;
+      return `<script nonce="${n}" src="${resolved}"></script>`;
     };
     res.locals.scriptsFrom = function scriptsFrom(list) {
       return (list || []).map((s) => res.locals.scriptSrc(s)).join("");

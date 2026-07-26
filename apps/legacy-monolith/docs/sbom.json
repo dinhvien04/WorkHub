@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-26T15:43:55.913Z",
+    "timestamp": "2026-07-26T15:55:22.043Z",
     "component": {
       "type": "application",
       "name": "@workhub/legacy-monolith",

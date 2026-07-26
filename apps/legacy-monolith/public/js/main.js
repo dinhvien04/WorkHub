@@ -228,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function updateUIBasedOnAuth() {
   const loginBtn = document.getElementById('nav-login-btn');
+  const registerLink = document.getElementById('nav-register-link');
   const userInfo = document.getElementById('user-info');
   const nameDisplay = document.getElementById('user-display-name');
   const roleDisplay = document.getElementById('user-display-role');
@@ -252,6 +253,7 @@ async function updateUIBasedOnAuth() {
 
   if (user) {
     if (loginBtn) loginBtn.classList.add('hidden');
+    if (registerLink) registerLink.classList.add('hidden');
     if (userInfo) userInfo.classList.remove('hidden');
 
     const userName = user.fullName || sessionStorage.getItem('displayName') || '';
@@ -284,6 +286,7 @@ async function updateUIBasedOnAuth() {
     refreshNotifBadge();
   } else {
     if (loginBtn) loginBtn.classList.remove('hidden');
+    if (registerLink) registerLink.classList.remove('hidden');
     if (userInfo) userInfo.classList.add('hidden');
     if (sidebar) sidebar.classList.add('hidden-permanent');
     if (sidebarToggle) sidebarToggle.classList.add('hidden');
