@@ -22,33 +22,40 @@
   }
 
   // ─── 1. Scroll-triggered reveal ────────────────────────────────────────────
+  // Two selectors: the original `.reveal-on-scroll` and the design-system
+  // `.wh-fade-up`. Each starts hidden in CSS, so if this never runs the
+  // content would be invisible — every early-return path below therefore
+  // reveals everything rather than bailing out silently.
+  var REVEAL_SELECTOR = '.reveal-on-scroll, .wh-fade-up';
+
+  function markRevealed(el) {
+    el.classList.add('revealed', 'is-visible');
+  }
+
   function initScrollReveal() {
-    if (prefersReduced) {
-      // Show all without animation
-      document.querySelectorAll('.reveal-on-scroll').forEach(function (el) {
-        el.classList.add('revealed');
+    var nodes = document.querySelectorAll(REVEAL_SELECTOR);
+
+    if (prefersReduced || typeof IntersectionObserver === 'undefined') {
+      nodes.forEach(function (el) {
+        markRevealed(el);
         el.style.opacity = '';
+        el.style.transform = '';
       });
       return;
     }
-    if (typeof IntersectionObserver === 'undefined') {
-      document.querySelectorAll('.reveal-on-scroll').forEach(function (el) {
-        el.classList.add('revealed');
-      });
-      return;
-    }
+
     var observer = new IntersectionObserver(
       function (entries) {
         entries.forEach(function (entry) {
           if (entry.isIntersecting) {
-            entry.target.classList.add('revealed');
+            markRevealed(entry.target);
             observer.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
     );
-    document.querySelectorAll('.reveal-on-scroll').forEach(function (el) {
+    nodes.forEach(function (el) {
       observer.observe(el);
     });
   }

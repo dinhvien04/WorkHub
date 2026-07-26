@@ -129,8 +129,9 @@
                     </div>
                 </div>
             </div>
-            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            <script src="/js/host-dashboard.js"></script>
+            <%/* Chart.js comes from layout.ejs (loadChartJs) with the CSP nonce;
+                 the unnonced jsdelivr tag here was blocked in production.
+                 host-dashboard.js is injected via scriptsFrom in app.js. */%>
         </main>
     </div>
 </div>
@@ -222,5 +223,6 @@
     </div>
 </div>
 
-<script src="/js/main.js"></script>
-<script src="/js/host-spaces.js"></script>
+<%/* main.js and host-spaces.js are injected by app.js through
+     res.locals.scriptsFrom([...]), which adds the CSP nonce. Loading them
+     again here duplicated both bundles on this page. */%>

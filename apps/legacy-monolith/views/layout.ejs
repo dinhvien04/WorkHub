@@ -23,6 +23,10 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
+    <% /* Set before paint so scroll-reveal styles only hide content when
+          scripting is actually available to reveal it again. */ %>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>">document.documentElement.classList.add('js');</script>
+
     <% /* Fonts are the first thing the parser blocks on; open the connections
           before the stylesheet that references them. */ %>
     <link rel="preconnect" href="https://fonts.googleapis.com">

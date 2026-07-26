@@ -187,7 +187,12 @@ function showToast(msg, type) {
 
 function toggleSidebar() {
   const s = document.getElementById('sidebar');
-  if (s) s.classList.toggle('collapsed');
+  if (!s) return;
+  const collapsed = s.classList.toggle('collapsed');
+  // Keep the trigger's state in sync; an aria-expanded that never changes is
+  // worse than none, because it actively misreports the UI.
+  const trigger = document.getElementById('sidebar-toggle');
+  if (trigger) trigger.setAttribute('aria-expanded', String(!collapsed));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -312,6 +317,9 @@ function renderMenu(currentRole) {
   const c = document.getElementById('menu-items');
   if (!c) return;
   c.textContent = '';
+  // The container ships with aria-busy="true" because it starts empty and is
+  // filled from the user's role; clear it now that the menu exists.
+  c.setAttribute('aria-busy', 'false');
 
   (menus[currentRole] || []).forEach((i, idx) => {
     const d = document.createElement('div');

@@ -59,4 +59,8 @@
         </div>
     </div>
 </div>
-<script src="/socket.io/socket.io.js"></script> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<%/* Chart.js is loaded by layout.ejs when loadChartJs is set, with the CSP
+     nonce. The jsdelivr tag that used to sit here carried no nonce, and
+     production script-src is only 'self' plus nonce — so it was blocked and
+     this dashboard rendered without charts. */%>

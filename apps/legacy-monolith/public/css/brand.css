@@ -331,18 +331,23 @@
 .wh-media-zoom:hover img { transform: scale(1.06); }
 
 /* ─── Scroll reveal ───
-   Driven by public/js/animations.js. If the observer never runs, the no-js
-   fallback below keeps content visible. */
-.wh-fade-up {
+   Driven by public/js/animations.js.
+
+   The hidden state is scoped to `html.js`, which a tiny inline script in
+   layout.ejs sets before paint. Without that class — scripting disabled, a
+   CSP mishap, animations.js failing to load — the content simply renders
+   visible. Hiding it unconditionally would mean one broken script request
+   turns the page blank for users and crawlers alike. */
+.js .wh-fade-up {
   opacity: 0;
   transform: translate3d(0, 16px, 0);
   transition:
     opacity var(--duration-slow) var(--ease-out-expo),
     transform var(--duration-slow) var(--ease-out-expo);
 }
-.wh-fade-up.is-visible { opacity: 1; transform: none; }
+.js .wh-fade-up.is-visible { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
-  .wh-fade-up { opacity: 1; transform: none; }
+  .js .wh-fade-up { opacity: 1; transform: none; }
 }
 
 /* ─── Focus visibility on brand surfaces ───
