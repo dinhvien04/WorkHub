@@ -1,10 +1,19 @@
 "use strict";
 
+/**
+ * Authentication for identity-service.
+ *
+ * `attachAuth` runs once per request and does the full verification, storing
+ * the outcome (including *why* it failed) on `req.auth`. `requireAuth` then
+ * turns that into a response. Doing it in one pass means CSRF can bind to the
+ * session id without a second database round trip, and callers keep the
+ * specific "banned" / "session revoked" / "token expired" distinctions.
+ */
 const crypto = require("crypto");
-const jwt = require("jsonwebtoken");
 const env = require("../config/env");
 const User = require("../models/User");
 const UserSession = require("../models/Session");
+const tokenService = require("../services/tokenService");
 
 function safeCompare(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
@@ -34,8 +43,7 @@ function extractToken(req) {
 }
 
 /**
- * Optional gateway-to-service boundary for internal calls.
- * Public auth endpoints do not require this; session-sensitive routes may.
+ * Gateway-to-service boundary for internal-only endpoints.
  */
 function requireInternalService(req, res, next) {
   const internalToken = req.headers["x-internal-token"];
@@ -47,175 +55,168 @@ function requireInternalService(req, res, next) {
   ) {
     return res
       .status(401)
-      .json({ error: "Yêu cầu xác thực mạng nội bộ không hợp lệ." });
+      .json({ error: "Yêu cầu xác thực mạng nội bộ không hợp lệ.", code: "INTERNAL_AUTH_FAILED" });
   }
   return next();
 }
 
-async function verifyToken(req, res, next) {
-  try {
-    const token = extractToken(req);
-    if (!token) {
-      return res.status(401).json({ error: "Yêu cầu đăng nhập để truy cập." });
-    }
+const FAILURES = {
+  no_token: { status: 401, code: "AUTH_REQUIRED", message: "Yêu cầu đăng nhập để truy cập." },
+  invalid_token: {
+    status: 401,
+    code: "TOKEN_INVALID",
+    message: "Token không hợp lệ hoặc đã hết hạn.",
+  },
+  legacy_disabled: {
+    status: 401,
+    code: "TOKEN_LEGACY_REJECTED",
+    message: "Phiên đăng nhập cũ không còn được chấp nhận. Vui lòng đăng nhập lại.",
+  },
+  unknown_user: { status: 401, code: "USER_NOT_FOUND", message: "Tài khoản không tồn tại." },
+  banned: { status: 403, code: "USER_BANNED", message: "Tài khoản của bạn đã bị khóa." },
+  inactive: { status: 403, code: "USER_INACTIVE", message: "Tài khoản chưa được kích hoạt." },
+  stale_token_version: {
+    status: 401,
+    code: "TOKEN_VERSION_STALE",
+    message: "Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.",
+  },
+  session_revoked: {
+    status: 401,
+    code: "SESSION_REVOKED",
+    message: "Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.",
+  },
+  session_expired: {
+    status: 401,
+    code: "SESSION_EXPIRED",
+    message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+  },
+  session_required: {
+    status: 401,
+    code: "SESSION_REQUIRED",
+    message: "Token thiếu định danh phiên. Vui lòng đăng nhập lại.",
+  },
+};
 
-    let decoded;
-    const decodedHeader = jwt.decode(token, { complete: true });
-    const alg = decodedHeader?.header?.alg;
-
-    if (alg === "RS256") {
-      const keyManager = require("../services/keyManager");
-      const key = keyManager.getActiveKey();
-      decoded = jwt.verify(token, key.publicKey, {
-        algorithms: ["RS256"],
-        issuer: "workhub-identity",
-        audience: "workhub-api-gateway",
-      });
-    } else {
-      // Legacy HS256 verification
-      decoded = jwt.verify(token, env.JWT_SECRET, {
-        algorithms: ["HS256"],
-        issuer: "workhub-auth",
-        audience: "workhub-app",
-      });
-    }
-
-    const userId = decoded.userId || decoded.id || decoded._id || decoded.sub;
-    if (!userId) {
-      return res.status(401).json({ error: "Token không chứa userId." });
-    }
-
-    const user = await User.findById(userId).select(
-      "_id Role Status Email FullName tokenVersion",
-    );
-    if (!user) {
-      return res.status(401).json({ error: "Tài khoản không tồn tại." });
-    }
-    if (user.Status === "banned") {
-      return res.status(403).json({ error: "Tài khoản của bạn đã bị khóa." });
-    }
-    if (user.Status !== "active") {
-      return res.status(403).json({ error: "Tài khoản chưa được kích hoạt." });
-    }
-
-    const tokenVersion =
-      typeof decoded.tokenVersion === "number" ? decoded.tokenVersion : 0;
-    const dbVersion =
-      typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
-    if (tokenVersion !== dbVersion) {
-      return res.status(401).json({
-        error: "Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.",
-      });
-    }
-
-    if (decoded.sid) {
-      const sidHash = crypto
-        .createHash("sha256")
-        .update(String(decoded.sid))
-        .digest("hex");
-      const sess = await UserSession.findOne({
-        UserID: userId,
-        RevokedAt: null,
-        SidHash: sidHash,
-      }).lean();
-      if (!sess) {
-        return res.status(401).json({
-          error: "Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.",
-        });
-      }
-      if (sess.ExpiresAt && new Date(sess.ExpiresAt) < new Date()) {
-        return res.status(401).json({
-          error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-        });
-      }
-      req.sessionId = sess.PublicSessionID || null;
-      req.sid = decoded.sid;
-    }
-
-    req.user = {
-      userId: user._id.toString(),
-      role: user.Role,
-      email: user.Email,
-      fullName: user.FullName,
-      tokenVersion: user.tokenVersion || 0,
-      sid: decoded.sid || null,
-    };
-    return next();
-  } catch (err) {
-    return res
-      .status(401)
-      .json({ error: "Token không hợp lệ hoặc đã hết hạn." });
-  }
+function fail(reason) {
+  return { ok: false, reason, ...FAILURES[reason] };
 }
 
 /**
- * Attach user when a valid token is present; otherwise continue anonymously.
- * Used for logout and public email verification resend.
- * Invalid/expired tokens are ignored (never hard-fail).
+ * Full verification: token integrity, user state, tokenVersion, session.
  */
-async function optionalToken(req, res, next) {
+async function resolveAuth(req) {
   const token = extractToken(req);
-  if (!token) return next();
+  if (!token) return fail("no_token");
+
+  let claims;
   try {
-    let decoded;
-    const decodedHeader = jwt.decode(token, { complete: true });
-    const alg = decodedHeader?.header?.alg;
-
-    if (alg === "RS256") {
-      const keyManager = require("../services/keyManager");
-      const key = keyManager.getActiveKey();
-      decoded = jwt.verify(token, key.publicKey, {
-        algorithms: ["RS256"],
-        issuer: "workhub-identity",
-        audience: "workhub-api-gateway",
-      });
-    } else {
-      // Legacy HS256 verification
-      decoded = jwt.verify(token, env.JWT_SECRET, {
-        algorithms: ["HS256"],
-        issuer: "workhub-auth",
-        audience: "workhub-app",
-      });
+    claims = tokenService.verifyAccessToken(token);
+  } catch (rsErr) {
+    // Fall back to the monolith's HS256 tokens while the sunset window is open.
+    try {
+      claims = tokenService.verifyLegacyAccessToken(token);
+    } catch (hsErr) {
+      if (hsErr.reason === "legacy_disabled") return fail("legacy_disabled");
+      void rsErr;
+      return fail("invalid_token");
     }
+  }
 
-    const userId = decoded.userId || decoded.id || decoded._id || decoded.sub;
-    if (!userId) return next();
-    const user = await User.findById(userId).select(
-      "_id Role Status Email FullName tokenVersion",
-    );
-    if (!user || user.Status !== "active") return next();
-    const tokenVersion =
-      typeof decoded.tokenVersion === "number" ? decoded.tokenVersion : 0;
-    const dbVersion =
-      typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
-    if (tokenVersion !== dbVersion) return next();
-    req.user = {
+  const user = await User.findById(claims.userId).select(
+    "_id Role Status Email FullName tokenVersion",
+  );
+  if (!user) return fail("unknown_user");
+  if (user.Status === "banned") return fail("banned");
+  if (user.Status !== "active") return fail("inactive");
+
+  const dbVersion = typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
+  if (claims.tokenVersion !== dbVersion) return fail("stale_token_version");
+
+  let publicSessionId = null;
+  if (claims.sid) {
+    const sidHash = crypto.createHash("sha256").update(String(claims.sid)).digest("hex");
+    const session = await UserSession.findOne({
+      UserID: user._id,
+      RevokedAt: null,
+      SidHash: sidHash,
+    }).lean();
+
+    if (!session) return fail("session_revoked");
+    if (session.ExpiresAt && new Date(session.ExpiresAt) < new Date()) {
+      return fail("session_expired");
+    }
+    publicSessionId = session.PublicSessionID || null;
+  } else if (env.SESSION_REQUIRE_SID) {
+    return fail("session_required");
+  }
+
+  return {
+    ok: true,
+    user: {
       userId: user._id.toString(),
       role: user.Role,
       email: user.Email,
       fullName: user.FullName,
-      tokenVersion: user.tokenVersion || 0,
-      sid: decoded.sid || null,
-    };
-    req.sid = decoded.sid || null;
-  } catch {
-    /* ignore invalid token for optional auth */
+      tokenVersion: dbVersion,
+      sid: claims.sid || null,
+    },
+    sid: claims.sid || null,
+    publicSessionId,
+    legacy: Boolean(claims.legacy),
+  };
+}
+
+/**
+ * App-level: resolve auth once, never reject. Populates req.user when valid so
+ * downstream middleware (CSRF) can bind to the session.
+ */
+async function attachAuth(req, res, next) {
+  try {
+    const result = await resolveAuth(req);
+    req.auth = result;
+    if (result.ok) {
+      req.user = result.user;
+      req.sid = result.sid;
+      req.sessionId = result.publicSessionId;
+    }
+  } catch (err) {
+    req.auth = fail("invalid_token");
+    console.error("[Auth] Unexpected verification error:", err.message);
   }
   return next();
 }
 
-function requireAdmin(req, res, next) {
-  if (req.user && req.user.role === "admin") {
-    return next();
+/**
+ * Route-level: require a valid session, surfacing the specific failure.
+ */
+function requireAuth(req, res, next) {
+  const result = req.auth;
+  if (!result) {
+    return res
+      .status(500)
+      .json({ error: "Auth middleware chưa được gắn.", code: "AUTH_NOT_ATTACHED" });
   }
-  return res.status(403).json({ error: "Quyền truy cập bị từ chối. Chỉ dành cho Admin." });
+  if (result.ok) return next();
+  return res.status(result.status).json({ error: result.message, code: result.code });
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user && req.user.role === "admin") return next();
+  return res.status(403).json({
+    error: "Quyền truy cập bị từ chối. Chỉ dành cho Admin.",
+    code: "ADMIN_REQUIRED",
+  });
 }
 
 module.exports = {
   safeCompare,
   extractToken,
   requireInternalService,
-  verifyToken,
-  optionalToken,
+  resolveAuth,
+  attachAuth,
+  requireAuth,
   requireAdmin,
+  // Back-compat aliases for existing route definitions.
+  verifyToken: requireAuth,
+  optionalToken: attachAuth,
 };

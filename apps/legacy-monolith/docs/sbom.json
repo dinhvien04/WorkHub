@@ -3,7 +3,7 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-25T11:36:14.653Z",
+    "timestamp": "2026-07-26T12:16:24.655Z",
     "component": {
       "type": "application",
       "name": "@workhub/legacy-monolith",
@@ -1051,6 +1051,14 @@
     },
     {
       "type": "library",
+      "name": "@phc/format",
+      "version": "1.0.0",
+      "purl": "pkg:npm/%40phc%2Fformat@1.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "@pinojs/redact",
       "version": "0.4.0",
       "purl": "pkg:npm/%40pinojs%2Fredact@0.4.0",
@@ -1511,6 +1519,19 @@
     },
     {
       "type": "library",
+      "name": "@workhub/identity-service",
+      "version": null,
+      "dev": false
+    },
+    {
+      "type": "library",
+      "name": "@workhub/identity-service",
+      "version": "1.1.0",
+      "purl": "pkg:npm/%40workhub%2Fidentity-service@1.1.0",
+      "dev": false
+    },
+    {
+      "type": "library",
       "name": "@workhub/legacy-monolith",
       "version": "1.1.0",
       "purl": "pkg:npm/%40workhub%2Flegacy-monolith@1.1.0",
@@ -1778,6 +1799,14 @@
       "name": "archiver-utils>string_decoder",
       "version": "1.1.1",
       "purl": "pkg:npm/archiver-utils%3Estring_decoder@1.1.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "argon2",
+      "version": "0.40.3",
+      "purl": "pkg:npm/argon2@0.40.3",
       "dev": false,
       "license": "MIT"
     },
@@ -4980,6 +5009,14 @@
     },
     {
       "type": "library",
+      "name": "node-addon-api",
+      "version": "8.9.0",
+      "purl": "pkg:npm/node-addon-api@8.9.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
       "name": "node-domexception",
       "version": "1.0.0",
       "purl": "pkg:npm/node-domexception@1.0.0",
@@ -4991,6 +5028,14 @@
       "name": "node-fetch",
       "version": "3.3.2",
       "purl": "pkg:npm/node-fetch@3.3.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "node-gyp-build",
+      "version": "4.8.4",
+      "purl": "pkg:npm/node-gyp-build@4.8.4",
       "dev": false,
       "license": "MIT"
     },
@@ -5953,6 +5998,102 @@
       "purl": "pkg:npm/services%2Fcontent-service%2Fnode_modules%2Fwebidl-conversions@3.0.1",
       "dev": false,
       "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/agent-base",
+      "version": "6.0.2",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fagent-base@6.0.2",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/gaxios",
+      "version": "5.1.3",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fgaxios@5.1.3",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/gcp-metadata",
+      "version": "5.3.0",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fgcp-metadata@5.3.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/https-proxy-agent",
+      "version": "5.0.1",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fhttps-proxy-agent@5.0.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/kareem",
+      "version": "2.6.3",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fkareem@2.6.3",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/mongodb",
+      "version": "6.20.0",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fmongodb@6.20.0",
+      "dev": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/mongoose",
+      "version": "8.24.1",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fmongoose@8.24.1",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/mquery",
+      "version": "5.0.0",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fmquery@5.0.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/node-fetch",
+      "version": "2.7.0",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fnode-fetch@2.7.0",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/tr46",
+      "version": "0.0.3",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Ftr46@0.0.3",
+      "dev": false,
+      "license": "MIT"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/webidl-conversions",
+      "version": "3.0.1",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fwebidl-conversions@3.0.1",
+      "dev": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "type": "library",
+      "name": "services/identity-service/node_modules/whatwg-url",
+      "version": "5.0.0",
+      "purl": "pkg:npm/services%2Fidentity-service%2Fnode_modules%2Fwhatwg-url@5.0.0",
+      "dev": false,
+      "license": "MIT"
     },
     {
       "type": "library",

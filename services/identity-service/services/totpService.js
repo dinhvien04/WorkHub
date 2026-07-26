@@ -2,13 +2,20 @@
 
 /**
  * RFC 6238 TOTP (SHA-1, 30s, 6 digits) — no external OTP dependency.
+ *
+ * Seeds are encrypted at rest through the versioned keyring in ./keyring.js,
+ * with the user id bound in as AAD so a seed cannot be replayed onto another
+ * account. Recovery codes are bcrypt-hashed and consumed with a conditional
+ * update so two concurrent requests cannot spend the same code.
  */
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
+const { getTotpKeyring, KeyringError } = require("./keyring");
 
 const STEP = 30;
 const DIGITS = 6;
 const WINDOW = 1;
+const RECOVERY_CODE_BYTES = 5;
 
 function base32Encode(buf) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -72,14 +79,21 @@ function totpAt(secretBase32, timeMs = Date.now()) {
 }
 
 function verifyTotp(secretBase32, token, { window = WINDOW } = {}) {
+  if (!secretBase32) return false;
   const code = String(token || "").replace(/\s/g, "");
   if (!/^\d{6}$/.test(code)) return false;
+
   const now = Date.now();
+  let matched = false;
+  // Walk every step in the window so the comparison cost does not leak which
+  // step matched.
   for (let w = -window; w <= window; w++) {
-    const t = now + w * STEP * 1000;
-    if (totpAt(secretBase32, t) === code) return true;
+    const candidate = totpAt(secretBase32, now + w * STEP * 1000);
+    const a = Buffer.from(candidate);
+    const b = Buffer.from(code);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) matched = true;
   }
-  return false;
+  return matched;
 }
 
 function otpauthUrl({ secret, email, issuer = "WorkHub" }) {
@@ -95,80 +109,84 @@ function otpauthUrl({ secret, email, issuer = "WorkHub" }) {
 }
 
 function generateRecoveryCodes(count = 8) {
-  const plain = [];
+  const codes = [];
   for (let i = 0; i < count; i++) {
-    plain.push(crypto.randomBytes(4).toString("hex"));
+    codes.push(crypto.randomBytes(RECOVERY_CODE_BYTES).toString("hex"));
   }
-  return plain;
+  return codes;
 }
 
 async function hashRecoveryCodes(codes) {
-  return Promise.all(codes.map((c) => bcrypt.hash(c, 10)));
+  return Promise.all(codes.map((c) => bcrypt.hash(String(c).toLowerCase(), 10)));
 }
 
-async function consumeRecoveryCode(hashedList, plainCode) {
-  const code = String(plainCode || "")
-    .trim()
-    .toLowerCase();
-  if (!code) return { ok: false, remaining: hashedList };
-  const remaining = [];
-  let matched = false;
-  for (const h of hashedList || []) {
-    if (!matched && (await bcrypt.compare(code, h))) {
-      matched = true;
-      continue;
+/**
+ * Atomically spend one recovery code.
+ *
+ * bcrypt hashes are salted, so the matching hash has to be found in memory —
+ * but the removal is a conditional $pull on that exact hash string. If two
+ * requests race, only the first update matches and the loser gets ok:false.
+ */
+async function consumeRecoveryCodeAtomic(UserModel, userId, plainCode, { session } = {}) {
+  const code = String(plainCode || "").trim().toLowerCase();
+  if (!code) return { ok: false };
+
+  const query = UserModel.findById(userId).select("+TotpRecoveryHashes");
+  if (session) query.session(session);
+  const user = await query;
+  const hashes = (user && user.TotpRecoveryHashes) || [];
+
+  for (const hash of hashes) {
+    let matches = false;
+    try {
+      matches = await bcrypt.compare(code, hash);
+    } catch {
+      matches = false;
     }
-    remaining.push(h);
-  }
-  return { ok: matched, remaining };
-}
+    if (!matches) continue;
 
-const KEY_VERSION = process.env.IDENTITY_TOTP_KEY_VERSION || "v1";
+    const updateOpts = session ? { session } : {};
+    const result = await UserModel.updateOne(
+      { _id: userId, TotpRecoveryHashes: hash },
+      { $pull: { TotpRecoveryHashes: hash } },
+      updateOpts,
+    );
 
-function getEncryptionKey() {
-  const envKey = process.env.IDENTITY_TOTP_ENCRYPTION_KEY;
-  if (envKey) {
-    const buf = Buffer.from(envKey, "hex");
-    if (buf.length === 32) return buf;
+    // modifiedCount 0 means a concurrent request already spent this code.
+    if (result.modifiedCount === 1) return { ok: true, consumedHash: hash };
+    return { ok: false, raced: true };
   }
-  const internalSecret = process.env.IDENTITY_INTERNAL_SECRET || "default_test_identity_internal_secret_key";
-  return crypto.createHash("sha256").update(internalSecret).digest();
+
+  return { ok: false };
 }
 
 function encryptSecret(plaintextSecret, userId) {
-  if (!plaintextSecret) return null;
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-
-  cipher.setAAD(Buffer.from(String(userId)));
-
-  let encrypted = cipher.update(plaintextSecret, "utf8", "hex");
-  encrypted += cipher.final("hex");
-  const tag = cipher.getAuthTag().toString("hex");
-
-  return `${KEY_VERSION}:${iv.toString("hex")}:${tag}:${encrypted}`;
+  return getTotpKeyring().encrypt(plaintextSecret, userId);
 }
 
+/**
+ * Decrypt a stored seed. Throws KeyringError on malformed ciphertext, a
+ * missing key version, or a failed authentication tag — callers must treat
+ * that as "2FA is broken for this account", never as a successful verify.
+ */
 function decryptSecret(encryptedSecret, userId) {
-  if (!encryptedSecret) return null;
-  const parts = String(encryptedSecret).split(":");
-  if (parts.length !== 4) {
-    return encryptedSecret; // fallback for legacy plaintext
+  return getTotpKeyring().decrypt(encryptedSecret, userId);
+}
+
+/**
+ * Decrypt without throwing, for verification paths that must fail closed.
+ */
+function tryDecryptSecret(encryptedSecret, userId) {
+  try {
+    return { ok: true, secret: decryptSecret(encryptedSecret, userId) };
+  } catch (err) {
+    if (err instanceof KeyringError) return { ok: false, error: err.message };
+    throw err;
   }
+}
 
-  const [_version, ivHex, tagHex, ciphertextHex] = parts;
-  const key = getEncryptionKey();
-  const iv = Buffer.from(ivHex, "hex");
-  const tag = Buffer.from(tagHex, "hex");
-
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-  decipher.setAuthTag(tag);
-  decipher.setAAD(Buffer.from(String(userId)));
-
-  let decrypted = decipher.update(ciphertextHex, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+function needsRotation(storedSecret) {
+  return getTotpKeyring().needsRotation(storedSecret);
 }
 
 module.exports = {
@@ -178,9 +196,13 @@ module.exports = {
   otpauthUrl,
   generateRecoveryCodes,
   hashRecoveryCodes,
-  consumeRecoveryCode,
+  consumeRecoveryCodeAtomic,
   base32Encode,
   base32Decode,
   encryptSecret,
   decryptSecret,
+  tryDecryptSecret,
+  needsRotation,
+  STEP,
+  DIGITS,
 };

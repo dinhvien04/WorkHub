@@ -199,49 +199,49 @@ async function upsertGoogleUser(profile) {
     );
   }
 
-  const randomPass = crypto.randomBytes(32).toString("hex");
-  const bcrypt = require("bcryptjs");
-  user = await User.create({
-    Email: email,
-    FullName: profile.name || email.split("@")[0],
-    PasswordHash: await bcrypt.hash(randomPass, 10),
-    Role: "customer",
-    Status: "active",
-    AuthProvider: "google",
-    GoogleSub: sub,
-    EmailVerified: true,
-    EmailVerifiedAt: new Date(),
-    tokenVersion: 0,
+  // Google-authenticated accounts have no usable password. Store an Argon2id
+  // hash of random bytes so the field is never empty and can never be matched.
+  const { hashPassword } = require("../utils/password");
+  const unusablePassword = await hashPassword(crypto.randomBytes(32).toString("hex"));
+
+  const { withTransaction } = require("../utils/mongoTransaction");
+  const outboxService = require("./outboxService");
+
+  return withTransaction(async (session) => {
+    const userDoc = {
+      Email: email,
+      FullName: profile.name || email.split("@")[0],
+      PasswordHash: unusablePassword,
+      Role: "customer",
+      Status: "active",
+      AuthProvider: "google",
+      GoogleSub: sub,
+      EmailVerified: true,
+      EmailVerifiedAt: new Date(),
+      tokenVersion: 0,
+    };
+
+    let created;
+    if (session) [created] = await User.create([userDoc], { session });
+    else created = await User.create(userDoc);
+
+    // The customer profile belongs to the catalog/customer domain, not to
+    // identity — it is created by the consumer of this event.
+    await outboxService.enqueueUserCreated(created, { session });
+    await outboxService.enqueueAudit(
+      {
+        userId: created._id,
+        action: "REGISTER_USER_GOOGLE",
+        entityType: "User",
+        entityId: created._id,
+        message: `Tài khoản ${created.Email} đăng ký qua Google`,
+        level: "success",
+      },
+      { session },
+    );
+
+    return created;
   });
-
-  const integrationOutboxService = require("./integrationOutboxService");
-  await integrationOutboxService.enqueue(
-    "identity.user-created.v1",
-    user._id,
-    {
-      userId: String(user._id),
-      email: user.Email,
-      fullName: user.FullName,
-      role: user.Role,
-      status: user.Status,
-      tokenVersion: user.tokenVersion || 0
-    },
-    {
-      idempotencyKey: `google-register:${user._id}:user-created-event`,
-    }
-  );
-
-  try {
-    const CustomerProfile = require("../models/Customer_Profile");
-    await CustomerProfile.create({
-      UserID: user._id,
-      Phone: "",
-      Avatar: profile.picture || "",
-    });
-  } catch {
-    /* ignore duplicate profile */
-  }
-  return user;
 }
 
 async function handleCallback(req, res, { code, state }) {

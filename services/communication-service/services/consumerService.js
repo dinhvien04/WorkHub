@@ -157,6 +157,30 @@ async function handleUserUpdated(event) {
   });
 }
 
+/**
+ * Identity asked us to deliver a transactional email.
+ *
+ * Identity never contacts an email provider itself — it records the intent in
+ * its outbox and this consumer owns delivery, retries and rendering. These are
+ * security-critical mails (verification tokens, reset OTPs), so they bypass
+ * marketing preferences but still go through the normal outbox + worker path.
+ */
+async function handleEmailRequested(event) {
+  await processIdempotent(event.eventId, async (session) => {
+    const { userId, toEmail, template, data } = event.data;
+
+    await emailService.enqueueTemplate(
+      {
+        template,
+        recipientId: userId || toEmail,
+        toEmail,
+        data: data || {},
+      },
+      { session, idempotencyKey: `identity-email:${event.eventId}` },
+    );
+  });
+}
+
 async function handleReviewReplied(event) {
   await processIdempotent(event.eventId, async (session) => {
     const { reviewId, customerId, replyText } = event.data;
@@ -403,6 +427,7 @@ async function start() {
   const eventRoutes = {
     "identity.user-created.v1": handleUserCreated,
     "identity.user-updated.v1": handleUserUpdated,
+    "identity.email-requested.v1": handleEmailRequested,
     "catalog.review-replied.v1": handleReviewReplied,
     "booking.confirmed.v1": handleBookingConfirmed,
     "booking.cancelled.v1": handleBookingCancelled,
