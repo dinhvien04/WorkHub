@@ -13,6 +13,14 @@ server {
   # ssl_certificate ...;
   # ssl_certificate_key ...;
 
+  # Outer ceiling on request bodies. The app caps uploads at 5MB per file and
+  # 10 files, but nginx is what stops a multipart body from being streamed into
+  # the Node process at all — express.json's 1mb limit does not apply to
+  # multipart. Keep this above the app's own limit so the app returns the
+  # specific 400, and nginx only catches the genuinely absurd.
+  client_max_body_size 64m;
+  client_body_timeout 30s;
+
   # gzip fallback
   gzip on;
   gzip_types text/plain text/css application/javascript application/json image/svg+xml;

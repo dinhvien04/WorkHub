@@ -60,12 +60,26 @@ function fileFilter(req, file, cb) {
 const memoryStorage = multer.memoryStorage();
 const useCloud = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY);
 
+// multer hands `limits` straight to busboy, and busboy defaults everything not
+// listed here to Infinity (fields, parts) or 1MB (fieldSize). Capping only
+// fileSize/files therefore left non-file text parts unbounded: an
+// unauthenticated multipart POST to /api/auth/register carrying a few thousand
+// ~1MB text fields is buffered into req.body before any handler runs, which is
+// enough to exhaust the heap. express.json's 1mb limit does not apply to
+// multipart bodies, so this object is the only ceiling that exists.
+const uploadLimits = Object.freeze({
+  fileSize: 5 * 1024 * 1024,
+  files: 10,
+  fields: 25,
+  parts: 40,
+  fieldSize: 32 * 1024,
+  fieldNameSize: 100,
+  headerPairs: 100,
+});
+
 const uploadMemory = multer({
   storage: memoryStorage,
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 10,
-  },
+  limits: uploadLimits,
   fileFilter,
 });
 
@@ -167,3 +181,4 @@ module.exports.CloudinaryStorage = CloudinaryStorage;
 module.exports.useCloud = useCloud;
 module.exports.uploadValidatedToCloudinary = uploadValidatedToCloudinary;
 module.exports.cleanupUploadedFile = cleanupUploadedFile;
+module.exports.uploadLimits = uploadLimits;

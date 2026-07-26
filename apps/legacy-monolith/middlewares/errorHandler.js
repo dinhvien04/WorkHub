@@ -13,13 +13,20 @@ function notFoundHandler(req, res, _next) {
 }
 
 function errorHandler(err, req, res, _next) {
-  // Multer / payload errors
-  if (
-    err &&
-    (err.code === "LIMIT_FILE_SIZE" ||
-      err.code === "LIMIT_FILE_COUNT" ||
-      err.code === "LIMIT_UNEXPECTED_FILE")
-  ) {
+  // Multer / payload errors. The non-file limits (field count, field size,
+  // part count) must be listed too, otherwise tripping one of them falls
+  // through to the generic 500 handler and reads as a server fault rather than
+  // a rejected request.
+  const MULTER_LIMIT_CODES = new Set([
+    "LIMIT_FILE_SIZE",
+    "LIMIT_FILE_COUNT",
+    "LIMIT_UNEXPECTED_FILE",
+    "LIMIT_FIELD_COUNT",
+    "LIMIT_FIELD_KEY",
+    "LIMIT_FIELD_VALUE",
+    "LIMIT_PART_COUNT",
+  ]);
+  if (err && MULTER_LIMIT_CODES.has(err.code)) {
     return res.status(400).json({
       error: err.message || "File upload không hợp lệ.",
       code: err.code,

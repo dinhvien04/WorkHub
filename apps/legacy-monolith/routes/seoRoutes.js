@@ -6,6 +6,7 @@ const CmsPage = require('../models/CmsPage');
 const SeoRedirect = require('../models/SeoRedirect');
 const { slugify } = require('../utils/slugify');
 const { publicBaseUrl, isSafeInternalPath } = require('../utils/publicBaseUrl');
+const { safeRegexQuery } = require("../utils/escapeRegex");
 
 const router = express.Router();
 
@@ -357,10 +358,18 @@ async function renderListing(req, res, next, { city, district, slug }) {
 
     let branch = await Branch.findOne({ Slug: slug, Status: 'active' }).lean();
     if (!branch) {
-      branch = await Branch.findOne({
-        Status: 'active',
-        Name: new RegExp(slug.replace(/-/g, ' '), 'i'),
-      }).lean();
+      // `slug` is an unauthenticated URL path segment. Compiling it straight
+      // into a RegExp let a request like /khong-gian/a/b/(\w+\s*)+! ship a
+      // catastrophically backtracking pattern to mongod, which then evaluated
+      // it against every active branch name. safeRegexQuery escapes the
+      // metacharacters and caps the length; maxTimeMS bounds the query even if
+      // some future pattern still misbehaves.
+      const nameQuery = safeRegexQuery(slug.replace(/-/g, ' '), 80);
+      if (nameQuery) {
+        branch = await Branch.findOne({ Status: 'active', Name: nameQuery })
+          .maxTimeMS(1000)
+          .lean();
+      }
     }
     if (!branch) {
       return res.status(404).render('customer/search', {

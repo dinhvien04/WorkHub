@@ -9,6 +9,7 @@ const logActivity = require('../utils/auditLogger');
 const AuditLog = require('../models/AuditLog');
 const Review = require('../models/Review'); // ĐÃ THÊM: Thiếu model Review
 const logger = require('../utils/logger');
+const { escapeRegex } = require('../utils/escapeRegex');
 
 function sendServerError(res, error) {
   logger.error(error);
@@ -133,7 +134,9 @@ async function getAdminDashboard(req, res) {
 
     // 2. Xử lý bộ lọc tìm kiếm theo Tên cơ sở hoặc Mã cơ sở
     if (keyword) {
-      const regex = new RegExp(keyword.trim(), 'i');
+      // Escaped: a raw RegExp here let a search string become a backtracking
+      // pattern executed by mongod. escapeRegex neutralises the metacharacters.
+      const regex = new RegExp(escapeRegex(keyword.trim().slice(0, 100)), 'i');
       let branchIds = [];
 
       if (mongoose.Types.ObjectId.isValid(keyword.trim())) {
@@ -427,7 +430,8 @@ async function getActivityLogs(req, res) {
         }
 
         if (search) {
-            const regex = new RegExp(search.trim(), 'i');
+            // See above: never compile a user-supplied string unescaped.
+            const regex = new RegExp(escapeRegex(search.trim().slice(0, 100)), 'i');
             query.$or = [
                 { Description: regex },
                 { ActionType: regex }
