@@ -1,0 +1,376 @@
+/* public/css/brand.css — brand component layer
+ *
+ * Bold, colourful surfaces built on the tokens in style.css. Two rules hold
+ * throughout:
+ *
+ * 1. Text never sits directly on a gradient. Gradients are backdrops; any text
+ *    over one gets a solid or near-solid scrim whose contrast is measured by
+ *    scripts/check-contrast.js.
+ * 2. Animation only touches transform and opacity. Both are composited off the
+ *    main thread, so nothing here can contribute to CLS or block INP. The
+ *    global prefers-reduced-motion rule in style.css disables all of it.
+ */
+
+/* ─── Brand surfaces ─── */
+.wh-surface-brand {
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
+}
+.wh-surface-soft { background: var(--gradient-brand-soft); }
+
+/* Aurora backdrop. `isolation` keeps the blurred blobs out of sibling
+   stacking contexts. */
+.wh-aurora {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--color-bg);
+}
+.wh-aurora::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-aurora);
+  z-index: -1;
+  pointer-events: none;
+}
+.wh-aurora-animated::before {
+  animation: aurora-drift 18s var(--ease-smooth) infinite alternate;
+  will-change: transform;
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(0, -3%, 0) scale(1.12); }
+}
+
+/* Gradient text. background-clip removes the paint, so a solid colour is
+   declared first for engines that ignore it. */
+.wh-gradient-text {
+  color: var(--color-primary-text);
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .wh-gradient-text {
+    -webkit-text-fill-color: currentColor;
+    color: var(--color-primary-text);
+  }
+}
+
+/* ─── Hero ─── */
+.wh-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-2xl);
+  padding: clamp(2rem, 5vw, 4rem);
+}
+/* Scrim so headline text keeps its ratio wherever the gradient lands. */
+.wh-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.18) 0%, rgba(15, 23, 42, 0.58) 100%);
+  z-index: -1;
+}
+.wh-hero-title {
+  font-size: clamp(1.875rem, 4vw + 0.5rem, 3.5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5em;
+  text-wrap: balance;
+}
+.wh-hero-sub {
+  font-size: clamp(1rem, 1vw + 0.75rem, 1.25rem);
+  color: rgba(255, 255, 255, 0.94);
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* ─── Cards ─── */
+.wh-card-elevated {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+.wh-card-elevated:hover,
+.wh-card-elevated:focus-within {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-2xl);
+}
+
+/* Gradient hairline border via two backgrounds and border-box clipping — no
+   extra element, no layout impact. */
+.wh-card-gradient {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
+    var(--gradient-brand) border-box;
+}
+
+/* ─── Buttons ─── */
+.wh-btn-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px; /* WCAG 2.5.5 target size */
+  padding: 0.7rem 1.4rem;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-fill);
+  color: var(--color-on-primary);
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-brand);
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-normal) var(--ease-smooth),
+    background-color var(--duration-fast) var(--ease-smooth);
+}
+.wh-btn-brand:hover {
+  background: var(--color-primary-fill-hover);
+  transform: translateY(-2px);
+}
+.wh-btn-brand:active { transform: translateY(0) scale(0.97); }
+/* Sheen sweep, purely transform-driven. */
+.wh-btn-brand::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  transform: translateX(-100%);
+  transition: transform var(--duration-slower) var(--ease-smooth);
+  pointer-events: none;
+}
+.wh-btn-brand:hover::after { transform: translateX(100%); }
+
+.wh-btn-accent {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-glow-accent);
+}
+.wh-btn-accent:hover { background: var(--color-accent-dark); }
+
+.wh-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.7rem 1.4rem;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-primary-text);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-spring);
+}
+.wh-btn-outline:hover {
+  background: var(--color-primary-50);
+  transform: translateY(-2px);
+}
+
+/* ─── Form controls ─── */
+.wh-field {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  transition:
+    border-color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth);
+}
+.wh-field::placeholder { color: var(--color-muted); opacity: 1; }
+.wh-field:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: var(--focus-ring);
+}
+.wh-field[aria-invalid="true"] {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.18);
+}
+.wh-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--color-text-soft);
+}
+/* Error text pairs an icon with the message — colour alone never carries
+   meaning (WCAG 1.4.1). */
+.wh-field-error {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  color: var(--color-danger-text);
+  font-size: 0.875rem;
+}
+.wh-field-error::before { content: "\26A0"; }
+
+/* ─── Chips ─── */
+.wh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-soft);
+}
+.wh-chip-success { background: var(--color-success-bg); color: var(--color-success-text); }
+.wh-chip-warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.wh-chip-danger  { background: var(--color-danger-bg);  color: var(--color-danger-text); }
+.wh-chip-info    { background: var(--color-info-bg);    color: var(--color-info-text); }
+.wh-chip-brand   { background: var(--color-primary-50); color: var(--color-primary-text); }
+
+/* ─── Stat tile ─── */
+.wh-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 1.25rem 1.4rem;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+.wh-stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+/* Brand keyline, decorative only. */
+.wh-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--gradient-brand);
+}
+.wh-stat-value {
+  font-size: clamp(1.5rem, 2vw + 1rem, 2.25rem);
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--color-text);
+  /* Reserve the line box so a value arriving late cannot shift the layout. */
+  min-height: 1.1em;
+}
+.wh-stat-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+/* ─── Section heading ─── */
+.wh-section-title {
+  font-size: clamp(1.375rem, 2vw + 0.75rem, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+.wh-section-sub {
+  color: var(--color-muted);
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+
+/* ─── Glass header ─── */
+.wh-glass {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .wh-glass {
+    background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
+}
+
+/* ─── Media ─── */
+/* aspect-ratio reserves the box before the image loads, which is the single
+   biggest CLS win on card grids. */
+.wh-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+.wh-media-square { aspect-ratio: 1 / 1; }
+.wh-media-zoom { overflow: hidden; }
+.wh-media-zoom img {
+  transition: transform var(--duration-slow) var(--ease-out-expo);
+  will-change: transform;
+}
+.wh-media-zoom:hover img { transform: scale(1.06); }
+
+/* ─── Scroll reveal ───
+   Driven by public/js/animations.js.
+
+   The hidden state is scoped to `html.js`, which a tiny inline script in
+   layout.ejs sets before paint. Without that class — scripting disabled, a
+   CSP mishap, animations.js failing to load — the content simply renders
+   visible. Hiding it unconditionally would mean one broken script request
+   turns the page blank for users and crawlers alike. */
+.js .wh-fade-up {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0);
+  transition:
+    opacity var(--duration-slow) var(--ease-out-expo),
+    transform var(--duration-slow) var(--ease-out-expo);
+}
+.js .wh-fade-up.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .js .wh-fade-up { opacity: 1; transform: none; }
+}
+
+/* ─── Focus visibility on brand surfaces ───
+   The default ring is teal; on a teal surface it vanishes, so invert it. */
+.wh-surface-brand :focus-visible,
+.wh-hero :focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.95),
+    0 0 0 6px rgba(15, 23, 42, 0.5);
+}
+
+/* ─── Forced colours (Windows high contrast) ───
+   Decorative gradients disappear in forced-colours mode; nothing may depend on
+   them to stay legible. */
+@media (forced-colors: active) {
+  .wh-card-elevated,
+  .wh-card-gradient,
+  .wh-stat { border: 1px solid CanvasText; }
+  .wh-btn-brand::after,
+  .wh-aurora::before,
+  .wh-stat::before { display: none; }
+  .wh-gradient-text {
+    -webkit-text-fill-color: currentColor;
+    color: CanvasText;
+  }
+}

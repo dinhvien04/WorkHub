@@ -1,81 +1,126 @@
-<div class="max-w-md mx-auto py-10 px-8 border bg-white rounded-[2rem] shadow-2xl transition-all duration-500 animate-fadeInUp">
+<%/* Login / password recovery.
 
-    <div id="login-form-area" class="animate-fadeIn">
+     Fixed here:
+       - every <label> was unassociated (no `for`), so assistive tech announced
+         the inputs as unlabelled. WCAG 1.3.1 / 3.3.2.
+       - no autocomplete attributes, so password managers could not reliably
+         fill or save credentials.
+       - the OTP field's label read "Xem tại Terminal VS Code" — a development
+         instruction that shipped to real users.
+       - "Quên mật khẩu?" was teal-600 on white (~3.6:1) and several helper
+         texts were slate-400 (~2.8:1).
+
+     The buttons keep type="button" plus their data-wh-click handlers: that is
+     the interaction contract public/js/login.js is written against, and
+     changing it here would silently break sign-in. */%>
+
+<div class="max-w-md mx-auto py-10 px-8 wh-card-elevated rounded-[2rem] shadow-2xl">
+
+    <div id="login-form-area">
         <div class="flex items-center gap-3 mb-6">
-            <div class="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg">W</div>
+            <span class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg"
+                  style="background: var(--gradient-brand);" aria-hidden="true">W</span>
             <div>
-                <h2 class="text-2xl font-black text-slate-800 uppercase tracking-tight" id="login-title">Đăng nhập</h2>
-                <p class="text-slate-400 text-sm font-medium" id="login-subtitle">Nhập thông tin tài khoản</p>
+                <h1 class="text-2xl font-black uppercase tracking-tight" id="login-title" style="color: var(--color-text);">Đăng nhập</h1>
+                <p class="text-sm font-medium" id="login-subtitle" style="color: var(--color-muted);">Nhập thông tin tài khoản</p>
             </div>
         </div>
 
         <div class="space-y-4">
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all duration-200 focus-within:border-teal-400 focus-within:bg-white focus-within:shadow-md">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email</label>
-                <input type="email" id="email" placeholder="name@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <div>
+                <label for="email" class="wh-label text-[11px] font-black uppercase">Email</label>
+                <input type="email" id="email" name="email" placeholder="name@email.com"
+                       class="wh-field" autocomplete="username" required>
             </div>
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all duration-200 focus-within:border-teal-400 focus-within:bg-white focus-within:shadow-md">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mật khẩu</label>
-                <input type="password" id="password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <div>
+                <label for="password" class="wh-label text-[11px] font-black uppercase">Mật khẩu</label>
+                <input type="password" id="password" name="password" placeholder="••••••••"
+                       class="wh-field" autocomplete="current-password" required>
             </div>
 
             <div class="text-right">
-                <button type="button" data-wh-click="toggleForgotPasswordForm" data-wh-args="[true]" class="text-xs font-bold text-teal-600 hover:underline transition-colors">Quên mật khẩu?</button>
+                <button type="button" data-wh-click="toggleForgotPasswordForm" data-wh-args="[true]"
+                        class="text-xs font-bold hover:underline" style="color: var(--color-primary-text);">
+                    Quên mật khẩu?
+                </button>
             </div>
 
-            <button data-wh-click="handleLogin" data-wh-event="1" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition-all duration-200 uppercase text-xs tracking-widest shadow-lg mt-4 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]">
+            <button type="button" data-wh-click="handleLogin" data-wh-event="1"
+                    class="wh-btn-brand w-full mt-4 uppercase text-xs tracking-widest">
                 Đăng nhập ngay
             </button>
+
             <div class="relative my-4 text-center">
-              <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200"></div></div>
-              <span class="relative text-[10px] font-black uppercase text-slate-400 bg-white px-3">hoặc</span>
+              <div class="absolute inset-0 flex items-center" aria-hidden="true"><div class="w-full border-t border-slate-200"></div></div>
+              <span class="relative text-[10px] font-black uppercase bg-white px-3" style="color: var(--color-muted);">hoặc</span>
             </div>
-            <a href="/api/auth/google" id="google-login-btn"
-              class="w-full flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-800 py-3 rounded-xl font-bold hover:bg-slate-50 hover:shadow-md hover:border-slate-300 transition-all duration-200 text-xs uppercase tracking-widest">
+
+            <a href="/api/auth/google" id="google-login-btn" class="wh-btn-outline w-full text-xs uppercase tracking-widest">
               Đăng nhập với Google
             </a>
-            <p id="google-login-hint" class="text-[10px] text-slate-400 text-center mt-2 hidden"></p>
+            <p id="google-login-hint" class="text-[11px] text-center mt-2 hidden" style="color: var(--color-muted);"></p>
         </div>
-        <p class="text-muted text-center mt-6 text-sm text-slate-500">
-            Chưa có tài khoản? <a href="/register" class="text-primary font-bold text-teal-600 hover:underline">Đăng ký ngay</a>
+
+        <p class="text-center mt-6 text-sm" style="color: var(--color-text-soft);">
+            Chưa có tài khoản?
+            <a href="/register" class="font-bold hover:underline" style="color: var(--color-primary-text);">Đăng ký ngay</a>
         </p>
     </div>
 
-    <div id="forgot-form-area" class="hidden animate-fadeInUp">
-        <h2 class="text-2xl font-black mb-2 text-slate-800 uppercase tracking-tight">Khôi phục mật khẩu</h2>
-        <p class="text-slate-400 mb-6 text-sm font-medium">Nhập email hệ thống để nhận mã xác minh</p>
+    <div id="forgot-form-area" class="hidden">
+        <h1 class="text-2xl font-black mb-2 uppercase tracking-tight" style="color: var(--color-text);">Khôi phục mật khẩu</h1>
+        <p class="mb-6 text-sm font-medium" style="color: var(--color-muted);">Nhập email hệ thống để nhận mã xác minh</p>
 
         <div class="space-y-4">
             <div id="otp-email-subzone" class="space-y-4">
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all duration-200 focus-within:border-teal-400 focus-within:bg-white focus-within:shadow-md">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email khôi phục</label>
-                    <input type="email" id="forgot-email" placeholder="name@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                <div>
+                    <label for="forgot-email" class="wh-label text-[11px] font-black uppercase">Email khôi phục</label>
+                    <input type="email" id="forgot-email" name="email" placeholder="name@email.com"
+                           class="wh-field" autocomplete="username">
                 </div>
-                <button data-wh-click="requestOtpCode" data-wh-event="1" class="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition-all duration-200 uppercase text-xs tracking-widest shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98]">
+                <button type="button" data-wh-click="requestOtpCode" data-wh-event="1"
+                        class="wh-btn-brand w-full uppercase text-xs tracking-widest">
                     Gửi mã xác nhận
                 </button>
             </div>
 
             <div id="otp-verify-subzone" class="hidden space-y-4 pt-2">
-                <div class="p-3 bg-amber-50 rounded-xl border border-amber-200">
-                    <label class="block text-[10px] font-black text-amber-600 uppercase mb-1">Nhập mã OTP (Xem tại Terminal VS Code)</label>
-                    <input type="text" id="forgot-otp" placeholder="VD: 123456" class="w-full bg-transparent border-none p-0 text-sm font-black focus:ring-0 outline-none text-slate-800 tracking-widest">
+                <div class="p-3 rounded-xl border" style="background: var(--color-warning-bg); border-color: var(--color-warning);">
+                    <label for="forgot-otp" class="block text-[11px] font-black uppercase mb-1" style="color: var(--color-warning-text);">
+                        Mã OTP đã gửi tới email của bạn
+                    </label>
+                    <input type="text" id="forgot-otp" name="one-time-code" placeholder="VD: 123456"
+                           class="wh-field tracking-widest"
+                           inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                           autocomplete="one-time-code"
+                           aria-describedby="forgot-otp-help">
+                    <p id="forgot-otp-help" class="text-[11px] mt-1" style="color: var(--color-warning-text);">
+                        Mã gồm 6 chữ số, hiệu lực trong 10 phút.
+                    </p>
                 </div>
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mật khẩu mới</label>
-                    <input type="password" id="forgot-new-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                <div>
+                    <label for="forgot-new-password" class="wh-label text-[11px] font-black uppercase">Mật khẩu mới</label>
+                    <input type="password" id="forgot-new-password" name="new-password" placeholder="••••••••"
+                           class="wh-field" autocomplete="new-password"
+                           minlength="10" aria-describedby="forgot-password-help">
+                    <p id="forgot-password-help" class="text-[11px] mt-1" style="color: var(--color-muted);">
+                        Tối thiểu 10 ký tự. Hỗ trợ passphrase.
+                    </p>
                 </div>
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Xác nhận mật khẩu mới</label>
-                    <input type="password" id="forgot-confirm-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                <div>
+                    <label for="forgot-confirm-password" class="wh-label text-[11px] font-black uppercase">Xác nhận mật khẩu mới</label>
+                    <input type="password" id="forgot-confirm-password" name="confirm-password" placeholder="••••••••"
+                           class="wh-field" autocomplete="new-password" minlength="10">
                 </div>
-                <button data-wh-click="executeResetPassword" data-wh-event="1" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition uppercase text-xs tracking-widest shadow-lg">
+                <button type="button" data-wh-click="executeResetPassword" data-wh-event="1"
+                        class="wh-btn-brand wh-btn-accent w-full uppercase text-xs tracking-widest">
                     Cập nhật mật khẩu
                 </button>
             </div>
 
             <div class="text-center pt-2">
-                <button type="button" data-wh-click="toggleForgotPasswordForm" data-wh-args="[false]" class="text-xs font-bold text-slate-400 hover:text-slate-600">
+                <button type="button" data-wh-click="toggleForgotPasswordForm" data-wh-args="[false]"
+                        class="text-xs font-bold hover:underline" style="color: var(--color-text-soft);">
                     ← Quay lại Đăng nhập
                 </button>
             </div>

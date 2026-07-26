@@ -1,123 +1,126 @@
-    <div class="relative h-72 md:h-80 rounded-3xl overflow-hidden mb-10 flex items-center justify-center text-center shadow-xl group">
-        <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2069"
-            class="absolute inset-0 w-full h-full object-cover transition-transform duration-[8000ms] ease-out group-hover:scale-110"
-            alt="Văn phòng"
-            loading="eager">
+<%/* Landing page.
+     Contrast notes, since several pairs here previously failed WCAG AA:
+       - the search CTA was amber-500 with white text (~1.9:1). Amber now
+         carries near-black text, which is how the colour stays vivid and
+         still reads.
+       - rating stars were amber-500 on white (~2.2:1) and secondary meta was
+         slate-400 (~2.8:1). Both moved to tokens that measure above 4.5:1.
+     The hero image is the LCP element, so it gets fetchpriority and an
+     explicit box to keep it out of CLS. */%>
 
-        <div class="absolute inset-0 hero-gradient"></div>
+<section class="wh-hero wh-aurora-animated mb-10">
+    <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1600"
+        class="absolute inset-0 w-full h-full object-cover"
+        style="z-index: -2;"
+        alt=""
+        aria-hidden="true"
+        width="1600"
+        height="900"
+        fetchpriority="high"
+        loading="eager"
+        decoding="async">
 
-        <div class="relative z-10 text-white p-6 animate-fadeInUp">
-            <h2 class="text-3xl md:text-4xl font-black mb-3 tracking-tight drop-shadow-lg">
-                Tìm kiếm không gian làm việc
-            </h2>
+    <div class="relative text-center">
+        <h1 class="wh-hero-title">Tìm kiếm không gian làm việc</h1>
+        <p class="wh-hero-sub mx-auto mb-6">Linh hoạt, tiện nghi và chuyên nghiệp</p>
 
-            <p class="mb-6 opacity-90 font-light text-teal-50 text-lg">
-                Linh hoạt, tiện nghi và chuyên nghiệp
-            </p>
-
-            <form action="/search"
-                method="GET"
-                class="bg-white/95 backdrop-blur-sm p-2 rounded-2xl shadow-xl flex gap-2 max-w-xl mx-auto border border-teal-100/50 transition-shadow duration-300 focus-within:shadow-2xl focus-within:ring-4 focus-within:ring-teal-300/30">
-
-                <input
-                    type="text"
-                    name="location"
-                    placeholder="Bạn muốn làm việc ở đâu?"
-                    class="flex-1 px-4 py-3 text-slate-800 rounded-xl focus:outline-none text-sm border-none bg-transparent"
-                    autocomplete="off">
-
-                <button
-                    type="submit"
-                    class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-xl font-bold transition-all duration-200 text-sm hover:shadow-lg hover:scale-[1.02] active:scale-95">
-                    TÌM KIẾM
-                </button>
-
-            </form>
-        </div>
+        <form action="/search" method="GET" role="search"
+            class="bg-white/95 p-2 rounded-2xl shadow-xl flex gap-2 max-w-xl mx-auto border border-teal-100/50 transition-shadow duration-300 focus-within:shadow-2xl">
+            <label for="home-search-location" class="wh-sr-only">Địa điểm bạn muốn làm việc</label>
+            <input
+                id="home-search-location"
+                type="text"
+                name="location"
+                placeholder="Bạn muốn làm việc ở đâu?"
+                class="flex-1 px-4 py-3 text-slate-800 rounded-xl text-sm border-none bg-transparent"
+                autocomplete="off">
+            <%/* Amber at full saturation needs dark text to reach AA. */%>
+            <button type="submit"
+                class="px-6 py-2.5 rounded-xl font-black text-sm transition-transform duration-200 hover:scale-[1.02] active:scale-95"
+                style="background: var(--color-highlight); color: #1f1300;">
+                TÌM KIẾM
+            </button>
+        </form>
     </div>
+</section>
 
-    <h3 class="text-xl font-bold mb-6 text-slate-800 underline decoration-teal-500 decoration-4 underline-offset-8 font-black uppercase tracking-tighter wh-reveal">
-        Cơ sở nổi bật
-    </h3>
+<h2 class="wh-section-title mb-6 wh-fade-up">
+    Cơ sở <span class="wh-gradient-text">nổi bật</span>
+</h2>
 
-    <div class="grid md:grid-cols-3 gap-6">
+<div class="grid md:grid-cols-3 gap-6">
+    <% if (branches && branches.length > 0) { %>
+        <% branches.forEach((branch, _idx) => { %>
+            <article class="wh-card-elevated p-4 flex flex-col wh-fade-up" style="transition-delay: <%= Math.min(_idx * 60, 300) %>ms">
 
-        <% if (branches && branches.length > 0) { %>
-
-            <% branches.forEach((branch, _idx) => { %>
-
-                <div class="bg-white rounded-2xl border p-4 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 shadow-sm flex flex-col group wh-reveal" style="animation-delay: <%= _idx * 80 %>ms">
-
-                    <div class="card-img-zoom rounded-xl overflow-hidden mb-4">
-                        <img
-                            src="<%= (branch.Images && branch.Images.length > 0) ? branch.Images[0] : 'https://via.placeholder.com/400x250' %>"
-                            class="w-full h-48 object-cover"
-                            alt="<%= branch.Name %>"
-                            loading="lazy">
-                    </div>
-
-                    <div class="flex-1">
-
-                        <h4 class="font-bold text-slate-800 text-lg group-hover:text-teal-700 transition-colors duration-200">
-                            <%= branch.Name %>
-                        </h4>
-
-                        <p class="text-sm text-slate-500 mt-2">
-                            📍 <%= branch.Address %>
-                        </p>
-
-
-                        <% if(branch.Description) { %>
-                            <p class="text-sm text-slate-600 mt-3 line-clamp-2">
-                                <%= branch.Description %>
-                            </p>
-                        <% } %>
-
-                        <p class="text-xs text-slate-400 mt-3">
-                            🕒 <%= branch.OpeningTime %> - <%= branch.ClosingTime %>
-                        </p>
-
-                        <div class="flex items-center gap-1 text-amber-500 text-sm mt-2 font-semibold">
-                            ⭐ <%= branch.RatingAvg || 0 %>/5
-                        </div>
-                        <% if (branch.priceFrom != null) { %>
-                        <p class="text-sm font-black text-teal-700 mt-2">Từ <%= Number(branch.priceFrom).toLocaleString('vi-VN') %>đ/giờ</p>
-                        <% } %>
-                        <% if (branch.hasInstantBook) { %>
-                        <span class="wh-badge mt-2">Instant book</span>
-                        <% } %>
-
-                    </div>
-
-                    <%
-                      const _href = branch.Slug
-                        ? '/khong-gian/' + (branch.CitySlug || 'viet-nam') + '/' + (branch.DistrictSlug || 'khu-vuc') + '/' + branch.Slug
-                        : '/detail?branchId=' + branch._id;
-                    %>
-                    <a href="<%= _href %>"
-                    class="w-full py-3 bg-teal-50 text-teal-600 font-bold rounded-xl text-sm text-center mt-4 hover:bg-teal-600 hover:text-white transition-all duration-300 block">
-                        Xem chi tiết
-                    </a>
-
+                <div class="wh-media-zoom rounded-xl mb-4">
+                    <%/* wh-media sets aspect-ratio, so the box exists before the
+                         image arrives and late loads cannot shift the grid. */%>
+                    <img
+                        src="<%= (branch.Images && branch.Images.length > 0) ? branch.Images[0] : '/icons/icon.svg' %>"
+                        class="wh-media"
+                        alt="<%= branch.Name %>"
+                        loading="lazy"
+                        decoding="async">
                 </div>
 
-            <% }) %>
+                <div class="flex-1">
+                    <h3 class="font-bold text-lg" style="color: var(--color-text);">
+                        <%= branch.Name %>
+                    </h3>
 
-        <% } else { %>
+                    <p class="text-sm mt-2" style="color: var(--color-muted);">
+                        <span aria-hidden="true">📍</span> <%= branch.Address %>
+                    </p>
 
-            <div class="col-span-3 text-center py-16 animate-fadeInUp">
-                <div class="text-6xl mb-4 animate-float">🏢</div>
-                <p class="text-slate-500 text-lg font-medium">
-                    Hiện chưa có cơ sở nào hoạt động.
-                </p>
-                <p class="text-sm text-slate-400 mt-2">Hãy quay lại sau nhé!</p>
-            </div>
+                    <% if (branch.Description) { %>
+                        <p class="text-sm mt-3 line-clamp-2" style="color: var(--color-text-soft);">
+                            <%= branch.Description %>
+                        </p>
+                    <% } %>
 
-        <% } %>
+                    <p class="text-xs mt-3" style="color: var(--color-muted);">
+                        <span aria-hidden="true">🕒</span> <%= branch.OpeningTime %> – <%= branch.ClosingTime %>
+                    </p>
 
-    </div>
+                    <p class="flex items-center gap-1 text-sm mt-2 font-semibold" style="color: var(--color-highlight-dark);">
+                        <span aria-hidden="true">⭐</span>
+                        <span class="wh-sr-only">Đánh giá</span><%= branch.RatingAvg || 0 %>/5
+                    </p>
 
-    <section id="home-newest" class="hidden mt-12 wh-reveal">
-      <h3 class="text-xl font-bold mb-4 text-slate-800 uppercase tracking-tighter">Mới trên WorkHub</h3>
-      <div data-newest-list class="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth"></div>
-    </section>
+                    <% if (branch.priceFrom != null) { %>
+                    <p class="text-sm font-black mt-2" style="color: var(--color-primary-text);">
+                        Từ <%= Number(branch.priceFrom).toLocaleString('vi-VN') %>đ/giờ
+                    </p>
+                    <% } %>
+
+                    <% if (branch.hasInstantBook) { %>
+                    <span class="wh-chip wh-chip-brand mt-2">Instant book</span>
+                    <% } %>
+                </div>
+
+                <%
+                  const _href = branch.Slug
+                    ? '/khong-gian/' + (branch.CitySlug || 'viet-nam') + '/' + (branch.DistrictSlug || 'khu-vuc') + '/' + branch.Slug
+                    : '/detail?branchId=' + branch._id;
+                %>
+                <a href="<%= _href %>" class="wh-btn-outline w-full mt-4">
+                    Xem chi tiết<span class="wh-sr-only"> <%= branch.Name %></span>
+                </a>
+            </article>
+        <% }) %>
+    <% } else { %>
+        <div class="col-span-3 text-center py-16 wh-fade-up">
+            <div class="text-6xl mb-4 animate-float" aria-hidden="true">🏢</div>
+            <p class="text-lg font-medium" style="color: var(--color-text-soft);">
+                Hiện chưa có cơ sở nào hoạt động.
+            </p>
+            <p class="text-sm mt-2" style="color: var(--color-muted);">Hãy quay lại sau nhé!</p>
+        </div>
+    <% } %>
+</div>
+
+<section id="home-newest" class="hidden mt-12 wh-fade-up">
+  <h2 class="wh-section-title mb-4">Mới trên WorkHub</h2>
+  <div data-newest-list class="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth"></div>
+</section>

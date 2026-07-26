@@ -165,15 +165,24 @@ function showToast(msg, type) {
   const m = document.getElementById('toast-msg');
   if (t && m) {
     m.innerText = msg;
-    // Apply type-specific styling
+    // Apply type-specific styling.
+    // Backgrounds are set from tokens rather than raw utilities because the
+    // previous pairings failed contrast against the white label: amber-500 at
+    // ~1.9:1 and teal-600 at ~3.7:1, where AA needs 4.5:1.
     t.className = t.className.replace(/bg-\S+/g, '');
     if (type === 'error') {
-      t.classList.add('bg-red-600');
+      t.style.backgroundColor = 'var(--color-danger-dark)';
     } else if (type === 'warning') {
-      t.classList.add('bg-amber-500');
+      // Amber keeps its punch and gets near-black text instead of white.
+      t.style.backgroundColor = 'var(--color-highlight)';
+      t.style.color = '#1f1300';
     } else {
-      t.classList.add('bg-teal-600');
+      t.style.backgroundColor = 'var(--color-primary-fill)';
     }
+    if (type !== 'warning') t.style.color = '';
+    // Failures must interrupt; routine confirmations must not.
+    t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    t.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     t.classList.remove('hidden', 'toast-exit');
     t.classList.add('toast-enter');
     clearTimeout(t._toastTimer);
@@ -187,7 +196,12 @@ function showToast(msg, type) {
 
 function toggleSidebar() {
   const s = document.getElementById('sidebar');
-  if (s) s.classList.toggle('collapsed');
+  if (!s) return;
+  const collapsed = s.classList.toggle('collapsed');
+  // Keep the trigger's state in sync; an aria-expanded that never changes is
+  // worse than none, because it actively misreports the UI.
+  const trigger = document.getElementById('sidebar-toggle');
+  if (trigger) trigger.setAttribute('aria-expanded', String(!collapsed));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -312,6 +326,9 @@ function renderMenu(currentRole) {
   const c = document.getElementById('menu-items');
   if (!c) return;
   c.textContent = '';
+  // The container ships with aria-busy="true" because it starts empty and is
+  // filled from the user's role; clear it now that the menu exists.
+  c.setAttribute('aria-busy', 'false');
 
   (menus[currentRole] || []).forEach((i, idx) => {
     const d = document.createElement('div');

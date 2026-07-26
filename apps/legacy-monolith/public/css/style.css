@@ -1,42 +1,138 @@
-/* public/css/style.css — design tokens + layout + animations */
+/* public/css/style.css — design tokens + layout + animations
+ *
+ * Every colour pair that carries text or defines a UI boundary is asserted by
+ * scripts/check-contrast.js (npm run check:contrast). Change a token here and
+ * the gate re-measures it — a shade that looks good but fails WCAG AA breaks
+ * the build instead of shipping.
+ */
 :root {
-  --color-primary: #0d9488;
-  --color-primary-dark: #0f766e;
-  --color-primary-light: #14b8a6;
+  /* ─── Brand: teal anchor ─── */
   --color-primary-50: #f0fdfa;
   --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
+  --color-primary-300: #5eead4;
+  --color-primary-400: #2dd4bf;
+  --color-primary-light: #14b8a6;
+  --color-primary: #0d9488;
+  --color-primary-dark: #0f766e;
+  --color-primary-900: #134e4a;
+  /* Brand at text weight. --color-primary is a 3:1 UI accent, not a text
+     colour; anything reading as prose uses this instead. */
+  --color-primary-text: #0f766e;
+  /* Fill for buttons that carry white text. Measured: white on
+     --color-primary is only 3.74:1, so filled controls use this darker shade
+     and keep --color-primary for borders, icons and accents. */
+  --color-primary-fill: #0f766e;
+  --color-primary-fill-hover: #115e59;
+  --color-on-primary: #ffffff;
+
+  /* ─── Accent: violet, for brand energy and gradient range ─── */
+  --color-accent-50: #f5f3ff;
+  --color-accent-100: #ede9fe;
+  --color-accent-300: #c4b5fd;
+  --color-accent: #7c3aed;
+  --color-accent-dark: #6d28d9;
+  --color-accent-text: #6d28d9;
+  --color-on-accent: #ffffff;
+
+  /* ─── Highlight: amber ─── */
+  --color-highlight: #f59e0b;
+  --color-highlight-dark: #b45309;
+
+  /* ─── Status ─── */
   --color-danger: #e11d48;
+  --color-danger-dark: #be123c;
+  --color-danger-bg: #fff1f2;
+  --color-danger-text: #9f1239;
+  --color-on-danger: #ffffff;
+
   --color-warning: #f59e0b;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #92400e;
+
   --color-success: #10b981;
+  --color-success-bg: #ecfdf5;
+  --color-success-text: #065f46;
+
   --color-info: #3b82f6;
+  --color-info-bg: #eff6ff;
+  --color-info-text: #1e40af;
+
+  /* ─── Neutrals ─── */
   --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #f1f5f9;
   --color-bg: #f8fafc;
   --color-text: #0f172a;
+  --color-text-soft: #334155;
   --color-muted: #64748b;
+  --color-border: #e2e8f0;
+  --color-border-strong: #64748b;
+
+  /* ─── Dark surfaces (footer, nav, hero overlays) ─── */
+  --color-dark-surface: #0f172a;
+  --color-dark-surface-2: #1e293b;
+  --color-on-dark: #f1f5f9;
+  --color-on-dark-muted: #94a3b8;
+
+  /* Focus is a non-text UI signal: needs 3:1 against both surfaces. */
+  --color-focus: #0d9488;
+
+  /* ─── Brand gradients ───
+     Decorative only. Text is never placed directly on a gradient; it sits on a
+     solid overlay whose contrast is measured. */
+  --gradient-brand: linear-gradient(135deg, #0d9488 0%, #0891b2 45%, #7c3aed 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 50%, #f5f3ff 100%);
+  --gradient-aurora: radial-gradient(at 20% 20%, rgba(13, 148, 136, 0.28) 0px, transparent 55%),
+    radial-gradient(at 80% 10%, rgba(124, 58, 237, 0.22) 0px, transparent 50%),
+    radial-gradient(at 60% 80%, rgba(8, 145, 178, 0.20) 0px, transparent 55%);
+  --gradient-sunrise: linear-gradient(135deg, #f59e0b 0%, #e11d48 100%);
+
+  /* ─── Radius ─── */
+  --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
   --radius-xl: 1.5rem;
   --radius-2xl: 2rem;
+  --radius-full: 999px;
+
+  /* ─── Elevation ─── */
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
   --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  --shadow-2xl: 0 32px 64px -12px rgba(15, 23, 42, 0.18);
   --shadow-glow: 0 0 20px rgba(13, 148, 136, 0.15);
+  --shadow-glow-accent: 0 8px 32px -8px rgba(124, 58, 237, 0.45);
+  --shadow-brand: 0 10px 30px -10px rgba(13, 148, 136, 0.5);
+
+  /* ─── Spacing ─── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
   --z-header: 50;
   --z-modal: 100;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --focus-ring: 0 0 0 3px rgba(13, 148, 136, 0.35);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --focus-ring: 0 0 0 3px rgba(13, 148, 136, 0.45), 0 0 0 5px rgba(255, 255, 255, 0.9);
+
+  /* ─── Motion ───
+     Durations resolve to 0.01ms under prefers-reduced-motion (see the media
+     query below), so animations defined with these tokens opt out for free. */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-instant: 80ms;
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
+  --duration-slower: 700ms;
 }
 
 body { font-family: var(--font-sans); background-color: var(--color-bg); color: var(--color-text); height: 100vh; overflow: hidden; }
@@ -50,7 +146,7 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
 
 /* ─── Buttons ─── */
 .btn-primary {
-  background: var(--color-primary); color: #fff; font-weight: 700; border-radius: 12px; padding: 10px 16px; border: none; cursor: pointer;
+  background: var(--color-primary-fill); color: var(--color-on-primary); font-weight: 700; border-radius: 12px; padding: 10px 16px; border: none; cursor: pointer;
   transition: background var(--duration-fast) ease, transform var(--duration-fast) ease, box-shadow var(--duration-normal) ease;
   position: relative; overflow: hidden;
 }
@@ -148,7 +244,7 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
   position: relative;
 }
 .mob-nav-item:active { transform: scale(0.9); }
-.mob-nav-item.active { color: var(--color-primary); }
+.mob-nav-item.active { color: var(--color-primary-text); }
 .mob-nav-item.active::after {
   content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   width: 20px; height: 3px; border-radius: 999px; background: var(--color-primary);
@@ -333,7 +429,7 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
   transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, transform var(--duration-fast) ease, box-shadow var(--duration-normal) ease;
 }
 .available-seat-item:hover { border-color: var(--color-primary); background-color: #f0fdf4; transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.available-seat-item.selected { border-color: var(--color-primary); background-color: var(--color-primary); color: white; }
+.available-seat-item.selected { border-color: var(--color-primary-fill); background-color: var(--color-primary-fill); color: var(--color-on-primary); }
 
 .floor-plan-item {
   width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
@@ -374,11 +470,11 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
   border: none; cursor: pointer; text-decoration: none;
   transition: all var(--duration-fast) ease; position: relative; overflow: hidden;
 }
-.wh-btn-primary { background: var(--color-primary); color: #fff; }
+.wh-btn-primary { background: var(--color-primary-fill); color: var(--color-on-primary); }
 .wh-btn-primary:hover { background: var(--color-primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25); }
 .wh-btn-primary:active { transform: translateY(0) scale(0.98); }
 .wh-btn-ghost { background: #fff; color: #0f172a; border: 1px solid #e2e8f0; }
-.wh-btn-ghost:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-50); }
+.wh-btn-ghost:hover { border-color: var(--color-primary); color: var(--color-primary-text); background: var(--color-primary-50); }
 .wh-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
 .payment-card {
@@ -393,10 +489,10 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
   transition: all var(--duration-fast) ease;
 }
 .branch-tab:hover:not(.active) { color: #334155; background-color: #f8fafc; transform: translateY(-1px); }
-.branch-tab.active { color: #fff; background-color: var(--color-primary); box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35); }
+.branch-tab.active { color: var(--color-on-primary); background-color: var(--color-primary-fill); box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35); }
 
 .modal-active { overflow: hidden; }
-.text-primary:hover { color: #0d9488; }
+.text-primary:hover { color: var(--color-primary-text); }
 
 .choices {position: relative; z-index: 10;}
 .choices__inner { background-color: #f8fafc !important; border-radius: 0.75rem !important;border: none !important; padding: 6px 12px !important; min-height: 48px !important; display: flex !important; align-items: center !important; font-size: 0.875rem !important; color: #475569 !important; }
@@ -741,14 +837,49 @@ select {
 .stagger-7  { animation-delay: 280ms; }
 .stagger-8  { animation-delay: 320ms; }
 
-/* ─── Dark mode variables (media query only — no class toggle) ─── */
+/* ─── Dark mode (media query only — no class toggle) ───
+ * Brand and status tokens must flip too: a dark-teal "brand text" colour that
+ * reads at 5:1 on white drops to 2.7:1 on a slate surface, and a mint-green
+ * status chip on a dark page is jarring. Both themes are asserted by
+ * scripts/check-contrast.js. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-surface:   #1e293b;
-    --color-bg:        #0f172a;
-    --color-text:      #f1f5f9;
-    --color-muted:     #94a3b8;
-    --shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.3);
+    --color-surface:         #1e293b;
+    --color-surface-raised:  #263449;
+    --color-surface-sunken:  #16202f;
+    --color-bg:              #0f172a;
+    --color-text:            #f1f5f9;
+    --color-text-soft:       #cbd5e1;
+    --color-muted:           #94a3b8;
+    --color-border:          #334155;
+    --color-border-strong:   #7c8ea8;
+
+    /* Brand reads light on dark; the filled button keeps its dark teal so
+       white labels stay above 4.5:1 in both themes. */
+    --color-primary-text:    #5eead4;
+    --color-accent-text:     #c4b5fd;
+    --color-focus:           #2dd4bf;
+
+    /* Status chips: dark tint, light text. */
+    --color-success-bg:      #052e26;
+    --color-success-text:    #6ee7b7;
+    --color-warning-bg:      #3b2508;
+    --color-warning-text:    #fcd34d;
+    --color-danger-bg:       #3f0a1b;
+    --color-danger-text:     #fda4af;
+    --color-info-bg:         #10233f;
+    --color-info-text:       #93c5fd;
+
+    --color-primary-50:      #0b2f2c;
+    --color-accent-50:       #1e1938;
+
+    --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.45), 0 2px 4px -2px rgba(0, 0, 0, 0.35);
+    --shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+    --shadow-xl:  0 20px 25px -5px rgba(0, 0, 0, 0.55), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    --shadow-2xl: 0 32px 64px -12px rgba(0, 0, 0, 0.7);
+
+    --gradient-brand-soft: linear-gradient(135deg, #0b2f2c 0%, #0d2b33 50%, #1e1938 100%);
   }
 }
 

@@ -179,7 +179,12 @@ function minify(css) {
   return css
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\s+/g, " ")
-    .replace(/\s*([{}:;,>~+])\s*/g, "$1")
+    // `+` is deliberately absent: it is a selector combinator *and* a maths
+    // operator, and calc()/clamp() require the surrounding spaces. Collapsing
+    // it produced `calc(6px+env(safe-area-inset-bottom))`, which is invalid,
+    // so browsers dropped the declaration and the mobile nav lost its
+    // safe-area padding. The few saved bytes are not worth that.
+    .replace(/\s*([{}:;,>~])\s*/g, "$1")
     .replace(/;}/g, "}")
     .trim();
 }
@@ -195,11 +200,21 @@ function main() {
     ? fs.readFileSync(stylePath, "utf8")
     : "";
 
+  const brandPath = path.join(cssDir, "brand.css");
+  const brand = fs.existsSync(brandPath)
+    ? fs.readFileSync(brandPath, "utf8")
+    : "";
+
   const purged = purgeUtilities(utilities, used);
   const purgedPath = path.join(cssDir, "utilities.purged.css");
   fs.writeFileSync(purgedPath, purged);
 
-  const combined = `/* purged utilities */\n${purged}\n/* style */\n${style}\n`;
+  // Utilities first, then style, matching the precedence the views were built
+  // against. The brand layer goes last so its component rules win over both.
+  const combined =
+    `/* purged utilities */\n${purged}\n` +
+    `/* style */\n${style}\n` +
+    `/* brand */\n${brand}\n`;
   const min = minify(combined);
   const out = path.join(cssDir, "app.min.css");
   fs.writeFileSync(out, min);
@@ -207,6 +222,7 @@ function main() {
   console.log(
     `Purge CSS: ${used.size} class tokens scanned; ` +
       `utilities ${Buffer.byteLength(utilities)} → ${Buffer.byteLength(purged)} bytes; ` +
+      `brand ${Buffer.byteLength(brand)} bytes; ` +
       `app.min.css ${Buffer.byteLength(min)} bytes`,
   );
 }

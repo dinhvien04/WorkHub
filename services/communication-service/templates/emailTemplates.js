@@ -209,6 +209,43 @@ const templates = {
     };
   },
 
+  // —— Identity-originated transactional mail ——
+
+  verify_email: ({ token, fullName }) => {
+    const title = "Xác minh địa chỉ email";
+    const bodyHtml = `
+      <p style="margin-top: 0;">Chào ${fullName || "bạn"},</p>
+      <p>Cảm ơn bạn đã đăng ký WorkHub. Vui lòng dùng mã bên dưới để xác minh địa chỉ email của bạn:</p>
+      <div style="background-color: #f4f4f5; padding: 16px; border-radius: 8px; text-align: center; font-size: 16px; font-weight: bold; letter-spacing: 0.1em; color: #0d9488; margin: 16px 0; word-break: break-all;">
+        ${token}
+      </div>
+      <p>Mã có hiệu lực trong 24 giờ. Nếu bạn không tạo tài khoản WorkHub, hãy bỏ qua email này.</p>
+    `;
+    return {
+      subject: "Xác minh email - WorkHub",
+      text: `Mã xác minh email WorkHub của bạn là: ${token}. Mã có hiệu lực trong 24 giờ.`,
+      html: baseHtml({ title, bodyHtml }),
+    };
+  },
+
+  // Identity emits `password_reset_otp`; keep `password_reset` as the legacy
+  // alias so monolith-produced rows still render.
+  password_reset_otp: ({ otp }) => templates.password_reset({ otp }),
+
+  password_changed: ({ fullName }) => {
+    const title = "Mật khẩu của bạn vừa được thay đổi";
+    const bodyHtml = `
+      <p style="margin-top: 0;">Chào ${fullName || "bạn"},</p>
+      <p>Mật khẩu tài khoản WorkHub của bạn vừa được thay đổi và tất cả phiên đăng nhập đã bị đăng xuất.</p>
+      <p><strong>Nếu bạn không thực hiện thay đổi này</strong>, hãy đặt lại mật khẩu ngay và liên hệ bộ phận hỗ trợ.</p>
+    `;
+    return {
+      subject: "Cảnh báo bảo mật: mật khẩu đã thay đổi - WorkHub",
+      text: "Mật khẩu WorkHub của bạn vừa được thay đổi. Nếu không phải bạn, hãy đặt lại mật khẩu ngay.",
+      html: baseHtml({ title, bodyHtml }),
+    };
+  },
+
   generic: ({ subject = "Thông báo từ WorkHub", text, htmlBody }) => {
     const title = subject;
     const bodyHtml = htmlBody || `<p style="margin-top: 0; white-space: pre-wrap;">${text}</p>`;

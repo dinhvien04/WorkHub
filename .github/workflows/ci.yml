@@ -59,9 +59,13 @@ jobs:
           MONGODB_URI: mongodb://127.0.0.1:27017/workhub_ci_test
           MONGODB_CONTENT_URI: mongodb://127.0.0.1:27017/workhub_content_ci_test
           MONGODB_COMMUNICATION_URI: mongodb://127.0.0.1:27017/workhub_communication_ci_test
+          MONGODB_IDENTITY_URI: mongodb://127.0.0.1:27017/workhub_identity_ci_test
           RABBITMQ_URL: amqp://localhost:5672
           CONTENT_INTERNAL_SECRET: test_content_internal_secret_key_at_least_32_chars
           COMMUNICATION_INTERNAL_SECRET: test_communication_internal_secret_key_at_least_32_chars
+          IDENTITY_INTERNAL_SECRET: test_identity_internal_secret_key_at_least_32_chars
+          # A broker is available here, so the outbox integration tests run for real.
+          IDENTITY_TEST_RABBITMQ: '1'
           ENABLE_TRANSACTIONS: 'false'
       - name: Upload jest logs
         if: failure()
@@ -160,7 +164,22 @@ jobs:
           node services/communication-service/server.js &
           echo $! > /tmp/communication.pid
 
-          # 4. Start API Gateway (port 3000)
+          # 4. Start Identity Service (port 3004)
+          export IDENTITY_PORT=3004
+          export MONGODB_IDENTITY_URI=mongodb://127.0.0.1:27017/workhub_identity_ci
+          export IDENTITY_INTERNAL_SECRET=test_identity_internal_secret_key_at_least_32_chars
+          export IDENTITY_PREAUTH_JWT_SECRET=test_preauth_secret_distinct_from_jwt_secret_ci
+          export IDENTITY_CSRF_SECRET=test_identity_csrf_secret_distinct_from_jwt_ci
+          export PASSWORD_RESET_PEPPER=test_password_reset_pepper_ci
+          export IDENTITY_TOTP_ENCRYPTION_KEY=$(printf '1%.0s' {1..64})
+          export IDENTITY_TOTP_KEY_VERSION=v1
+          export IDENTITY_OUTBOX_PAYLOAD_ENCRYPTION_KEY=$(printf '2%.0s' {1..64})
+          export IDENTITY_OUTBOX_PAYLOAD_KEY_VERSION=v1
+          export IDENTITY_ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
+          node services/identity-service/server.js &
+          echo $! > /tmp/identity.pid
+
+          # 5. Start API Gateway (port 3000)
           export PORT=3000
           export LEGACY_MONOLITH_URL=http://127.0.0.1:3001
           export CONTENT_SERVICE_URL=http://127.0.0.1:3003
@@ -171,6 +190,9 @@ jobs:
           export COMMUNICATION_SERVICE_ENABLED=true
           export COMMUNICATION_CANARY_PERCENT=100
           export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
+          export IDENTITY_SERVICE_URL=http://127.0.0.1:3004
+          export IDENTITY_SERVICE_ENABLED=true
+          export IDENTITY_CANARY_PERCENT=0
           node apps/api-gateway/server.js &
           echo $! > /tmp/gateway.pid
 
@@ -179,7 +201,8 @@ jobs:
             if curl -sf http://127.0.0.1:3000/gateway/health/ready && \
                curl -sf http://127.0.0.1:3001/health/ready && \
                curl -sf http://127.0.0.1:3002/ready && \
-               curl -sf http://127.0.0.1:3003/ready; then
+               curl -sf http://127.0.0.1:3003/ready && \
+               curl -sf http://127.0.0.1:3004/ready; then
               ready=1
               break
             fi
@@ -188,6 +211,7 @@ jobs:
           if [ "$ready" != "1" ]; then
             echo "Readiness probe failed"
             kill $(cat /tmp/gateway.pid) 2>/dev/null || true
+            kill $(cat /tmp/identity.pid) 2>/dev/null || true
             kill $(cat /tmp/communication.pid) 2>/dev/null || true
             kill $(cat /tmp/content.pid) 2>/dev/null || true
             kill $(cat /tmp/monolith.pid) 2>/dev/null || true
@@ -201,6 +225,7 @@ jobs:
         if: always()
         run: |
           kill $(cat /tmp/gateway.pid) 2>/dev/null || true
+          kill $(cat /tmp/identity.pid) 2>/dev/null || true
           kill $(cat /tmp/communication.pid) 2>/dev/null || true
           kill $(cat /tmp/content.pid) 2>/dev/null || true
           kill $(cat /tmp/monolith.pid) 2>/dev/null || true
@@ -215,12 +240,14 @@ jobs:
           export JWT_SECRET=test_jwt_secret_key_at_least_32_characters_long_for_workhub
           export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
           export CONTENT_INTERNAL_SECRET=test_content_internal_secret_key_at_least_32_chars
+          export IDENTITY_INTERNAL_SECRET=test_identity_internal_secret_key_at_least_32_chars
           docker compose config
       - name: Docker Build Compose Stack
         run: |
           export JWT_SECRET=test_jwt_secret_key_at_least_32_characters_long_for_workhub
           export COMMUNICATION_INTERNAL_SECRET=test_communication_internal_secret_key_at_least_32_chars
           export CONTENT_INTERNAL_SECRET=test_content_internal_secret_key_at_least_32_chars
+          export IDENTITY_INTERNAL_SECRET=test_identity_internal_secret_key_at_least_32_chars
           docker compose build
 
   # Final gate — fails the workflow if any required job failed

@@ -1,93 +1,115 @@
-<!-- File này chứa thanh điều hướng trên cùng, logo và phần hiển thị thông tin tài khoản/đăng nhập. -->
-<script src="/js/host-spaces.js"></script>
-<header class="header shadow-sm">
+<%
+/* Top navigation: logo, language switch, account state.
+ *
+ * This partial previously opened with <script src="/js/host-spaces.js">, which
+ * shipped 1332 lines of host-only code to every customer page. Host pages
+ * already load it through res.locals.scriptsFrom([...]), which is where page
+ * scripts belong — that path also injects the CSP nonce.
+ */
+%>
+<header class="header wh-glass" role="banner">
   <div class="flex items-center gap-4">
     <button
       id="sidebar-toggle"
+      type="button"
       data-wh-click="toggleSidebar"
-      class="hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition"
+      class="hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition wh-touch-target"
+      aria-label="Mở menu điều hướng"
+      aria-controls="sidebar"
+      aria-expanded="false"
     >
-      <svg
-        class="w-6 h-6"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M4 6h16M4 12h16M4 18h16"
-        ></path>
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
       </svg>
     </button>
-    <div
-      class="flex items-center gap-2 cursor-pointer"
-      data-wh-click="navigateTo" data-wh-args="[&quot;home&quot;]"
-    >
-      <div
-        class="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md"
-      >
-        W
-      </div>
-      <span class="text-2xl font-bold text-teal-800 tracking-tight"
-        >WorkHub</span
-      >
-    </div>
+
+    <a href="/" class="flex items-center gap-2 group" aria-label="WorkHub — về trang chủ">
+      <span
+        class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md"
+        style="background: var(--gradient-brand);"
+        aria-hidden="true"
+      >W</span>
+      <span class="text-2xl font-black tracking-tight wh-gradient-text">WorkHub</span>
+    </a>
   </div>
 
   <div id="auth-header-section" class="flex items-center gap-3">
-    <div class="flex items-center gap-1 border rounded-xl p-0.5 bg-slate-50" role="group" aria-label="Language">
-      <button type="button" data-lang-set="vi" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white">VI</button>
-      <button type="button" data-lang-set="en" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white">EN</button>
+    <div class="flex items-center gap-1 border rounded-xl p-0.5 bg-slate-50" role="group" aria-label="Ngôn ngữ">
+      <button type="button" data-lang-set="vi" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white" lang="vi">VI</button>
+      <button type="button" data-lang-set="en" class="text-[10px] font-black uppercase px-2 py-1 rounded-lg hover:bg-white" lang="en">EN</button>
     </div>
+
     <button
       id="nav-login-btn"
-      data-wh-click="navigateTo" data-wh-args="[&quot;login&quot;]"
-      class="px-5 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium"
+      type="button"
+      data-wh-click="navigateTo"
+      data-wh-args="[&quot;login&quot;]"
+      class="wh-btn-brand"
     >
       Đăng nhập
     </button>
 
     <div id="user-info" class="hidden flex items-center gap-3">
-      <a href="/notifications" id="header-notif-btn" class="relative p-2 rounded-xl hover:bg-slate-100 text-slate-600" title="Thông báo" aria-label="Thông báo">
+      <a href="/notifications" id="header-notif-btn" class="relative p-2 rounded-xl hover:bg-slate-100 text-slate-600 wh-touch-target">
         <span aria-hidden="true">🔔</span>
-        <span id="header-notif-badge" class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">0</span>
+        <span class="wh-sr-only">Thông báo</span>
+        <%/* aria-live so a badge arriving after load is announced, not silent. */%>
+        <span
+          id="header-notif-badge"
+          class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center"
+          aria-live="polite"
+        >0</span>
       </a>
+
       <div class="text-right">
-        <p class="text-sm font-bold text-slate-800" id="user-display-name">
-          Người dùng
-        </p>
-        <p class="text-xs text-slate-500" id="user-display-role">Thành viên</p>
+        <p class="text-sm font-bold text-slate-800" id="user-display-name">Người dùng</p>
+        <p class="text-xs wh-muted" id="user-display-role">Thành viên</p>
       </div>
-      <div class="group relative cursor-pointer" data-wh-click="toggleUserMenu">
-        <div
-          class="w-10 h-10 bg-teal-100 border border-teal-200 rounded-full flex items-center justify-center text-teal-700 font-bold overflow-hidden shadow-sm"
+
+      <div class="relative">
+        <%/* A real <button>: the previous <div data-wh-click> could not be
+             reached or activated from the keyboard. */%>
+        <button
+          type="button"
+          id="user-menu-trigger"
+          data-wh-click="toggleUserMenu"
+          class="w-10 h-10 rounded-full overflow-hidden border border-teal-200 bg-teal-100 shadow-sm wh-touch-target"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="dropdown-menu"
         >
           <img
             id="header-avatar-preview"
             src="https://ui-avatars.com/api/?name=User"
             class="w-full h-full object-cover"
-            alt="avatar"
+            width="40"
+            height="40"
+            alt=""
+            aria-hidden="true"
           />
-        </div>
+          <span class="wh-sr-only">Mở menu tài khoản</span>
+        </button>
+
         <div
           id="dropdown-menu"
           class="absolute right-0 w-44 bg-white shadow-xl border border-slate-100 rounded-xl py-2 mt-2 hidden z-50"
+          role="menu"
+          aria-labelledby="user-menu-trigger"
         >
           <a
-            href="#"
-            data-wh-click="navigateTo" data-wh-args="[&quot;profile&quot;]"
+            href="/profile"
+            data-wh-click="navigateTo"
+            data-wh-args="[&quot;profile&quot;]"
             class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium"
-            >Hồ sơ cá nhân</a
-          >
-          <div class="border-t border-slate-100 my-1"></div>
+            role="menuitem"
+          >Hồ sơ cá nhân</a>
+          <div class="border-t border-slate-100 my-1" role="none"></div>
           <a
             href="#"
             data-wh-click="logout"
             class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-bold"
-            >Đăng xuất</a
-          >
+            role="menuitem"
+          >Đăng xuất</a>
         </div>
       </div>
     </div>

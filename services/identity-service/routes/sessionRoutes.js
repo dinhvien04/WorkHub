@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const { verifyToken, requireAdmin } = require("../middlewares/auth");
+const { requireAuth, requireAdmin } = require("../middlewares/auth");
 const {
   listSessions,
   revokeSession,
@@ -11,9 +11,9 @@ const {
 
 const router = express.Router();
 
-router.get("/sessions", verifyToken, listSessions);
-router.delete("/sessions/:id", verifyToken, revokeSession);
-router.post("/sessions/logout-all", verifyToken, logoutAll);
-router.post("/admin/users/:userId/force-logout", verifyToken, requireAdmin, adminForceLogout);
+router.get("/sessions", requireAuth, listSessions);
+router.delete("/sessions/:id", requireAuth, revokeSession);
+router.post("/sessions/logout-all", requireAuth, logoutAll);
+router.post("/admin/users/:userId/force-logout", requireAuth, requireAdmin, adminForceLogout);
 
 module.exports = router;

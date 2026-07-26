@@ -3,12 +3,13 @@
 require("dotenv").config();
 const http = require("http");
 const express = require("express");
-const mongoose = require("mongoose");
-const { createProxyMiddleware } = require("http-proxy-middleware");
+const { createProxyMiddleware, fixRequestBody } = require("http-proxy-middleware");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const { IdentityClient } = require("./lib/identityClient");
+const { TokenCache } = require("./lib/tokenCache");
 
 const PORT = Number(process.env.PORT) || 3000;
 const LEGACY_MONOLITH_URL = process.env.LEGACY_MONOLITH_URL || "http://localhost:3001";
@@ -16,7 +17,9 @@ const COMMUNICATION_SERVICE_URL = process.env.COMMUNICATION_SERVICE_URL || "http
 const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || "http://localhost:3003";
 const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || "http://localhost:3004";
 const CANARY_BYPASS = process.env.CANARY_BYPASS === "true";
-const JWT_SECRET = process.env.JWT_SECRET || "default_test_jwt_secret_at_least_32_chars_long";
+// The gateway no longer verifies signatures with JWT_SECRET — identity-service
+// owns that — but a default secret in production still indicates a
+// misconfigured deployment, so the guard stays.
 if (process.env.NODE_ENV === "production") {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET === "replace_with_a_long_random_secret" || process.env.JWT_SECRET === "default_test_jwt_secret_at_least_32_chars_long") {
     throw new Error("Missing or default JWT_SECRET in production.");
@@ -83,173 +86,135 @@ app.use((req, res, next) => {
   next();
 });
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/workhub";
+/**
+ * Identity state is reached only through identity-service: JWKS for signature
+ * verification, introspection for liveness. The gateway holds no database
+ * connection — identity owns those collections, and a second reader here was
+ * both a coupling violation and a way for the two to disagree about whether a
+ * session is still valid.
+ */
+const identityClient = new IdentityClient({
+  baseUrl: IDENTITY_SERVICE_URL,
+  internalSecret: IDENTITY_INTERNAL_SECRET,
+  cache: new TokenCache({
+    maxEntries: Number(process.env.GATEWAY_TOKEN_CACHE_MAX) || 5000,
+    ttlMs: Number(process.env.GATEWAY_TOKEN_CACHE_TTL_MS) || 15000,
+  }),
+});
 
-const userSchema = new mongoose.Schema({
-  Email: String,
-  Role: String,
-  Status: String,
-  tokenVersion: Number,
-}, { strict: false });
+const LEGACY_JWT_DEADLINE = process.env.IDENTITY_LEGACY_JWT_DEADLINE || "";
+const LEGACY_JWT_ENABLED = process.env.IDENTITY_LEGACY_JWT_ENABLED !== "false";
 
-const sessionSchema = new mongoose.Schema({
-  UserID: mongoose.Schema.Types.ObjectId,
-  PublicSessionID: String,
-  SidHash: String,
-  Sid: String,
-  TokenVersion: Number,
-  ExpiresAt: Date,
-  RevokedAt: Date,
-}, { strict: false });
-
-let dbConn = null;
-let User = null;
-let UserSession = null;
-
-function getDbConnection() {
-  if (dbConn && dbConn.readyState === 1) return { User, UserSession };
-  dbConn = mongoose.createConnection(MONGODB_URI);
-  User = dbConn.model("User", userSchema, "users");
-  UserSession = dbConn.model("UserSession", sessionSchema, "user_sessions");
-  return { User, UserSession };
+/**
+ * Mirrors identity's sunset rule so the gateway can reject legacy tokens at the
+ * edge instead of spending an introspection call to be told the same thing.
+ */
+function legacyJwtAllowed(now = new Date()) {
+  if (!LEGACY_JWT_ENABLED) return false;
+  if (!LEGACY_JWT_DEADLINE) return true;
+  const deadline = new Date(LEGACY_JWT_DEADLINE);
+  if (Number.isNaN(deadline.getTime())) return true;
+  return now < deadline;
 }
 
-const introspectCache = new Map();
-
-async function introspectToken(token, isMutating = false) {
-  const cached = introspectCache.get(token);
-  if (cached && cached.expires > Date.now()) {
-    return cached.result;
-  }
-
-  const IDENTITY_SERVICE_ENABLED = process.env.IDENTITY_SERVICE_ENABLED === "true";
-  const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || "http://localhost:3004";
-  const IDENTITY_INTERNAL_SECRET = process.env.IDENTITY_INTERNAL_SECRET || "default_test_identity_internal_secret_key";
-
-  // Decode JWT header to inspect algorithm and separation parameters (Phase G)
-  let decodedHeader;
-  try {
-    decodedHeader = jwt.decode(token, { complete: true });
-  } catch (_) {
-    return null;
-  }
-  const alg = decodedHeader?.header?.alg;
-
-  // Monolith compatibility path for legacy HS256 tokens
-  if (alg === "HS256") {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET, {
-        algorithms: ["HS256"],
-        issuer: "workhub-auth",
-        audience: "workhub-app"
-      });
-
-      const userId = decoded.userId || decoded.id || decoded._id;
-      const role = decoded.role;
-
-      if (!userId || !role) return null;
-
-      const { User: UserModel, UserSession: SessionModel } = getDbConnection();
-      const user = await UserModel.findById(userId).select("Status tokenVersion").lean();
-      if (!user || user.Status !== "active") return null;
-
-      const tokenVersion = typeof decoded.tokenVersion === "number" ? decoded.tokenVersion : 0;
-      const dbVersion = typeof user.tokenVersion === "number" ? user.tokenVersion : 0;
-      if (tokenVersion !== dbVersion) return null;
-
-      if (decoded.sid) {
-        const sidHash = crypto.createHash("sha256").update(String(decoded.sid)).digest("hex");
-        const sess = await SessionModel.findOne({
-          UserID: userId,
-          RevokedAt: null,
-          $or: [{ SidHash: sidHash }, { Sid: String(decoded.sid) }],
-        }).lean();
-        if (!sess) return null;
-        if (sess.ExpiresAt && new Date(sess.ExpiresAt) < new Date()) return null;
-      }
-
-      return { active: true, user: { userId, role } };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // Identity Service path for RS256 tokens
-  if (!IDENTITY_SERVICE_ENABLED) return null;
-
-  try {
-    const res = await globalThis.fetch(`${IDENTITY_SERVICE_URL}/internal/auth/introspect`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Token": IDENTITY_INTERNAL_SECRET,
-        "X-Service-Name": "api-gateway",
-      },
-      body: JSON.stringify({ token }),
-    });
-
-    if (!res.ok) {
-      if (isMutating) {
-        throw new Error("Identity Service Unavailable");
-      }
-      return null;
-    }
-
-    const body = await res.json();
-    if (body && body.active) {
-      const result = { active: true, user: body.user };
-      introspectCache.set(token, { result, expires: Date.now() + 15000 }); // 15s cache
-      return result;
-    }
-    return null;
-  } catch (err) {
-    if (isMutating) {
-      throw err;
-    }
-    return null;
-  }
-}
-
-// Cryptographically verify JWT token at Gateway boundary
-app.use(async (req, res, next) => {
-  let token = null;
-
+function extractToken(req) {
   const authHeader = req.headers["authorization"];
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.slice(7).trim();
-  } else if (req.headers.cookie) {
+    return authHeader.slice(7).trim();
+  }
+  if (req.headers.cookie) {
     const cookies = req.headers.cookie.split(";").reduce((acc, c) => {
       const parts = c.trim().split("=");
-      if (parts.length >= 2) {
-        acc[parts[0]] = parts.slice(1).join("=");
-      }
+      if (parts.length >= 2) acc[parts[0]] = parts.slice(1).join("=");
       return acc;
     }, {});
-    token = cookies["authToken"];
+    return cookies["authToken"] || null;
+  }
+  return null;
+}
+
+async function resolveToken(token, { strict = false } = {}) {
+  let header;
+  try {
+    header = jwt.decode(token, { complete: true })?.header;
+  } catch {
+    return null;
+  }
+  if (!header) return null;
+
+  if (header.alg === "HS256") {
+    if (!legacyJwtAllowed()) return null;
+    // Legacy tokens are validated by identity, which owns the user table.
+    return identityClient.resolve(token, { strict });
   }
 
-  if (!token) {
-    // Unauthenticated guest user
-    return next();
+  if (header.alg !== "RS256") return null;
+
+  // Reject a bad signature locally so garbage traffic never reaches identity.
+  const localClaims = await identityClient.verifyLocally(token);
+  if (!localClaims) {
+    // A brand-new kid may not be in the cached JWKS yet; let introspection
+    // adjudicate rather than rejecting a legitimately rotated token.
+    return identityClient.resolve(token, { strict });
   }
+
+  return identityClient.resolve(token, { strict });
+}
+
+// Verify the caller's token at the gateway boundary.
+app.use(async (req, res, next) => {
+  const token = extractToken(req);
+  if (!token) return next(); // anonymous
 
   const isMutating = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
 
   try {
-    const result = await introspectToken(token, isMutating);
+    const result = await resolveToken(token, { strict: isMutating });
     if (!result || !result.active) {
-      return res.status(401).json({ error: "Phiên làm việc hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại." });
+      return res.status(401).json({
+        error: "Phiên làm việc hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại.",
+      });
     }
 
     req.user = result.user;
-    next();
+    req.authToken = token;
+    return next();
   } catch (err) {
+    // A mutation must not proceed unauthenticated just because identity is
+    // unreachable — surface the outage instead of silently downgrading.
     if (isMutating) {
       return res.status(502).json({ error: "Identity Service Unavailable" });
     }
-    return res.status(401).json({ error: "Phiên làm việc hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại." });
+    return res.status(401).json({
+      error: "Phiên làm việc hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại.",
+    });
   }
 });
+
+/**
+ * Endpoints that revoke sessions. A 2xx from any of them means cached
+ * introspection results for that user are stale and must go now, rather than
+ * lingering until the TTL expires.
+ */
+const REVOCATION_PATHS = [
+  /^\/api\/auth\/logout$/,
+  /^\/api\/auth\/change-password$/,
+  /^\/api\/auth\/reset-password$/,
+  /^\/api\/sessions\/logout-all$/,
+  /^\/api\/sessions\/[^/]+$/,
+  /^\/api\/admin\/users\/[^/]+\/force-logout$/,
+];
+
+function isRevocationRequest(req) {
+  if (!["POST", "DELETE"].includes(req.method)) return false;
+  return REVOCATION_PATHS.some((pattern) => pattern.test(req.path));
+}
+
+function evictOnRevocation(req, statusCode) {
+  if (statusCode >= 300 || !isRevocationRequest(req)) return;
+  if (req.authToken) identityClient.cache.delete(req.authToken);
+  if (req.user?.userId) identityClient.evictUser(req.user.userId);
+}
 
 // Gateway health endpoints
 app.get("/gateway/health", (req, res) => res.json({ status: "ok", gateway: true }));
@@ -285,6 +250,10 @@ const proxyOptions = {
       if (CANARY_BYPASS) {
         proxyReq.setHeader("X-Canary-Bypass", "true");
       }
+
+      // Re-stream the body when an upstream middleware already consumed it
+      // (host registration is parsed at the gateway). No-op otherwise.
+      fixRequestBody(proxyReq, req);
     },
     proxyRes: (proxyRes, req, res) => {
       // Append request ID to incoming client responses
@@ -456,9 +425,13 @@ const identityProxyOptions = {
         proxyReq.setHeader("X-User-Id", req.user.userId);
         proxyReq.setHeader("X-User-Role", req.user.role || "");
       }
+
+      fixRequestBody(proxyReq, req);
     },
     proxyRes: (proxyRes, req, res) => {
       res.setHeader("X-Request-Id", req.id || crypto.randomUUID());
+      // A successful logout/revoke must invalidate our cached view immediately.
+      evictOnRevocation(req, proxyRes.statusCode);
     },
   },
 };
@@ -486,6 +459,26 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * Host signup needs business verification and a Catalog-owned profile, neither
+ * of which identity owns until the M7 onboarding saga exists. Parse just this
+ * one endpoint's body so the role can be inspected and host registrations kept
+ * on the monolith facade regardless of the canary percentage.
+ */
+const registerBodyParser = express.json({ limit: "64kb" });
+
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.path === "/api/auth/register") {
+    return registerBodyParser(req, res, next);
+  }
+  return next();
+});
+
+function isHostRegistration(req) {
+  if (req.method !== "POST" || req.path !== "/api/auth/register") return false;
+  return String(req.body?.role || "").trim().toLowerCase() === "host";
+}
+
 // Route auth/session identity endpoints to identity microservice when enabled
 app.use((req, res, next) => {
   const isIdentityPath =
@@ -493,7 +486,8 @@ app.use((req, res, next) => {
     req.path.startsWith("/api/auth/") ||
     req.path === "/api/sessions" ||
     req.path.startsWith("/api/sessions/");
-  if (isIdentityPath && shouldRouteToIdentity(req)) {
+
+  if (isIdentityPath && !isHostRegistration(req) && shouldRouteToIdentity(req)) {
     return identityProxy(req, res, next);
   }
   next();
@@ -564,4 +558,8 @@ module.exports = {
   shouldRouteToCommunication,
   shouldRouteToContent,
   shouldRouteToIdentity,
+  identityClient,
+  legacyJwtAllowed,
+  isRevocationRequest,
+  extractToken,
 };

@@ -149,6 +149,24 @@ const AllSessionsRevokedEventDataSchema = z.object({
   tokenVersion: z.number().int().nonnegative(),
 });
 
+/**
+ * Identity asks Communication to deliver a transactional email. Identity never
+ * talks to an email provider itself — delivery, templating, retries and
+ * per-user notification preferences all belong to Communication.
+ */
+const EmailRequestedEventDataSchema = z.object({
+  userId: z.string().optional(),
+  toEmail: z.string().email(),
+  template: z.enum([
+    "verify_email",
+    "password_reset_otp",
+    "password_changed",
+    "generic",
+  ]),
+  data: z.record(z.any()).default({}),
+  requestedAt: z.string().datetime(),
+});
+
 // Content Domain Events (M5)
 const PagePublishedEventDataSchema = z.object({
   slug: z.string(),
@@ -240,6 +258,9 @@ function validateEvent(envelope) {
     case "identity.all-sessions-revoked.v1":
       dataSchema = AllSessionsRevokedEventDataSchema;
       break;
+    case "identity.email-requested.v1":
+      dataSchema = EmailRequestedEventDataSchema;
+      break;
     case "content.page-published.v1":
       dataSchema = PagePublishedEventDataSchema;
       break;
@@ -285,6 +306,7 @@ module.exports = {
   SessionCreatedEventDataSchema,
   SessionRevokedEventDataSchema,
   AllSessionsRevokedEventDataSchema,
+  EmailRequestedEventDataSchema,
   PagePublishedEventDataSchema,
   PageUnpublishedEventDataSchema,
   SeoRedirectUpdatedEventDataSchema,
