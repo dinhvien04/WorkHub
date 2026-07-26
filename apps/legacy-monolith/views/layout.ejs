@@ -23,14 +23,23 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
+    <% /* Fonts are the first thing the parser blocks on; open the connections
+          before the stylesheet that references them. */ %>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <% if (typeof useTailwindCdn === 'undefined' || useTailwindCdn) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/brand.css">
     <% } else { %>
-    <% /* Prefer minified bundle when present (npm run build:css) */ %>
-    <% /* Built CSS required in production (npm run build:css); no inline onerror fallback */ %>
-    <link rel="stylesheet" href="/css/app.min.css">
-    <link rel="stylesheet" href="/css/style.css">
+    <% /* app.min.css already concatenates style.css, brand.css and the purged
+          utilities (scripts/purge-css.js). Loading style.css alongside it
+          shipped ~29KB of duplicate CSS on every page.
+          The hashed URL is what makes the immutable /dist cache header usable. */ %>
+    <% const _cssHref = (typeof asset === 'function') ? asset('css/app.min.css') : '/css/app.min.css'; %>
+    <link rel="preload" as="style" href="<%= _cssHref %>">
+    <link rel="stylesheet" href="<%= _cssHref %>">
     <% } %>
     <% if (typeof loadChartJs !== 'undefined' && loadChartJs) { %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>

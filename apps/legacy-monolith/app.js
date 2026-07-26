@@ -322,6 +322,11 @@ function createApp() {
     res.locals.t = (key, fb) => t(res.locals.lang, key, fb);
     res.locals.csrfToken =
       res.locals.csrfToken || (req.cookies && req.cookies.csrfToken) || "";
+    // Content-hashed asset URLs. /dist is served immutable for a year, so
+    // referencing the hashed name is what makes that cache header usable —
+    // and what lets a deploy bust it. Falls back to the logical path when the
+    // manifest has not been built.
+    res.locals.asset = require("./utils/assetManifest").assetUrl;
     res.locals.pageTitle =
       res.locals.pageTitle || "WorkHub - Đặt chỗ Co-working";
     res.locals.metaDescription =
