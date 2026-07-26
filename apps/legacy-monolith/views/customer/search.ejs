@@ -79,7 +79,9 @@
             <div class="bg-white rounded-2xl border p-4 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 shadow-sm flex flex-col">
 
                 <img
-                    src="<%= (branch.Images && branch.Images.length > 0) ? branch.Images[0] : 'https://via.placeholder.com/400x250' %>"
+                    loading="lazy"
+                    decoding="async"
+                    src="<%= (branch.Images && branch.Images.length > 0) ? branch.Images[0] : '/icons/icon.svg' %>"
                     class="rounded-xl w-full h-48 object-cover mb-4"
                     alt="<%= branch.Name %>">
 
