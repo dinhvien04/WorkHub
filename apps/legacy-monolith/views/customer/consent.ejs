@@ -1,20 +1,47 @@
-<div class="max-w-xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Quyền riêng tư &amp; marketing</h1>
-  <p class="text-sm text-slate-500 mb-4">Quản lý đồng ý nhận thông tin và chính sách dữ liệu.</p>
+<%/* Consent / marketing preferences.
 
-  <section class="bg-white rounded-3xl border p-5 mb-4">
-    <h2 class="font-bold mb-2">Tùy chọn của bạn</h2>
-    <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="c-email" /> Email giao dịch</label>
-    <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="c-push" /> Push</label>
-    <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="c-sms" /> SMS</label>
-    <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="c-mkt" /> Marketing / ưu đãi</label>
-    <button type="button" id="c-save" class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase">Lưu</button>
+     public/js/consent.js reads and writes the four checkboxes by id (c-email,
+     c-push, c-sms, c-mkt), fills #c-policy and reports into #c-msg. Nothing on
+     this page is shown or hidden by class, so the wh- components are safe here.
+
+     Fixed here: each checkbox was a bare <input> inside a wrapper <label> with
+     no `for=`, so the association was implicit and the hit area was the text
+     only. */%>
+
+<div class="max-w-xl mx-auto">
+  <h1 class="wh-section-title mb-2">Quyền riêng tư &amp; marketing</h1>
+  <p class="wh-section-sub text-sm mb-6">Quản lý đồng ý nhận thông tin và chính sách dữ liệu.</p>
+
+  <section class="wh-card-elevated p-5 mb-4" aria-labelledby="consent-prefs-title">
+    <h2 id="consent-prefs-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Tùy chọn của bạn</h2>
+
+    <fieldset class="mb-4" style="border: 0; padding: 0; margin-inline: 0;">
+      <legend class="wh-stat-label mb-2">Kênh liên lạc</legend>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="c-email" />
+        <label for="c-email" class="text-sm" style="color: var(--color-text-soft);">Email giao dịch</label>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="c-push" />
+        <label for="c-push" class="text-sm" style="color: var(--color-text-soft);">Push</label>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="c-sms" />
+        <label for="c-sms" class="text-sm" style="color: var(--color-text-soft);">SMS</label>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="c-mkt" />
+        <label for="c-mkt" class="text-sm" style="color: var(--color-text-soft);">Marketing / ưu đãi</label>
+      </div>
+    </fieldset>
+
+    <button type="button" id="c-save" class="wh-btn-brand text-xs uppercase tracking-widest">Lưu</button>
     <p id="c-msg" class="text-sm mt-2" role="status"></p>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 text-sm text-slate-600 space-y-2">
-    <h2 class="font-bold text-slate-800">Tóm tắt chính sách</h2>
-    <div id="c-policy">Đang tải…</div>
-    <p class="text-xs text-slate-400">Chi tiết đầy đủ có thể xuất bản qua CMS `/huong-dan/chinh-sach-bao-mat`.</p>
+  <section class="wh-card-elevated p-5" aria-labelledby="consent-policy-title">
+    <h2 id="consent-policy-title" class="font-bold text-lg mb-2" style="color: var(--color-text);">Tóm tắt chính sách</h2>
+    <div id="c-policy" class="text-sm space-y-2" style="color: var(--color-text-soft);">Đang tải…</div>
+    <p class="text-xs mt-4" style="color: var(--color-muted);">Chi tiết đầy đủ có thể xuất bản qua CMS <code>/huong-dan/chinh-sach-bao-mat</code>.</p>
   </section>
 </div>

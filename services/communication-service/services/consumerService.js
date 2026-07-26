@@ -3,6 +3,7 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const { messaging } = require("@workhub/observability");
+const { redactEventForStorage } = require("@workhub/contracts");
 const env = require("../config/env");
 
 const ProcessedMessage = require("../models/ProcessedMessage");
@@ -404,7 +405,9 @@ async function onDeadLetter(msg, event, errReason) {
         $set: {
           QueueName: QUEUE_NAME,
           RoutingKey: msg.fields.routingKey,
-          Payload: event || {},
+          // Never persist a decrypted secret-bearing envelope: identity
+          // encrypts these at rest and drops the ciphertext after publish.
+          Payload: redactEventForStorage(event),
           Headers: msg.properties.headers || {},
           Error: errReason,
           Status: "pending",

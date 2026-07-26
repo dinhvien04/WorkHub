@@ -1,21 +1,45 @@
 <div class="max-w-2xl mx-auto">
-  <h1 class="text-2xl font-black mb-4">CMS</h1>
-  <form id="cms-form" class="bg-white border rounded-3xl p-4 space-y-3">
-    <input name="Title" required placeholder="Title" class="w-full border rounded-xl px-3 py-2 text-sm" />
-    <input name="Slug" placeholder="slug (optional)" class="w-full border rounded-xl px-3 py-2 text-sm" />
-    <select name="Type" class="w-full border rounded-xl px-3 py-2 text-sm">
-      <option value="guide">guide</option>
-      <option value="faq">faq</option>
-      <option value="policy">policy</option>
-      <option value="city">city</option>
-      <option value="announcement">announcement</option>
-    </select>
-    <textarea name="Body" rows="6" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Nội dung"></textarea>
-    <select name="Status" class="w-full border rounded-xl px-3 py-2 text-sm">
-      <option value="published">published</option>
-      <option value="draft">draft</option>
-    </select>
-    <button class="btn-primary w-full" type="submit">Lưu</button>
-    <p id="cms-msg" class="text-xs text-slate-500"></p>
+  <header class="mb-6">
+    <h1 class="wh-section-title mb-1">CMS</h1>
+    <p class="wh-section-sub text-sm">Soạn và xuất bản trang nội dung tại <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">/huong-dan/&lt;slug&gt;</span>.</p>
+  </header>
+
+  <form id="cms-form" class="wh-card-elevated p-6">
+    <div class="mb-4">
+      <label for="cms-title" class="wh-label">Tiêu đề</label>
+      <input id="cms-title" name="Title" required placeholder="Title" class="wh-field text-sm" />
+    </div>
+
+    <div class="mb-4">
+      <label for="cms-slug" class="wh-label">Slug</label>
+      <input id="cms-slug" name="Slug" placeholder="slug (optional)" class="wh-field text-sm" />
+    </div>
+
+    <div class="mb-4">
+      <label for="cms-type" class="wh-label">Loại nội dung</label>
+      <select id="cms-type" name="Type" class="wh-field text-sm">
+        <option value="guide">guide</option>
+        <option value="faq">faq</option>
+        <option value="policy">policy</option>
+        <option value="city">city</option>
+        <option value="announcement">announcement</option>
+      </select>
+    </div>
+
+    <div class="mb-4">
+      <label for="cms-body" class="wh-label">Nội dung</label>
+      <textarea id="cms-body" name="Body" rows="6" class="wh-field text-sm" placeholder="Nội dung"></textarea>
+    </div>
+
+    <div class="mb-4">
+      <label for="cms-status" class="wh-label">Trạng thái</label>
+      <select id="cms-status" name="Status" class="wh-field text-sm">
+        <option value="published">published</option>
+        <option value="draft">draft</option>
+      </select>
+    </div>
+
+    <button class="wh-btn-brand w-full" type="submit">Lưu</button>
+    <p id="cms-msg" class="text-xs mt-3" role="status" style="color:var(--color-muted);"></p>
   </form>
 </div>

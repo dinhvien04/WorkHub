@@ -1,223 +1,181 @@
-<main class="content-area">
-            <div class="flex flex-col gap-8">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h2 class="text-4xl font-black text-slate-800 uppercase tracking-tighter">Bảng điều hành
-                        </h2>
-                        <p class="text-slate-400 text-sm font-medium">Theo dõi thời gian thực tình hình kinh doanh
-                        </p>
-                    </div>
-                    <a href="/host/reception"
-                        class="bg-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-xl hover:bg-teal-700 transition flex items-center gap-3 uppercase text-xs tracking-widest no-underline">
-                        <span>📷</span> QUÉT QR CHECK-IN
-                    </a>
-                </div>
+<div class="flex flex-col gap-8">
+    <header class="flex flex-wrap justify-between items-center gap-4">
+        <div>
+            <h1 class="wh-section-title">Bảng điều hành</h1>
+            <p class="wh-section-sub text-sm">Theo dõi thời gian thực tình hình kinh doanh</p>
+        </div>
+        <a href="/host/reception" class="wh-btn-brand no-underline text-xs uppercase tracking-widest">
+            <span aria-hidden="true">📷</span> Quét QR check-in
+        </a>
+    </header>
 
-                <div id="branch-tabs-container"
-                    class="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 w-fit">
-                    <button type="button"
-                        class="branch-tab bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition"
-                        id="tab-all" data-wh-click="switchBranch" data-wh-args="[&quot;all&quot;]">Tất cả</button>
-                </div>
+    <nav id="branch-tabs-container" class="flex flex-wrap gap-2 bg-white rounded-2xl p-1 border border-slate-100 shadow-sm" aria-label="Chọn cơ sở">
+        <button type="button" class="branch-tab active px-5 py-2 rounded-xl text-sm font-bold" id="tab-all"
+            data-wh-click="switchBranch" data-wh-args="[&quot;all&quot;]">Tất cả</button>
+    </nav>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div
-                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
-                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
-                            aria-hidden="true">💰</span>
-                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
-                            Tổng giá trị
-                            Booking</p>
-                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-revenue">0đ</p>
-                    </div>
-                    <div
-                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
-                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
-                            aria-hidden="true">📅</span>
-                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
-                            Tổng Đặt Chỗ
-                        </p>
-                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-bookings">0</p>
-                    </div>
-                    <div
-                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
-                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
-                            aria-hidden="true">👥</span>
-                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
-                            Lượt khách đã
-                            dùng</p>
-                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-occupied">0</p>
-                    </div>
-                    <div
-                        class="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group hover:shadow-md transition">
-                        <span class="absolute -right-1 -top-1 text-7xl opacity-[0.07] pointer-events-none select-none"
-                            aria-hidden="true">🏢</span>
-                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2 relative z-10">
-                            Số chỗ đang
-                            hoạt động</p>
-                        <p class="text-2xl font-black text-slate-800 relative z-10" id="stat-rooms">0</p>
-                    </div>
-                </div>
+    <section class="grid md:grid-cols-4 gap-4 wh-fade-up" aria-labelledby="host-kpi-title">
+        <h2 id="host-kpi-title" class="wh-sr-only">Chỉ số hôm nay</h2>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
-                        <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Xu hướng đặt
-                            chỗ</h3>
-                        <div class="relative h-64">
-                            <canvas id="bookingChart"></canvas>
-                        </div>
-                    </div>
+        <article class="wh-stat">
+            <p class="wh-stat-label m-0">Tổng giá trị booking</p>
+            <p class="wh-stat-value m-0" id="stat-revenue">0đ</p>
+        </article>
+        <article class="wh-stat">
+            <p class="wh-stat-label m-0">Tổng đặt chỗ</p>
+            <p class="wh-stat-value m-0" id="stat-bookings">0</p>
+        </article>
+        <article class="wh-stat">
+            <p class="wh-stat-label m-0">Lượt khách đã dùng</p>
+            <p class="wh-stat-value m-0" id="stat-occupied">0</p>
+        </article>
+        <article class="wh-stat">
+            <p class="wh-stat-label m-0">Số chỗ đang hoạt động</p>
+            <p class="wh-stat-value m-0" id="stat-rooms">0</p>
+        </article>
+    </section>
 
-                    <div
-                        class="lg:col-span-1 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
-                        <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-4">Trạng thái
-                            phòng Live</h3>
-                        <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-4 gap-2 flex-1 content-start"
-                            id="host-floor-plan-mini"></div>
-                        <div
-                            class="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold text-slate-500">
-                            <span class="flex items-center gap-1.5"><span
-                                    class="w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-200"></span> Đang
-                                trống</span>
-                            <span class="flex items-center gap-1.5"><span
-                                    class="w-3 h-3 rounded-sm bg-red-100 border border-red-200"></span> Đang
-                                dùng</span>
-                            <span class="flex items-center gap-1.5"><span
-                                    class="w-3 h-3 rounded-sm bg-amber-100 border border-amber-200"></span> Sắp có
-                                khách</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="font-black text-slate-800 mb-4 uppercase tracking-tight text-sm">📅 Booking gần nhất
-                    </h3>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-50 text-[9px] uppercase text-slate-400 font-black">
-                                <tr>
-                                    <th class="p-3">Khách</th>
-                                    <th class="p-3">Phòng / Chỗ</th>
-                                    <th class="p-3">Thời gian đặt</th>
-                                    <th class="p-3">Trạng thái đơn</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-[11px] text-slate-600" id="host-recent-table">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                    <h3 class="font-black text-xl text-slate-800 uppercase tracking-tighter mb-4">💰 Chi tiết dòng
-                        tiền</h3>
-                    <div class="grid lg:grid-cols-1 gap-12">
-                        <div>
-                            <div class="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex justify-between border-b pb-2 mb-2">
-                                        <span class="font-bold text-slate-700">🟢 Tổng giá trị Booking:</span>
-                                        <span class="font-black text-emerald-600 text-lg" id="finance-paid">0đ</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span class="font-medium text-slate-500">💳 Đã thanh toán (Đặt cọc):</span>
-                                        <span class="font-bold text-amber-500" id="finance-pending">0đ</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <div class="grid lg:grid-cols-3 gap-6">
+        <section class="lg:col-span-2 wh-card-elevated p-6" aria-labelledby="host-trend-title">
+            <h2 id="host-trend-title" class="font-black text-sm uppercase tracking-widest mb-6">Xu hướng đặt chỗ</h2>
+            <div class="relative h-72">
+                <canvas id="bookingChart"></canvas>
             </div>
-            <%/* Chart.js comes from layout.ejs (loadChartJs) with the CSP nonce;
-                 the unnonced jsdelivr tag here was blocked in production.
-                 host-dashboard.js is injected via scriptsFrom in app.js. */%>
-        </main>
+        </section>
+
+        <section class="lg:col-span-1 wh-card-elevated p-6 flex flex-col" aria-labelledby="host-live-title">
+            <h2 id="host-live-title" class="font-black text-sm uppercase tracking-widest mb-4">Trạng thái phòng live</h2>
+            <div class="flex flex-wrap items-start gap-2 flex-1" id="host-floor-plan-mini"></div>
+            <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-2">
+                <span class="wh-chip wh-chip-success">Đang trống</span>
+                <span class="wh-chip wh-chip-danger">Đang dùng</span>
+                <span class="wh-chip wh-chip-warning">Sắp có khách</span>
+            </div>
+        </section>
     </div>
+
+    <section aria-labelledby="host-recent-title">
+        <h2 id="host-recent-title" class="font-black text-sm uppercase tracking-widest mb-4">Booking gần nhất</h2>
+        <div class="wh-card-gradient overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-600 font-black tracking-widest">
+                        <tr>
+                            <th scope="col" class="p-3">Khách</th>
+                            <th scope="col" class="p-3">Phòng / Chỗ</th>
+                            <th scope="col" class="p-3">Thời gian đặt</th>
+                            <th scope="col" class="p-3">Trạng thái đơn</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-xs text-slate-600" id="host-recent-table"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="wh-card-elevated p-6" aria-labelledby="host-cashflow-title">
+        <h2 id="host-cashflow-title" class="font-black text-lg mb-4">Chi tiết dòng tiền</h2>
+        <dl class="text-sm m-0">
+            <div class="flex flex-wrap justify-between items-center gap-3 py-3 border-b border-slate-100">
+                <dt class="font-bold text-slate-700">Tổng giá trị booking</dt>
+                <dd class="m-0"><span class="wh-chip wh-chip-success text-sm" id="finance-paid">0đ</span></dd>
+            </div>
+            <div class="flex flex-wrap justify-between items-center gap-3 py-3">
+                <dt class="font-medium text-slate-600">Đã thanh toán (đặt cọc)</dt>
+                <dd class="m-0"><span class="wh-chip wh-chip-warning text-sm" id="finance-pending">0đ</span></dd>
+            </div>
+        </dl>
+    </section>
 </div>
+
+<%/* Chart.js comes from layout.ejs (loadChartJs) with the CSP nonce;
+     the unnonced jsdelivr tag here was blocked in production.
+     host-dashboard.js is injected via scriptsFrom in app.js. */%>
 
 <div id="page-indicator">Trang: <span id="current-page-label">Trang Chủ</span></div>
 
 <div id="success-toast"
-    class="fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-8 py-3 rounded-full shadow-2xl z-[100] hidden">
+    class="fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-8 py-3 rounded-full shadow-2xl z-[100] hidden"
+    role="status" aria-live="polite" aria-atomic="true">
     <div class="flex items-center gap-3 font-bold">
         <span id="toast-msg">Thành công!</span>
     </div>
 </div>
 
 <div id="modal-qr"
-    class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm transition-all">
+    class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm"
+    role="dialog" aria-modal="true" aria-labelledby="modal-qr-title">
     <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Quét mã QR Check-in</h3>
-            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]"
-                class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+            <h2 id="modal-qr-title" class="font-black text-lg uppercase tracking-tighter m-0">Quét mã QR check-in</h2>
+            <button type="button" data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]"
+                aria-label="Đóng cửa sổ quét QR"
+                class="text-slate-600 font-bold text-2xl leading-none bg-transparent border-none cursor-pointer">
+                <span aria-hidden="true">&times;</span>
+            </button>
         </div>
         <div class="p-8 text-center bg-slate-800">
-            <div
-                class="relative w-64 h-64 mx-auto mb-6 bg-slate-900 rounded-3xl border-4 border-dashed border-teal-500 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(20,184,166,0.3)]">
-                <div
-                    class="w-full h-1 bg-teal-400 absolute top-0 left-0 shadow-[0_0_15px_rgba(45,212,191,1)] animate-[scan_2s_ease-in-out_infinite]">
-                </div>
-                <p class="text-slate-500 font-bold text-xs uppercase tracking-widest z-10">Đưa QR vào khung</p>
+            <div class="relative w-full h-72 mx-auto mb-6 bg-slate-900 rounded-3xl border-2 border-teal-500 flex items-center justify-center overflow-hidden">
+                <p class="text-on-dark-muted font-bold text-xs uppercase tracking-widest m-0">Đưa QR vào khung</p>
             </div>
-            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]" data-wh-then="showToast" data-wh-then-args="[&quot;Check-in thành công cho mã đơn BK-9902!&quot;]"
-                class="w-full bg-teal-500 text-slate-900 py-4 rounded-xl font-black shadow-lg hover:bg-teal-400 transition uppercase text-xs tracking-widest">
-                [Demo] Bấm để giả lập Quét
+            <button type="button" data-wh-click="closeModal" data-wh-args="[&quot;modal-qr&quot;]" data-wh-then="showToast"
+                data-wh-then-args="[&quot;Check-in thành công cho mã đơn BK-9902!&quot;]"
+                class="wh-btn-brand w-full text-xs uppercase tracking-widest">
+                [Demo] Bấm để giả lập quét
             </button>
         </div>
     </div>
 </div>
 
 <div id="modal-add-space"
-    class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm">
-    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden">
+    class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex-col items-center justify-center backdrop-blur-sm"
+    role="dialog" aria-modal="true" aria-labelledby="modal-add-space-title">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h3 class="font-black text-lg text-slate-800 uppercase tracking-tighter">Thêm Không Gian Mới</h3>
-            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]"
-                class="text-slate-400 hover:text-red-500 font-bold text-2xl leading-none">&times;</button>
+            <h2 id="modal-add-space-title" class="font-black text-lg uppercase tracking-tighter m-0">Thêm không gian mới</h2>
+            <button type="button" data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]"
+                aria-label="Đóng cửa sổ thêm không gian"
+                class="text-slate-600 font-bold text-2xl leading-none bg-transparent border-none cursor-pointer">
+                <span aria-hidden="true">&times;</span>
+            </button>
         </div>
-        <div class="p-8 space-y-4">
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên/Mã Không gian</label>
-                <input type="text" placeholder="VD: Phòng họp 103"
-                    class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+        <div class="p-6 grid gap-4">
+            <div>
+                <label for="dash-space-name" class="wh-label text-xs uppercase tracking-widest">Tên/Mã không gian</label>
+                <input type="text" id="dash-space-name" placeholder="VD: Phòng họp 103" class="wh-field">
             </div>
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Hình ảnh minh họa</label>
-                <label
-                    class="mt-2 h-20 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase cursor-pointer hover:border-teal-500 transition">
-                    + Chọn ảnh
-                    <input type="file" accept="image/*" class="hidden">
+            <div>
+                <label for="dash-space-image" class="wh-label text-xs uppercase tracking-widest cursor-pointer flex items-center justify-center h-20 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-600">
+                    + Chọn ảnh minh họa
+                    <input type="file" id="dash-space-image" accept="image/*" class="hidden">
                 </label>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Loại</label>
-                    <select class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800">
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label for="dash-space-type" class="wh-label text-xs uppercase tracking-widest">Loại</label>
+                    <select id="dash-space-type" class="wh-field">
                         <option>Phòng họp</option>
                         <option>Chỗ ngồi tự do</option>
                     </select>
                 </div>
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giá niêm yết /
-                        Giờ</label>
-                    <input type="number" placeholder="250000"
-                        class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                <div>
+                    <label for="dash-space-price" class="wh-label text-xs uppercase tracking-widest">Giá niêm yết / giờ</label>
+                    <input type="number" id="dash-space-price" placeholder="250000" class="wh-field">
                 </div>
             </div>
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Trạng thái</label>
-                <select class="w-full bg-transparent border-none p-0 text-sm font-bold outline-none text-slate-800">
+            <div>
+                <label for="dash-space-status" class="wh-label text-xs uppercase tracking-widest">Trạng thái</label>
+                <select id="dash-space-status" class="wh-field">
                     <option value="ready">Sẵn sàng</option>
                     <option value="preparing">Đang chuẩn bị</option>
                     <option value="occupied">Có khách</option>
                     <option value="suspended">Tạm ngừng hoạt động</option>
                 </select>
             </div>
-            <button data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]" data-wh-then="showToast" data-wh-then-args="[&quot;Đã thêm không gian mới!&quot;]"
-                class="w-full mt-4 bg-teal-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-teal-700 transition">
-                Lưu Không Gian
+            <button type="button" data-wh-click="closeModal" data-wh-args="[&quot;modal-add-space&quot;]"
+                data-wh-then="showToast" data-wh-then-args="[&quot;Đã thêm không gian mới!&quot;]"
+                class="wh-btn-brand w-full text-xs uppercase tracking-widest">
+                Lưu không gian
             </button>
         </div>
     </div>

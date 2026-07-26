@@ -1,0 +1,67 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "monolith",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=@workhub/legacy-monolith"],
+      "port": 3000
+    },
+    {
+      "name": "identity-service",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "IDENTITY_PORT=3004",
+        "npm",
+        "run",
+        "dev",
+        "--workspace=@workhub/identity-service"
+      ],
+      "port": 3004
+    },
+    {
+      "name": "communication-service",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "COMMUNICATION_PORT=3002",
+        "npm",
+        "run",
+        "dev",
+        "--workspace=@workhub/communication-service"
+      ],
+      "port": 3002
+    },
+    {
+      "name": "content-service",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "CONTENT_PORT=3003",
+        "npm",
+        "run",
+        "dev",
+        "--workspace=@workhub/content-service"
+      ],
+      "port": 3003
+    },
+    {
+      "name": "api-gateway",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "PORT=3010",
+        "LEGACY_MONOLITH_URL=http://127.0.0.1:3000",
+        "IDENTITY_SERVICE_URL=http://127.0.0.1:3004",
+        "COMMUNICATION_SERVICE_URL=http://127.0.0.1:3002",
+        "CONTENT_SERVICE_URL=http://127.0.0.1:3003",
+        "npm",
+        "run",
+        "dev",
+        "--workspace=@workhub/api-gateway"
+      ],
+      "port": 3010
+    }
+  ]
+}

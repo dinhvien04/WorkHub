@@ -15,4 +15,10 @@ const deadLetterSchema = new mongoose.Schema(
   { collection: "consumer_dead_letters", timestamps: true }
 );
 
+
+// Dead letters are diagnostic, not a record of account state. Without an
+// expiry they accumulate forever — and any payload they hold outlives the
+// TTL of the credential it describes by an unbounded margin.
+deadLetterSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
+
 module.exports = mongoose.model("ConsumerDeadLetter", deadLetterSchema);

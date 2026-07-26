@@ -1,11 +1,14 @@
 {
-  "generatedAt": "2026-07-26T14:55:50.626Z",
+  "generatedAt": "2026-07-26T15:51:56.635Z",
   "files": {
-    "css/app.min.css": "/dist/css/app.min.7b628d26051e.css",
+    "css/app.min.css": "/dist/css/app.min.f211ba2512b8.css",
     "css/style.css": "/dist/css/style.1f64f7d1265a.css",
     "js/api.js": "/dist/js/api.cc56ea78f18a.js",
     "js/domSafe.js": "/dist/js/domSafe.af42b8007a25.js",
     "js/ui-bind.js": "/dist/js/ui-bind.a0bb3b632934.js",
-    "js/main.js": "/dist/js/main.b33122d2bb23.js"
+    "js/main.js": "/dist/js/main.b33122d2bb23.js",
+    "vendor/chart.min.js": "/dist/vendor/chart.min.fbc45926e6b4.js",
+    "vendor/choices.min.js": "/dist/vendor/choices.min.c692783cbe62.js",
+    "vendor/choices.min.css": "/dist/vendor/choices.min.834b801c2f98.css"
   }
 }

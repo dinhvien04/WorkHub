@@ -1,33 +1,33 @@
-<div class="p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
-    <div class="mb-6">
-        <h1 class="text-3xl font-black text-slate-800 mb-1">Duyệt Chủ cơ sở</h1>
-        <p class="text-slate-500 text-sm">Kiểm duyệt hồ sơ đăng ký và quản lý các đối tác kinh doanh trên hệ thống.</p>
-    </div>
+<section class="wh-card-elevated p-6">
+    <header class="mb-6">
+        <h1 class="wh-section-title mb-1">Duyệt Chủ cơ sở</h1>
+        <p class="wh-section-sub text-sm">Kiểm duyệt hồ sơ đăng ký và quản lý các đối tác kinh doanh trên hệ thống.</p>
+    </header>
 
-    <div class="border border-amber-200 rounded-xl overflow-hidden shadow-sm">
-        <div class="p-4 bg-amber-50 border-b border-amber-200 flex justify-between items-center">
-            <h2 class="text-lg font-bold text-amber-800 flex items-center gap-2">
-                <span>⏳</span> Yêu cầu Phê duyệt
-            </h2>
+    <section class="overflow-hidden" style="border:1px solid var(--color-border);border-radius:var(--radius-lg);">
+        <div class="p-4 flex flex-wrap justify-between items-center gap-3" style="background:var(--color-warning-bg);border-bottom:1px solid var(--color-border);">
+            <h2 class="text-lg font-bold" style="color:var(--color-warning-text);">Yêu cầu Phê duyệt</h2>
+            <span class="wh-chip wh-chip-warning"><span aria-hidden="true">⏳</span> Đang chờ xử lý</span>
         </div>
-        <div class="overflow-x-auto bg-white">
-            <table class="w-full text-left border-collapse">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left" style="border-collapse:collapse;min-width:760px;background:var(--color-surface);">
+                <caption class="wh-sr-only">Hồ sơ chủ cơ sở đang chờ phê duyệt</caption>
                 <thead>
-                    <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-100">
-                        <th class="p-4 font-medium">Người đăng ký</th>
-                        <th class="p-4 font-medium">Thông tin Doanh nghiệp</th>
-                        <th class="p-4 font-medium">Liên hệ</th>
-                        <th class="p-4 font-medium text-right">Hành động</th>
+                    <tr style="background:var(--color-surface-sunken);color:var(--color-text-soft);border-bottom:1px solid var(--color-border);">
+                        <th scope="col" class="p-4 text-xs font-bold uppercase tracking-widest">Người đăng ký</th>
+                        <th scope="col" class="p-4 text-xs font-bold uppercase tracking-widest">Thông tin Doanh nghiệp</th>
+                        <th scope="col" class="p-4 text-xs font-bold uppercase tracking-widest">Liên hệ</th>
+                        <th scope="col" class="p-4 text-xs font-bold uppercase tracking-widest text-right">Hành động</th>
                     </tr>
                 </thead>
                 <tbody id="pending-hosts-body" class="text-sm divide-y divide-slate-100">
                     <tr>
-                        <td colspan="4" class="p-8 text-center text-slate-400">
+                        <td colspan="4" class="p-8 text-center" style="color:var(--color-muted);">
                             Đang tải danh sách chờ duyệt...
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
+    </section>
+</section>

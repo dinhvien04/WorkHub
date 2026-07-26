@@ -1,22 +1,49 @@
+<%/* Support. public/js/support.js reads the form with FormData, so the `name`
+     attributes are load-bearing; the ids added here exist only so each label
+     can point at its control. */%>
+
 <div class="max-w-xl mx-auto">
-  <h1 class="text-2xl font-black mb-4">Hỗ trợ</h1>
-  <form id="support-form" class="bg-white border rounded-3xl p-6 space-y-3">
-    <input name="subject" required maxlength="200" placeholder="Tiêu đề" class="w-full border rounded-xl px-3 py-2 text-sm" />
-    <textarea name="body" required maxlength="5000" rows="5" placeholder="Mô tả vấn đề" class="w-full border rounded-xl px-3 py-2 text-sm"></textarea>
-    <input name="bookingId" placeholder="Booking ID (tuỳ chọn)" class="w-full border rounded-xl px-3 py-2 text-sm" />
-    <button class="btn-primary w-full" type="submit">Gửi ticket</button>
-    <p id="support-msg" class="text-xs text-slate-500"></p>
+  <header class="mb-6">
+    <h1 class="wh-section-title mb-2">Hỗ trợ</h1>
+    <p class="wh-section-sub text-sm">Gửi ticket cho đội ngũ WorkHub, theo dõi dispute và hoàn tiền.</p>
+  </header>
+
+  <%/* wh-card-gradient rather than wh-card-elevated: the elevated card lifts on
+       :focus-within, which on a form would nudge the layout every time a field
+       takes focus. */%>
+  <form id="support-form" class="wh-card-gradient shadow-md p-6 space-y-4">
+    <div>
+      <label class="wh-label" for="support-subject">Tiêu đề</label>
+      <input id="support-subject" name="subject" required maxlength="200" placeholder="Tóm tắt vấn đề" class="wh-field">
+    </div>
+
+    <div>
+      <label class="wh-label" for="support-body">Mô tả vấn đề</label>
+      <textarea id="support-body" name="body" required maxlength="5000" rows="5" placeholder="Mô tả chi tiết giúp chúng tôi xử lý nhanh hơn" class="wh-field"></textarea>
+    </div>
+
+    <div>
+      <label class="wh-label" for="support-booking">Booking ID (tuỳ chọn)</label>
+      <input id="support-booking" name="bookingId" placeholder="Booking ID" class="wh-field">
+    </div>
+
+    <button class="wh-btn-brand w-full" type="submit">Gửi ticket</button>
+    <p id="support-msg" class="text-xs" style="color: var(--color-muted);" role="status" aria-live="polite"></p>
   </form>
-  <div id="support-list" class="mt-6 space-y-2"></div>
 
   <section class="mt-8">
-    <h2 class="font-bold mb-2">Disputes của tôi</h2>
-    <p class="text-xs text-slate-500 mb-3">Mở dispute từ chi tiết booking. Danh sách trạng thái tại đây.</p>
+    <h2 class="text-lg font-bold mb-2" style="color: var(--color-text);">Ticket của tôi</h2>
+    <div id="support-list" class="space-y-2"></div>
+  </section>
+
+  <section class="mt-8">
+    <h2 class="text-lg font-bold mb-2" style="color: var(--color-text);">Disputes của tôi</h2>
+    <p class="text-xs mb-3" style="color: var(--color-muted);">Mở dispute từ chi tiết booking. Danh sách trạng thái tại đây.</p>
     <div id="dispute-list" class="space-y-2"></div>
   </section>
 
   <section class="mt-8">
-    <h2 class="font-bold mb-2">Hoàn tiền gần đây</h2>
+    <h2 class="text-lg font-bold mb-2" style="color: var(--color-text);">Hoàn tiền gần đây</h2>
     <div id="my-refund-list" class="space-y-2 text-sm"></div>
   </section>
 </div>

@@ -1,44 +1,46 @@
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">System health &amp; ops</h1>
-  <p class="text-sm text-slate-500 mb-6">Health snapshot, dead-letter queue, payouts &amp; refunds chờ xử lý.</p>
+  <header class="mb-6">
+    <h1 class="wh-section-title mb-1">System health &amp; ops</h1>
+    <p class="wh-section-sub text-sm">Health snapshot, dead-letter queue, payouts &amp; refunds chờ xử lý.</p>
+  </header>
 
   <section class="mb-6">
-    <h2 class="font-bold mb-2">Health JSON</h2>
-    <pre id="health-json" class="bg-slate-900 text-teal-100 rounded-3xl p-5 text-xs overflow-x-auto">Đang tải…</pre>
+    <h2 class="font-bold mb-2" style="color:var(--color-text);">Health JSON</h2>
+    <pre id="health-json" tabindex="0" class="p-5 text-xs overflow-x-auto" style="background:var(--color-dark-surface);color:var(--color-on-dark);border-radius:var(--radius-xl);margin:0;">Đang tải…</pre>
   </section>
 
   <div id="ops-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status"></div>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-bold">Dead letters</h2>
-      <button type="button" id="dl-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+  <section class="wh-card-elevated p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="font-bold" style="color:var(--color-text);">Dead letters</h2>
+      <button type="button" id="dl-refresh" class="wh-btn-outline text-sm">Refresh</button>
     </div>
-    <ul id="dl-list" class="space-y-2 text-sm"></ul>
+    <ul id="dl-list" class="space-y-2 text-sm" style="list-style:none;padding:0;margin:0;color:var(--color-text-soft);"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-bold">Payouts (requested)</h2>
-      <button type="button" id="po-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+  <section class="wh-card-elevated p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="font-bold" style="color:var(--color-text);">Payouts (requested)</h2>
+      <button type="button" id="po-refresh" class="wh-btn-outline text-sm">Refresh</button>
     </div>
-    <ul id="po-list" class="space-y-2 text-sm"></ul>
+    <ul id="po-list" class="space-y-2 text-sm" style="list-style:none;padding:0;margin:0;color:var(--color-text-soft);"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-bold">Refunds (pending)</h2>
-      <button type="button" id="rf-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+  <section class="wh-card-elevated p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="font-bold" style="color:var(--color-text);">Refunds (pending)</h2>
+      <button type="button" id="rf-refresh" class="wh-btn-outline text-sm">Refresh</button>
     </div>
-    <ul id="admin-rf-list" class="space-y-2 text-sm"></ul>
+    <ul id="admin-rf-list" class="space-y-2 text-sm" style="list-style:none;padding:0;margin:0;color:var(--color-text-soft);"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-bold">Review moderation</h2>
-      <button type="button" id="rev-refresh" class="text-xs font-black uppercase border px-3 py-1.5 rounded-xl">Refresh</button>
+  <section class="wh-card-elevated p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="font-bold" style="color:var(--color-text);">Review moderation</h2>
+      <button type="button" id="rev-refresh" class="wh-btn-outline text-sm">Refresh</button>
     </div>
-    <p class="text-xs text-slate-500 mb-3">Mặc định: reported / hidden. Publish · Hide · Remove.</p>
-    <ul id="admin-rev-list" class="space-y-2 text-sm"></ul>
+    <p class="text-xs mb-3" style="color:var(--color-muted);">Mặc định: reported / hidden. Publish · Hide · Remove.</p>
+    <ul id="admin-rev-list" class="space-y-2 text-sm" style="list-style:none;padding:0;margin:0;color:var(--color-text-soft);"></ul>
   </section>
 </div>

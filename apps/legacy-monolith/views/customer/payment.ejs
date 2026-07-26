@@ -1,34 +1,67 @@
-<!-- Xác nhận thanh toán -->
+<%/* Payment confirmation.
+
+     public/js/customer-main.js drives this page: setPaymentType() toggles the
+     `active` class on #pay-30 / #pay-100, reveals #qr-area, hides
+     #qr-placeholder and writes the figure into #qr-price-val. The ids, the
+     data-wh-* attributes and the `payment-card` class are the contract and are
+     unchanged.
+
+     Fixed here:
+       - the two payment options were <div>s with a click handler: not
+         focusable, not operable from the keyboard, and announced as plain text.
+         They are now <button type="button"> inside a radiogroup-style list,
+         which keeps the same delegated handler (ui-bind resolves it with
+         closest('[data-wh-click]')) and adds keyboard operation.
+       - the "back" control was a bare button with no type, so it could submit
+         an enclosing form.
+
+     Cascade note: #qr-area and #qr-placeholder are shown/hidden by class, and
+     the purged utilities are emitted before brand.css in app.min.css — so
+     neither may carry a wh- class that declares `display`. */%>
+
 <div class="max-w-4xl">
-    <button data-wh-click="goBackToDetail" class="text-sm font-bold text-slate-500 mb-4 inline-block hover:text-teal-600">← QUAY LẠI THÔNG TIN</button>
-    <h2 class="text-3xl font-bold mb-2 text-slate-800">Xác nhận thanh toán</h2>
-    <p id="hold-countdown" class="text-sm font-bold text-amber-700 mb-6 hidden" role="status" aria-live="polite"></p>
+    <button type="button" data-wh-click="goBackToDetail" class="text-sm font-bold mb-4" style="color: var(--color-text-soft);">← QUAY LẠI THÔNG TIN</button>
+
+    <h1 class="wh-section-title mb-2">Xác nhận thanh toán</h1>
+    <p id="hold-countdown" class="text-sm font-bold mb-6 hidden" style="color: var(--color-highlight-dark);" role="status" aria-live="polite"></p>
+
     <div class="grid md:grid-cols-2 gap-8">
-        <div class="space-y-4">
-            <div id="pay-30" data-wh-click="setPaymentType" data-wh-args="[&quot;deposit&quot;]" class="payment-card p-6 rounded-2xl bg-white shadow-sm border-2 mb-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="font-bold text-lg text-slate-800">Đặt cọc (30%)</p>
-                    </div>
-                    <span class="text-xl font-bold text-teal-600" id="pay-txt-30">--</span>
-                </div>
-            </div>
-            <div id="pay-100" data-wh-click="setPaymentType" data-wh-args="[&quot;full&quot;]" class="payment-card p-6 rounded-2xl bg-white shadow-sm border-2">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="font-bold text-lg text-slate-800">Toàn bộ (100%)</p>
-                    </div>
-                    <span class="text-xl font-bold text-teal-600" id="pay-txt-100">--</span>
-                </div>
-            </div>
-        </div>
-        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 text-center flex flex-col justify-center min-h-[350px]">
+        <section aria-labelledby="pay-options-title">
+            <h2 id="pay-options-title" class="wh-stat-label mb-3">Chọn mức thanh toán</h2>
+
+            <button type="button" id="pay-30" data-wh-click="setPaymentType" data-wh-args="[&quot;deposit&quot;]"
+                    class="payment-card wh-card-elevated w-full text-left p-6 mb-4"
+                    style="border-width: 2px;">
+                <span class="flex justify-between items-center gap-4">
+                    <span class="font-bold text-lg" style="color: var(--color-text);">Đặt cọc (30%)</span>
+                    <span class="wh-stat-value" id="pay-txt-30">--</span>
+                </span>
+            </button>
+
+            <button type="button" id="pay-100" data-wh-click="setPaymentType" data-wh-args="[&quot;full&quot;]"
+                    class="payment-card wh-card-elevated w-full text-left p-6"
+                    style="border-width: 2px;">
+                <span class="flex justify-between items-center gap-4">
+                    <span class="font-bold text-lg" style="color: var(--color-text);">Toàn bộ (100%)</span>
+                    <span class="wh-stat-value" id="pay-txt-100">--</span>
+                </span>
+            </button>
+        </section>
+
+        <section class="wh-card-elevated p-8 text-center flex flex-col justify-center min-h-[350px]" aria-labelledby="pay-qr-title">
+            <h2 id="pay-qr-title" class="wh-sr-only">Mã QR chuyển khoản</h2>
+
             <div id="qr-area" class="hidden">
-                <img id="qr-img" src="" alt="Mã QR thanh toán" width="176" height="176" loading="lazy" decoding="async" class="mx-auto w-44 h-44 mb-4 border p-2 rounded-lg shadow-inner">
-                <div class="text-3xl font-black text-teal-600 mb-6" id="qr-price-val">0đ</div>
-                <button data-wh-click="handleFinalSuccess" class="w-full bg-teal-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-teal-700 transition">TÔI ĐÃ CHUYỂN KHOẢN</button>
+                <img id="qr-img" src="" alt="Mã QR chuyển khoản cho đơn đặt chỗ" width="176" height="176"
+                     loading="lazy" decoding="async" class="mx-auto w-44 mb-4 border p-2 rounded-lg">
+                <p class="wh-stat-label mb-1">Số tiền cần chuyển</p>
+                <p class="wh-stat-value mb-6" id="qr-price-val" aria-live="polite">0đ</p>
+                <button type="button" data-wh-click="handleFinalSuccess" class="wh-btn-brand w-full uppercase text-xs tracking-widest">
+                    TÔI ĐÃ CHUYỂN KHOẢN
+                </button>
             </div>
-            <div id="qr-placeholder" class="text-slate-400 italic">Vui lòng chọn mức thanh toán để nhận mã QR</div>
-        </div>
+
+            <p id="qr-placeholder" class="italic" style="color: var(--color-muted);">Vui lòng chọn mức thanh toán để nhận mã QR</p>
+        </section>
     </div>
 </div>

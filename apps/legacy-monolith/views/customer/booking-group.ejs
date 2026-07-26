@@ -1,38 +1,66 @@
+<%/* Group / corporate booking.
+
+     public/js/booking-group.js reads and writes by id only (gp-*), and toggles
+     `hidden` on #gp-error, #gp-ok and #gp-result. None of those carry a class
+     that declares `display`, which matters because the purged utilities are
+     emitted before brand.css in app.min.css.
+
+     Fixed here: every control was wrapped in a label element with no `for=`, so the
+     label text and the field ran together and the association was implicit. */%>
+
 <div class="max-w-2xl mx-auto" id="group-page">
-  <a href="/booking/wizard" class="text-teal-700 text-sm font-bold hover:underline">← Wizard</a>
-  <h1 class="text-2xl font-black text-slate-800 mt-2 mb-1">Đặt chỗ nhóm / corporate</h1>
-  <p class="text-sm text-slate-500 mb-6">Tạo booking + lời mời RSVP cho attendee (email). Mỗi khách nhận link RSVP / calendar.</p>
+  <a href="/booking/wizard" class="text-sm font-bold hover:underline" style="color: var(--color-primary-text);">← Wizard</a>
+  <h1 class="wh-section-title mt-2 mb-1">Đặt chỗ nhóm / corporate</h1>
+  <p class="wh-section-sub text-sm mb-6">Tạo booking + lời mời RSVP cho attendee (email). Mỗi khách nhận link RSVP / calendar.</p>
 
   <div id="gp-error" class="error-state hidden mb-4" role="alert"></div>
-  <div id="gp-ok" class="hidden mb-4 p-3 rounded-xl bg-teal-50 text-teal-800 text-sm border border-teal-100" role="status"></div>
+  <div id="gp-ok" class="hidden mb-4 p-3 rounded-xl text-sm border" role="status"
+       style="background: var(--color-success-bg); color: var(--color-success-text); border-color: var(--color-success);"></div>
 
-  <section class="bg-white rounded-3xl border p-6 space-y-3">
-    <label class="block text-xs font-bold text-slate-500">Space ID
-      <input id="gp-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-    </label>
-    <div class="grid sm:grid-cols-2 gap-3">
-      <label class="block text-xs font-bold text-slate-500">Bắt đầu
-        <input id="gp-start" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="block text-xs font-bold text-slate-500">Kết thúc
-        <input id="gp-end" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
+  <section class="wh-card-elevated p-6" aria-labelledby="gp-form-title">
+    <h2 id="gp-form-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Thông tin booking nhóm</h2>
+
+    <div class="mb-4">
+      <label class="wh-label text-xs uppercase font-black" for="gp-space">Space ID</label>
+      <input id="gp-space" class="wh-field text-sm" autocomplete="off" />
     </div>
-    <label class="block text-xs font-bold text-slate-500">Tên công ty / event
-      <input id="gp-corp" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Acme team offsite" />
-    </label>
-    <label class="block text-xs font-bold text-slate-500">Ghi chú
-      <textarea id="gp-note" rows="2" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" maxlength="500"></textarea>
-    </label>
-    <label class="block text-xs font-bold text-slate-500">Attendees (mỗi dòng: email hoặc Tên &lt;email&gt;)
-      <textarea id="gp-attendees" rows="5" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" placeholder="an@example.com&#10;Bình <binh@co.com>"></textarea>
-    </label>
-    <button type="button" id="gp-submit" class="btn-primary w-full">Tạo group booking</button>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="gp-start">Bắt đầu</label>
+        <input id="gp-start" type="datetime-local" class="wh-field text-sm" />
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="gp-end">Kết thúc</label>
+        <input id="gp-end" type="datetime-local" class="wh-field text-sm" />
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label class="wh-label text-xs uppercase font-black" for="gp-corp">Tên công ty / event</label>
+      <input id="gp-corp" class="wh-field text-sm" placeholder="Acme team offsite" autocomplete="organization" />
+    </div>
+
+    <div class="mb-4">
+      <label class="wh-label text-xs uppercase font-black" for="gp-note">Ghi chú</label>
+      <textarea id="gp-note" rows="2" class="wh-field text-sm" maxlength="500"></textarea>
+    </div>
+
+    <div class="mb-6">
+      <label class="wh-label text-xs uppercase font-black" for="gp-attendees">Attendees</label>
+      <textarea id="gp-attendees" rows="5" class="wh-field text-sm" aria-describedby="gp-attendees-help"
+                placeholder="an@example.com&#10;Bình <binh@co.com>"></textarea>
+      <p id="gp-attendees-help" class="text-xs mt-2" style="color: var(--color-muted);">
+        Mỗi dòng một khách: <code>email</code> hoặc <code>Tên &lt;email&gt;</code>.
+      </p>
+    </div>
+
+    <button type="button" id="gp-submit" class="wh-btn-brand w-full text-xs uppercase tracking-widest">Tạo group booking</button>
   </section>
 
-  <section id="gp-result" class="hidden mt-4 bg-white rounded-3xl border p-6">
-    <h2 class="font-bold mb-2">Invite links</h2>
-    <ul id="gp-invites" class="space-y-2 text-sm"></ul>
-    <a id="gp-detail" href="#" class="inline-block mt-3 text-teal-700 font-bold text-sm underline">Xem chi tiết booking →</a>
+  <section id="gp-result" class="hidden mt-4 wh-card-elevated p-6" aria-labelledby="gp-result-title">
+    <h2 id="gp-result-title" class="font-bold text-lg mb-2" style="color: var(--color-text);">Invite links</h2>
+    <ul id="gp-invites" class="space-y-2 text-sm" style="color: var(--color-text-soft);"></ul>
+    <a id="gp-detail" href="#" class="inline-block mt-4 font-bold text-sm underline" style="color: var(--color-primary-text);">Xem chi tiết booking →</a>
   </section>
 </div>

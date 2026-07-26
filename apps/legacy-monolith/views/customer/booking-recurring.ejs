@@ -1,56 +1,90 @@
+<%/* Recurring booking series.
+
+     public/js/booking-recurring.js binds by id only (rc-*) and toggles `hidden`
+     on #rc-error, which keeps the .error-state style that declares no
+     `display` — required, because the purged utilities are emitted before
+     brand.css in app.min.css.
+
+     Fixed here: every control was inside a wrapper label element with no `for=`, and
+     the weekday field's format hint was buried in the label text where a screen
+     reader read it as part of the field name. */%>
+
 <div class="max-w-2xl mx-auto" id="recurring-page">
-  <a href="/booking/wizard" class="text-teal-700 text-sm font-bold hover:underline">← Wizard đơn lẻ</a>
-  <h1 class="text-2xl font-black text-slate-800 mt-2 mb-1">Đặt chỗ lặp lại</h1>
-  <p class="text-sm text-slate-500 mb-6">Xem trước các lần lặp (daily/weekly) và giá ước tính trước khi tạo series. Tối đa 12 booking mỗi lần.</p>
+  <a href="/booking/wizard" class="text-sm font-bold hover:underline" style="color: var(--color-primary-text);">← Wizard đơn lẻ</a>
+  <h1 class="wh-section-title mt-2 mb-1">Đặt chỗ lặp lại</h1>
+  <p class="wh-section-sub text-sm mb-6">Xem trước các lần lặp (daily/weekly) và giá ước tính trước khi tạo series. Tối đa 12 booking mỗi lần.</p>
 
   <div id="rc-error" class="error-state hidden mb-4" role="alert"></div>
 
-  <section class="bg-white rounded-3xl border p-6 mb-4 space-y-3">
-    <label class="block text-xs font-bold text-slate-500">Space ID
-      <input id="rc-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="spaceId" />
-    </label>
-    <div class="grid sm:grid-cols-2 gap-3">
-      <label class="block text-xs font-bold text-slate-500">Tần suất
-        <select id="rc-freq" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+  <section class="wh-card-elevated p-6 mb-4" aria-labelledby="rc-form-title">
+    <h2 id="rc-form-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Quy tắc lặp</h2>
+
+    <div class="mb-4">
+      <label class="wh-label text-xs uppercase font-black" for="rc-space">Space ID</label>
+      <input id="rc-space" class="wh-field text-sm" placeholder="spaceId" autocomplete="off" />
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="rc-freq">Tần suất</label>
+        <select id="rc-freq" class="wh-field text-sm">
           <option value="weekly">Weekly</option>
           <option value="daily">Daily</option>
         </select>
-      </label>
-      <label class="block text-xs font-bold text-slate-500">Interval
-        <input id="rc-interval" type="number" min="1" max="8" value="1" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="rc-interval">Interval</label>
+        <input id="rc-interval" type="number" min="1" max="8" value="1" inputmode="numeric" class="wh-field text-sm" />
+      </div>
     </div>
-    <label class="block text-xs font-bold text-slate-500">Ngày trong tuần (weekly, 0=CN … 6=T7)
-      <input id="rc-dow" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="1,3,5" value="1,3,5" />
-    </label>
-    <div class="grid sm:grid-cols-3 gap-3">
-      <label class="block text-xs font-bold text-slate-500">Giờ bắt đầu
-        <input id="rc-tod" type="time" value="09:00" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="block text-xs font-bold text-slate-500">Thời lượng (phút)
-        <input id="rc-dur" type="number" min="30" step="30" value="120" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="block text-xs font-bold text-slate-500">Số lần
-        <input id="rc-count" type="number" min="1" max="12" value="4" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
+
+    <div class="mb-4">
+      <label class="wh-label text-xs uppercase font-black" for="rc-dow">Ngày trong tuần</label>
+      <input id="rc-dow" class="wh-field text-sm" placeholder="1,3,5" value="1,3,5"
+             inputmode="numeric" autocomplete="off" aria-describedby="rc-dow-help" />
+      <p id="rc-dow-help" class="text-xs mt-2" style="color: var(--color-muted);">Chỉ dùng cho weekly. 0 = Chủ nhật … 6 = Thứ 7, phân tách bằng dấu phẩy.</p>
     </div>
-    <label class="block text-xs font-bold text-slate-500">Series start (date)
-      <input id="rc-start" type="date" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-    </label>
-    <div class="flex gap-2 pt-2">
-      <button type="button" id="rc-preview" class="btn-primary flex-1">Xem trước</button>
-      <button type="button" id="rc-create" class="flex-1 py-2 rounded-xl bg-slate-800 text-white text-sm font-bold" disabled>Tạo series</button>
+
+    <div class="grid md:grid-cols-3 gap-4 mb-4">
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="rc-tod">Giờ bắt đầu</label>
+        <input id="rc-tod" type="time" value="09:00" class="wh-field text-sm" />
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="rc-dur">Thời lượng (phút)</label>
+        <input id="rc-dur" type="number" min="30" step="30" value="120" inputmode="numeric" class="wh-field text-sm" />
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="rc-count">Số lần</label>
+        <input id="rc-count" type="number" min="1" max="12" value="4" inputmode="numeric" class="wh-field text-sm" />
+      </div>
+    </div>
+
+    <div class="mb-6">
+      <label class="wh-label text-xs uppercase font-black" for="rc-start">Series start (date)</label>
+      <input id="rc-start" type="date" class="wh-field text-sm" />
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <button type="button" id="rc-preview" class="wh-btn-brand flex-1 text-xs uppercase tracking-widest">Xem trước</button>
+      <button type="button" id="rc-create" class="wh-btn-outline flex-1 text-xs uppercase tracking-widest" disabled>Tạo series</button>
     </div>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6 mb-4">
-    <h2 class="font-bold mb-2">Preview</h2>
-    <p id="rc-est" class="text-sm text-teal-700 font-bold mb-2"></p>
-    <ul id="rc-list" class="space-y-1 text-sm text-slate-600"></ul>
+  <section class="wh-card-elevated p-6 mb-4" aria-labelledby="rc-preview-title">
+    <h2 id="rc-preview-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Preview</h2>
+    <div class="wh-stat mb-4">
+      <p class="wh-stat-label mb-1">Ước tính cho cả series</p>
+      <%/* The script writes a full sentence here ("Ước tính tổng … · N lần"),
+           not a bare figure, so it gets stat weight without .wh-stat-value —
+           that class is display-sized and would wrap badly. */%>
+      <p id="rc-est" class="text-xl font-black" style="color: var(--color-text);" aria-live="polite"></p>
+    </div>
+    <ul id="rc-list" class="space-y-2 text-sm" style="color: var(--color-text-soft);"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6">
-    <h2 class="font-bold mb-2">Series của tôi</h2>
-    <ul id="rc-mine" class="space-y-2 text-sm"></ul>
+  <section class="wh-card-elevated p-6" aria-labelledby="rc-mine-title">
+    <h2 id="rc-mine-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Series của tôi</h2>
+    <ul id="rc-mine" class="space-y-2 text-sm" style="color: var(--color-text-soft);"></ul>
   </section>
 </div>

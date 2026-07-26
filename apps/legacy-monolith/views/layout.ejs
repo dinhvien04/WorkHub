@@ -45,11 +45,15 @@
     <link rel="preload" as="style" href="<%= _cssHref %>">
     <link rel="stylesheet" href="<%= _cssHref %>">
     <% } %>
+    <% /* Self-hosted from node_modules via scripts/build-assets.js. These used
+          to come from cdnjs/jsdelivr with a CSP nonce — but a nonce makes CSP
+          accept a script whatever its host, so the allowlist was not actually
+          constraining them and a compromised CDN had execution here. */ %>
     <% if (typeof loadChartJs !== 'undefined' && loadChartJs) { %>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= typeof asset === 'function' ? asset('vendor/chart.min.js') : '/vendor/chart.min.js' %>" defer></script>
     <% } %>
     <% if (typeof loadChoices !== 'undefined' && loadChoices) { %>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
+    <link rel="stylesheet" href="<%= typeof asset === 'function' ? asset('vendor/choices.min.css') : '/vendor/choices.min.css' %>">
     <% } %>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <% if (typeof jsonLd !== 'undefined' && jsonLd) { %>
@@ -77,7 +81,7 @@
     <%- include('partials/modals') %>
 
     <% if (typeof loadChoices !== 'undefined' && loadChoices) { %>
-    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js" defer></script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="<%= typeof asset === 'function' ? asset('vendor/choices.min.js') : '/vendor/choices.min.js' %>" defer></script>
     <% } %>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/api.js"></script>
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>" src="/js/domSafe.js"></script>

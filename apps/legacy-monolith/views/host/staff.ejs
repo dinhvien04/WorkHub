@@ -1,17 +1,33 @@
 <div class="max-w-3xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Nhân viên</h1>
-  <form id="staff-invite" class="bg-white border rounded-3xl p-4 mb-6 space-y-3">
-    <h2 class="font-bold">Mời staff</h2>
-    <input name="email" type="email" required placeholder="email@example.com" class="w-full border rounded-xl px-3 py-2 text-sm" />
-    <select name="role" class="w-full border rounded-xl px-3 py-2 text-sm">
-      <option value="manager">Manager</option>
-      <option value="receptionist">Receptionist</option>
-      <option value="finance">Finance</option>
-      <option value="content_editor">Content</option>
-      <option value="support">Support</option>
-    </select>
-    <button class="btn-primary w-full" type="submit">Gửi invite</button>
-    <p id="staff-invite-msg" class="text-xs text-slate-500"></p>
-  </form>
-  <div id="staff-list" class="space-y-2"></div>
+  <header class="mb-6">
+    <h1 class="wh-section-title">Nhân viên</h1>
+    <p class="wh-section-sub text-sm">Mời và thu hồi quyền truy cập cho staff của cơ sở.</p>
+  </header>
+
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="staff-invite-title">
+    <h2 id="staff-invite-title" class="font-black text-lg mb-4">Mời staff</h2>
+    <form id="staff-invite" class="grid gap-4">
+      <div>
+        <label class="wh-label text-xs uppercase tracking-widest" for="staff-invite-email">Email</label>
+        <input id="staff-invite-email" name="email" type="email" required placeholder="email@example.com" class="wh-field" />
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase tracking-widest" for="staff-invite-role">Vai trò</label>
+        <select id="staff-invite-role" name="role" class="wh-field">
+          <option value="manager">Manager</option>
+          <option value="receptionist">Receptionist</option>
+          <option value="finance">Finance</option>
+          <option value="content_editor">Content</option>
+          <option value="support">Support</option>
+        </select>
+      </div>
+      <button class="wh-btn-brand w-full text-xs uppercase tracking-widest" type="submit">Gửi invite</button>
+      <p id="staff-invite-msg" class="text-xs text-slate-600 m-0" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section aria-labelledby="staff-list-title">
+    <h2 id="staff-list-title" class="font-black text-lg mb-3">Danh sách staff</h2>
+    <div id="staff-list" class="space-y-2"></div>
+  </section>
 </div>

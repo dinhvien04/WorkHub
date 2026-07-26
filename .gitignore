@@ -45,6 +45,11 @@ build/
 
 .env.save
 
-public/dist/
+# A pattern containing a slash is anchored to this file's directory, so
+# `public/dist/` never matched apps/legacy-monolith/public/dist/ — the generic
+# `dist/` rule above was doing that work. Use ** so the workspace paths match.
+**/public/dist/
+# Copied out of node_modules by scripts/build-assets.js
+**/public/vendor/
 scratch/
 

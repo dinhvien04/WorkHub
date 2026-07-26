@@ -141,6 +141,18 @@ to `dead` with a DLQ mirror. Consumers are idempotent through an inbox table
 Every event needs a Zod schema in `packages/contracts`; `validateEvent` runs on
 both publish and consume.
 
+**Never persist or log a decrypted event envelope.** Some events carry a live
+single-use credential — `identity.email-requested.v1` holds a verification token
+or reset OTP. identity encrypts those at rest and drops the ciphertext the
+moment they publish. Anything that stores or prints an envelope must call
+`redactEventForStorage()` from `@workhub/contracts` first; dead-letter rows in
+particular are long-lived, are returned verbatim by the admin DLQ API, and
+outlive the credential's own TTL by an unbounded margin.
+
+Transactions opened by hand must retry `isTransientTransactionError()` from
+`utils/mongoTransaction.js`. MongoDB returns "catalog changes; please retry" as
+a normal outcome under concurrency, and `withTransaction()` already handles it.
+
 ### Background jobs
 
 Worker process only (`apps/legacy-monolith/jobs/jobWorker.js`, claim-based
@@ -177,6 +189,18 @@ go through `res.locals.scriptsFrom([...])`, which injects the CSP nonce — a ba
 - `public/css/brand.css` — brand component layer (`wh-*`)
 - `public/css/utilities.css` — utility classes
 - `npm run build:css` concatenates all three into `public/css/app.min.css`
+
+### Third-party front-end libraries
+
+Chart.js and choices.js are npm dependencies, copied into `public/vendor/` by
+`scripts/build-assets.js` and served from our own origin. Both directories
+(`public/dist/`, `public/vendor/`) are generated and gitignored.
+
+**Do not reintroduce a CDN `<script src>`.** A CSP nonce makes the browser
+accept a script regardless of its host, so the `script-src` host allowlist does
+not constrain a nonce'd tag — a compromised CDN would have execution on the
+page. The choices.js URL was also unversioned, so its contents could change
+without review.
 
 **Do not add a second stylesheet link to `layout.ejs`** — `app.min.css` already
 contains the others.

@@ -1,108 +1,140 @@
 <div class="max-w-4xl mx-auto" id="host-ops">
-  <h1 class="text-2xl font-black text-slate-800 mb-1">Bulk ops & blackout</h1>
-  <p class="text-sm text-slate-500 mb-6">Cập nhật hàng loạt giá/status/amenities; tạo blackout có thông báo khách.</p>
-  <div id="ops-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status"></div>
+  <header class="mb-6">
+    <h1 class="wh-section-title">Bulk ops &amp; blackout</h1>
+    <p class="wh-section-sub text-sm">Cập nhật hàng loạt giá/status/amenities; tạo blackout có thông báo khách.</p>
+  </header>
 
-  <section class="bg-white rounded-3xl border p-6 mb-6">
-    <h2 class="font-bold mb-3">Bulk update spaces</h2>
-    <label class="block text-xs font-bold text-slate-500 mb-1">Space IDs (mỗi dòng hoặc CSV)
-      <textarea id="ops-space-ids" rows="3" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" placeholder="id1&#10;id2"></textarea>
-    </label>
-    <div class="grid sm:grid-cols-3 gap-3 mt-3">
-      <label class="text-xs font-bold text-slate-500">Status
-        <select id="ops-status" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+  <div id="ops-msg" class="hidden mb-4 text-sm p-3 rounded-xl border" role="status" aria-live="polite"></div>
+
+  <section class="wh-card-elevated p-6 mb-6" aria-labelledby="ops-bulk-title">
+    <h2 id="ops-bulk-title" class="font-black text-lg mb-4">Bulk update spaces</h2>
+
+    <div class="mb-4">
+      <label for="ops-space-ids" class="wh-label text-xs uppercase tracking-widest">Space IDs (mỗi dòng hoặc CSV)</label>
+      <textarea id="ops-space-ids" rows="3" class="wh-field font-mono" placeholder="id1&#10;id2"></textarea>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-4">
+      <div>
+        <label for="ops-status" class="wh-label text-xs uppercase tracking-widest">Status</label>
+        <select id="ops-status" class="wh-field">
           <option value="">— giữ nguyên —</option>
           <option value="available">available</option>
           <option value="maintenance">maintenance</option>
           <option value="inactive">inactive</option>
         </select>
-      </label>
-      <label class="text-xs font-bold text-slate-500">Price/hour
-        <input id="ops-price" type="number" min="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="optional" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Deposit
-        <input id="ops-deposit" type="number" min="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="optional" />
-      </label>
+      </div>
+      <div>
+        <label for="ops-price" class="wh-label text-xs uppercase tracking-widest">Price/hour</label>
+        <input id="ops-price" type="number" min="0" class="wh-field" placeholder="optional" />
+      </div>
+      <div>
+        <label for="ops-deposit" class="wh-label text-xs uppercase tracking-widest">Deposit</label>
+        <input id="ops-deposit" type="number" min="0" class="wh-field" placeholder="optional" />
+      </div>
     </div>
-    <div class="grid sm:grid-cols-3 gap-3 mt-3">
-      <label class="text-xs font-bold text-slate-500 flex items-center gap-2 mt-6">
-        <input type="checkbox" id="ops-instant" /> Instant book
-      </label>
-      <label class="text-xs font-bold text-slate-500">Free cancel hours
-        <input id="ops-fc" type="number" min="0" max="168" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Amenities (comma)
-        <input id="ops-amenities" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Wifi, Projector" />
-      </label>
+
+    <div class="grid md:grid-cols-3 gap-4 mt-4">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="ops-instant" />
+        <label for="ops-instant" class="wh-label text-xs uppercase tracking-widest m-0">Instant book</label>
+      </div>
+      <div>
+        <label for="ops-fc" class="wh-label text-xs uppercase tracking-widest">Free cancel hours</label>
+        <input id="ops-fc" type="number" min="0" max="168" class="wh-field" />
+      </div>
+      <div>
+        <label for="ops-amenities" class="wh-label text-xs uppercase tracking-widest">Amenities (comma)</label>
+        <input id="ops-amenities" class="wh-field" placeholder="Wifi, Projector" />
+      </div>
     </div>
-    <button type="button" id="ops-bulk-btn" class="btn-primary mt-4">Áp dụng bulk</button>
+
+    <button type="button" id="ops-bulk-btn" class="wh-btn-brand mt-4 text-xs uppercase tracking-widest">Áp dụng bulk</button>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6 mb-6">
-    <h2 class="font-bold mb-3">Blackout / maintenance</h2>
-    <div class="grid sm:grid-cols-2 gap-3">
-      <label class="text-xs font-bold text-slate-500">Space ID
-        <input id="bo-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Reason
-        <input id="bo-reason" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" value="maintenance" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Start
-        <input id="bo-start" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">End
-        <input id="bo-end" type="datetime-local" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
+  <section class="wh-card-elevated p-6 mb-6" aria-labelledby="ops-blackout-title">
+    <h2 id="ops-blackout-title" class="font-black text-lg mb-4">Blackout / maintenance</h2>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label for="bo-space" class="wh-label text-xs uppercase tracking-widest">Space ID</label>
+        <input id="bo-space" class="wh-field font-mono" />
+      </div>
+      <div>
+        <label for="bo-reason" class="wh-label text-xs uppercase tracking-widest">Reason</label>
+        <input id="bo-reason" class="wh-field" value="maintenance" />
+      </div>
+      <div>
+        <label for="bo-start" class="wh-label text-xs uppercase tracking-widest">Start</label>
+        <input id="bo-start" type="datetime-local" class="wh-field" />
+      </div>
+      <div>
+        <label for="bo-end" class="wh-label text-xs uppercase tracking-widest">End</label>
+        <input id="bo-end" type="datetime-local" class="wh-field" />
+      </div>
     </div>
-    <label class="flex items-center gap-2 text-sm mt-3">
-      <input type="checkbox" id="bo-notify" checked /> Thông báo khách có booking chồng
-    </label>
-    <button type="button" id="bo-create" class="btn-primary mt-3">Tạo blackout</button>
-    <div id="bo-alts" class="mt-3 text-xs text-slate-500"></div>
+
+    <div class="flex items-center gap-2 mt-4">
+      <input type="checkbox" id="bo-notify" checked />
+      <label for="bo-notify" class="wh-label text-sm m-0">Thông báo khách có booking chồng</label>
+    </div>
+
+    <button type="button" id="bo-create" class="wh-btn-brand mt-4 text-xs uppercase tracking-widest">Tạo blackout</button>
+    <div id="bo-alts" class="mt-3 text-xs text-slate-600"></div>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6 mb-6">
-    <h2 class="font-bold mb-3">Blackouts hiện có</h2>
+  <section class="wh-card-elevated p-6 mb-6" aria-labelledby="ops-blackout-list-title">
+    <h2 id="ops-blackout-list-title" class="font-black text-lg mb-3">Blackouts hiện có</h2>
     <ul id="bo-list" class="space-y-2 text-sm"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6 mb-6">
-    <h2 class="font-bold mb-3">Add-ons (dịch vụ kèm)</h2>
-    <p class="text-xs text-slate-500 mb-3">Khách chọn add-on khi đặt chỗ (wizard). Branch ID để trống = toàn host.</p>
-    <div class="grid sm:grid-cols-2 gap-3 mb-3">
-      <label class="text-xs font-bold text-slate-500">Tên
-        <input id="ao-name" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" placeholder="Nước / Projector" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Giá (VND)
-        <input id="ao-price" type="number" min="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Đơn vị
-        <select id="ao-unit" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+  <section class="wh-card-elevated p-6 mb-6" aria-labelledby="ops-addon-title">
+    <h2 id="ops-addon-title" class="font-black text-lg mb-1">Add-ons (dịch vụ kèm)</h2>
+    <p class="text-xs text-slate-600 mb-4">Khách chọn add-on khi đặt chỗ (wizard). Branch ID để trống = toàn host.</p>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label for="ao-name" class="wh-label text-xs uppercase tracking-widest">Tên</label>
+        <input id="ao-name" class="wh-field" placeholder="Nước / Projector" />
+      </div>
+      <div>
+        <label for="ao-price" class="wh-label text-xs uppercase tracking-widest">Giá (VND)</label>
+        <input id="ao-price" type="number" min="0" class="wh-field" />
+      </div>
+      <div>
+        <label for="ao-unit" class="wh-label text-xs uppercase tracking-widest">Đơn vị</label>
+        <select id="ao-unit" class="wh-field">
           <option value="booking">booking</option>
           <option value="hour">hour</option>
           <option value="person">person</option>
         </select>
-      </label>
-      <label class="text-xs font-bold text-slate-500">Branch ID (tuỳ chọn)
-        <input id="ao-branch" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
-      </label>
-      <label class="text-xs font-bold text-slate-500 sm:col-span-2">Mô tả
-        <input id="ao-desc" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
+      </div>
+      <div>
+        <label for="ao-branch" class="wh-label text-xs uppercase tracking-widest">Branch ID (tuỳ chọn)</label>
+        <input id="ao-branch" class="wh-field font-mono" />
+      </div>
+      <div class="md:col-span-2">
+        <label for="ao-desc" class="wh-label text-xs uppercase tracking-widest">Mô tả</label>
+        <input id="ao-desc" class="wh-field" />
+      </div>
     </div>
-    <button type="button" id="ao-create" class="btn-primary">Tạo add-on</button>
+
+    <button type="button" id="ao-create" class="wh-btn-brand text-xs uppercase tracking-widest">Tạo add-on</button>
     <ul id="ao-list" class="mt-4 space-y-2 text-sm"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6 mb-6">
-    <h2 class="font-bold mb-3">Pricing rules</h2>
-    <p class="text-xs text-slate-500 mb-3">Tạo draft → Publish khi sẵn sàng. Type: peak_hour, weekend, holiday…</p>
-    <div class="grid sm:grid-cols-2 gap-3 mb-3">
-      <label class="text-xs font-bold text-slate-500">Tên rule
-        <input id="pr-name" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Type
-        <select id="pr-type" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+  <section class="wh-card-elevated p-6 mb-6" aria-labelledby="ops-pricing-title">
+    <h2 id="ops-pricing-title" class="font-black text-lg mb-1">Pricing rules</h2>
+    <p class="text-xs text-slate-600 mb-4">Tạo draft → Publish khi sẵn sàng. Type: peak_hour, weekend, holiday…</p>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label for="pr-name" class="wh-label text-xs uppercase tracking-widest">Tên rule</label>
+        <input id="pr-name" class="wh-field" />
+      </div>
+      <div>
+        <label for="pr-type" class="wh-label text-xs uppercase tracking-widest">Type</label>
+        <select id="pr-type" class="wh-field">
           <option value="peak_hour">peak_hour</option>
           <option value="weekend">weekend</option>
           <option value="holiday">holiday</option>
@@ -110,50 +142,62 @@
           <option value="long_stay">long_stay</option>
           <option value="corporate">corporate</option>
         </select>
-      </label>
-      <label class="text-xs font-bold text-slate-500">Multiplier
-        <input id="pr-mult" type="number" step="0.05" min="0" value="1.2" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Fixed adjust (VND)
-        <input id="pr-fixed" type="number" step="1000" value="0" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Priority (thấp = ưu tiên)
-        <input id="pr-prio" type="number" value="100" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Space ID (tuỳ chọn)
-        <input id="pr-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
-      </label>
+      </div>
+      <div>
+        <label for="pr-mult" class="wh-label text-xs uppercase tracking-widest">Multiplier</label>
+        <input id="pr-mult" type="number" step="0.05" min="0" value="1.2" class="wh-field" />
+      </div>
+      <div>
+        <label for="pr-fixed" class="wh-label text-xs uppercase tracking-widest">Fixed adjust (VND)</label>
+        <input id="pr-fixed" type="number" step="1000" value="0" class="wh-field" />
+      </div>
+      <div>
+        <label for="pr-prio" class="wh-label text-xs uppercase tracking-widest">Priority (thấp = ưu tiên)</label>
+        <input id="pr-prio" type="number" value="100" class="wh-field" />
+      </div>
+      <div>
+        <label for="pr-space" class="wh-label text-xs uppercase tracking-widest">Space ID (tuỳ chọn)</label>
+        <input id="pr-space" class="wh-field font-mono" />
+      </div>
     </div>
-    <button type="button" id="pr-create" class="btn-primary">Tạo draft rule</button>
+
+    <button type="button" id="pr-create" class="wh-btn-brand text-xs uppercase tracking-widest">Tạo draft rule</button>
     <ul id="pr-list" class="mt-4 space-y-2 text-sm"></ul>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6 mb-6">
-    <h2 class="font-bold mb-3">Space ops (buffer / instant / free-cancel)</h2>
-    <p class="text-xs text-slate-500 mb-3">PATCH buffer trước/sau slot, instant book, free cancel hours.</p>
-    <div class="grid sm:grid-cols-2 gap-3 mb-3">
-      <label class="text-xs font-bold text-slate-500">Space ID
-        <input id="so-space" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm font-mono" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Buffer before (phút)
-        <input id="so-before" type="number" min="0" max="180" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Cleanup after (phút)
-        <input id="so-after" type="number" min="0" max="180" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500">Free cancel hours
-        <input id="so-fc" type="number" min="0" max="168" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm" />
-      </label>
-      <label class="text-xs font-bold text-slate-500 flex items-center gap-2 mt-6">
-        <input type="checkbox" id="so-instant" /> Instant book
-      </label>
+  <section class="wh-card-elevated p-6 mb-6" aria-labelledby="ops-spaceops-title">
+    <h2 id="ops-spaceops-title" class="font-black text-lg mb-1">Space ops (buffer / instant / free-cancel)</h2>
+    <p class="text-xs text-slate-600 mb-4">PATCH buffer trước/sau slot, instant book, free cancel hours.</p>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label for="so-space" class="wh-label text-xs uppercase tracking-widest">Space ID</label>
+        <input id="so-space" class="wh-field font-mono" />
+      </div>
+      <div>
+        <label for="so-before" class="wh-label text-xs uppercase tracking-widest">Buffer before (phút)</label>
+        <input id="so-before" type="number" min="0" max="180" class="wh-field" />
+      </div>
+      <div>
+        <label for="so-after" class="wh-label text-xs uppercase tracking-widest">Cleanup after (phút)</label>
+        <input id="so-after" type="number" min="0" max="180" class="wh-field" />
+      </div>
+      <div>
+        <label for="so-fc" class="wh-label text-xs uppercase tracking-widest">Free cancel hours</label>
+        <input id="so-fc" type="number" min="0" max="168" class="wh-field" />
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="so-instant" />
+        <label for="so-instant" class="wh-label text-xs uppercase tracking-widest m-0">Instant book</label>
+      </div>
     </div>
-    <button type="button" id="so-save" class="btn-primary">Lưu space ops</button>
+
+    <button type="button" id="so-save" class="wh-btn-brand text-xs uppercase tracking-widest">Lưu space ops</button>
   </section>
 
-  <section class="bg-white rounded-3xl border p-6">
-    <h2 class="font-bold mb-3">Hoàn tiền chờ xử lý (host)</h2>
-    <p class="text-xs text-slate-500 mb-3">Duyệt/hoàn offline cần <code>transferReference</code> khi manual.</p>
+  <section class="wh-card-elevated p-6" aria-labelledby="ops-refund-title">
+    <h2 id="ops-refund-title" class="font-black text-lg mb-1">Hoàn tiền chờ xử lý (host)</h2>
+    <p class="text-xs text-slate-600 mb-4">Duyệt/hoàn offline cần <code>transferReference</code> khi manual.</p>
     <ul id="rf-list" class="space-y-2 text-sm"></ul>
   </section>
 </div>

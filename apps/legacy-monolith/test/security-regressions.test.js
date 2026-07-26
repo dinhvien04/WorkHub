@@ -436,3 +436,108 @@ describe("Operational errors keep their status code", () => {
     expect(res.body.code).toBe("VALIDATION_ERROR");
   }, 20000);
 });
+
+describe("Dead letters never persist a live secret", () => {
+  const {
+    redactEventForStorage,
+    isSecretBearingEvent,
+  } = require("@workhub/contracts");
+
+  function verifyEmailEvent(secretValue) {
+    return {
+      eventId: "11111111-1111-4111-8111-111111111111",
+      eventType: "identity.email-requested.v1",
+      occurredAt: new Date().toISOString(),
+      producer: "identity-service",
+      aggregateId: "507f1f77bcf86cd799439011",
+      aggregateVersion: 0,
+      correlationId: "22222222-2222-4222-8222-222222222222",
+      data: {
+        userId: "507f1f77bcf86cd799439011",
+        toEmail: "victim@example.com",
+        template: "password_reset_otp",
+        data: { otp: secretValue },
+        requestedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  test("the reset OTP does not survive redaction", () => {
+    // identity encrypts this envelope at rest and drops the ciphertext right
+    // after publishing. A dead-letter row storing the decrypted form undoes
+    // both controls, and the admin DLQ API returns those rows verbatim.
+    const redacted = redactEventForStorage(verifyEmailEvent("424242"));
+    expect(JSON.stringify(redacted)).not.toContain("424242");
+    expect(redacted.redacted).toBe(true);
+  });
+
+  test("redaction keeps what an operator needs to diagnose", () => {
+    const redacted = redactEventForStorage(verifyEmailEvent("999999"));
+    expect(redacted.eventId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(redacted.eventType).toBe("identity.email-requested.v1");
+    expect(redacted.data.toEmail).toBe("victim@example.com");
+    expect(redacted.data.template).toBe("password_reset_otp");
+  });
+
+  test("non-secret events pass through untouched", () => {
+    const booking = {
+      eventId: "33333333-3333-4333-8333-333333333333",
+      eventType: "booking.confirmed.v1",
+      data: { bookingId: "b1", paidAmount: 100 },
+    };
+    expect(isSecretBearingEvent(booking)).toBe(false);
+    expect(redactEventForStorage(booking)).toEqual(booking);
+  });
+
+  test("both dead-letter writers redact before storing", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const files = [
+      path.join(__dirname, "..", "services", "inboxService.js"),
+      path.join(
+        __dirname, "..", "..", "..",
+        "services", "communication-service", "services", "consumerService.js",
+      ),
+    ];
+    for (const f of files) {
+      const src = fs.readFileSync(f, "utf8");
+      expect(src).toContain("redactEventForStorage(event)");
+      expect(src).not.toContain("Payload: event || {}");
+    }
+  });
+
+  test("dead-letter rows expire", () => {
+    const fs = require("fs");
+    const path = require("path");
+    for (const f of [
+      path.join(__dirname, "..", "models", "ConsumerDeadLetter.js"),
+      path.join(
+        __dirname, "..", "..", "..",
+        "services", "communication-service", "models", "ConsumerDeadLetter.js",
+      ),
+    ]) {
+      expect(fs.readFileSync(f, "utf8")).toContain("expireAfterSeconds");
+    }
+  });
+
+  test("the broker no longer logs the whole envelope on validation failure", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "..", "..", "packages", "observability", "messaging.js"),
+      "utf8",
+    );
+    expect(src).not.toContain('validationErr.message, event)');
+    expect(src).toContain("eventId=${event && event.eventId}");
+  });
+
+  test("a redacted dead letter cannot be replayed", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "controllers", "adminController.js"),
+      "utf8",
+    );
+    expect(src).toContain("DLQ_REDACTED_NOT_REPLAYABLE");
+  });
+});

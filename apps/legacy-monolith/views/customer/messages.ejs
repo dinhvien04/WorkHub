@@ -1,13 +1,25 @@
+<%/* Booking messages. public/js/messages.js binds #msg-booking, #msg-load,
+     #msg-list, #msg-body and #msg-send by id — none may change. */%>
+
 <div class="max-w-2xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Tin nhắn booking</h1>
-  <label class="block text-xs font-bold text-slate-500 mb-1">Booking ID</label>
-  <div class="flex gap-2 mb-4">
-    <input id="msg-booking" class="flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="booking ObjectId" />
-    <button type="button" id="msg-load" class="btn-primary">Tải</button>
+  <header class="mb-6">
+    <h1 class="wh-section-title mb-2">Tin nhắn booking</h1>
+    <p class="wh-section-sub text-sm">Nhập mã booking để mở hộp thoại với host.</p>
+  </header>
+
+  <div class="mb-4">
+    <label class="wh-label" for="msg-booking">Booking ID</label>
+    <div class="flex gap-2">
+      <input id="msg-booking" class="wh-field flex-1" placeholder="booking ObjectId">
+      <button type="button" id="msg-load" class="wh-btn-outline">Tải</button>
+    </div>
   </div>
-  <div id="msg-list" class="space-y-2 mb-4 min-h-[200px] bg-white border rounded-3xl p-4"></div>
+
+  <div id="msg-list" class="wh-card-gradient shadow-md space-y-2 mb-4 min-h-[240px] p-4" aria-live="polite"></div>
+
   <div class="flex gap-2">
-    <input id="msg-body" class="flex-1 border rounded-xl px-3 py-2 text-sm" placeholder="Nhập tin nhắn..." />
-    <button type="button" id="msg-send" class="btn-primary">Gửi</button>
+    <label class="wh-sr-only" for="msg-body">Nội dung tin nhắn</label>
+    <input id="msg-body" class="wh-field flex-1" placeholder="Nhập tin nhắn...">
+    <button type="button" id="msg-send" class="wh-btn-brand">Gửi</button>
   </div>
 </div>

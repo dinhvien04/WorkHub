@@ -286,8 +286,50 @@ function validateEvent(envelope) {
   return envelope;
 }
 
+/**
+ * Event types whose `data` carries a live single-use secret.
+ *
+ * identity-service encrypts these at rest in its outbox and nulls the
+ * ciphertext the moment they are published, precisely because the payload is
+ * an account-takeover credential. Anything that persists or logs a *decrypted*
+ * envelope — a dead-letter row, an inbox record, a console dump — undoes that,
+ * so it must redact first.
+ */
+const SECRET_EVENT_TYPES = new Set(["identity.email-requested.v1"]);
+
+function isSecretBearingEvent(event) {
+  return Boolean(event && SECRET_EVENT_TYPES.has(event.eventType));
+}
+
+/**
+ * Strip the secret from an envelope before it is stored or logged, keeping
+ * everything an operator needs to diagnose the failure: ids, type, routing,
+ * timestamps and the non-secret metadata.
+ *
+ * The result is deliberately not replayable — a replayed verification email
+ * with a stripped token would be broken anyway, and the correct recovery is
+ * for the user to request a fresh one.
+ */
+function redactEventForStorage(event) {
+  if (!event) return {};
+  if (!isSecretBearingEvent(event)) return event;
+
+  const { data = {}, ...envelope } = event;
+  const { data: secretPayload, ...safeMeta } = data;
+  void secretPayload;
+
+  return {
+    ...envelope,
+    data: { ...safeMeta, data: "[REDACTED]" },
+    redacted: true,
+  };
+}
+
 module.exports = {
   EventEnvelopeSchema,
+  SECRET_EVENT_TYPES,
+  isSecretBearingEvent,
+  redactEventForStorage,
   ReviewCreatedEventDataSchema,
   RatingRecalculatedEventDataSchema,
   ReviewRepliedEventDataSchema,

@@ -171,7 +171,13 @@ async function subscribeEvent(channel, { queueName, exchangeName = "workhub.even
         try {
           validateEvent(event);
         } catch (validationErr) {
-          console.error("[Messaging] Event failed schema validation:", validationErr.message, event);
+          // Log identifiers, not the envelope — a failed verify-email event
+          // carries a live token, and log aggregation keeps it far longer
+          // than the token's own TTL.
+          console.error(
+            `[Messaging] Event failed schema validation (eventId=${event && event.eventId}, ` +
+              `type=${event && event.eventType}): ${validationErr.message}`,
+          );
 
           if (onDeadLetter) {
             await onDeadLetter(msg, event, `Schema Validation Failed: ${validationErr.message}`);

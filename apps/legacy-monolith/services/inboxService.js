@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const InboxMessage = require("../models/InboxMessage");
 const ConsumerDeadLetter = require("../models/ConsumerDeadLetter");
+const { redactEventForStorage } = require("@workhub/contracts");
 
 /**
  * Executes a callback process idempotently using the Inbox Pattern.
@@ -88,7 +89,9 @@ async function logDeadLetter(msg, event, errorReason) {
         $set: {
           QueueName: queueName,
           RoutingKey: msg.fields.routingKey,
-          Payload: event || {},
+          // See packages/contracts: strip the secret before it lands in a
+          // durable, TTL-less row that the admin DLQ API returns verbatim.
+          Payload: redactEventForStorage(event),
           Headers: msg.properties.headers || {},
           Error: errorReason,
           Status: "pending",

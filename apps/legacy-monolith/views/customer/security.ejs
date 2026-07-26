@@ -1,44 +1,63 @@
-<div class="max-w-2xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Bảo mật tài khoản</h1>
-  <p class="text-sm text-slate-500 mb-6">2FA, phiên đăng nhập, thông báo và quyền riêng tư.</p>
+<%/* Account security.
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Passkey (WebAuthn)</h2>
-    <p class="text-sm text-slate-500 mb-2">Đăng nhập bằng vân tay / khuôn mặt / security key khi trình duyệt hỗ trợ.</p>
-    <button type="button" id="passkey-register-btn"
-      class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest mb-3">
+     public/js/security.js binds by id throughout. Three of those controls —
+     #totp-setup-btn, #totp-enable-btn, #totp-disable-btn — plus #totp-secret are
+     shown and hidden with classList.toggle('hidden', …).
+
+     app.min.css emits the purged utilities *before* brand.css, so
+     `.wh-btn-brand{display:inline-flex}` outranks `.hidden{display:none}`:
+     putting a wh- button class on those three would leave all of them on screen
+     at once, offering "Tắt 2FA" to a user who has never enabled it. They use
+     .btn-primary instead, which declares no `display`, and are given the
+     wh-btn-brand pill geometry inline so the page still reads as one set.
+
+     Fixed here: the notification checkboxes were bare <input>s inside wrapper
+     label elements with no `for=`, and the two <select>s had the same problem. */%>
+
+<div class="max-w-2xl mx-auto">
+  <h1 class="wh-section-title mb-2">Bảo mật tài khoản</h1>
+  <p class="wh-section-sub text-sm mb-6">2FA, phiên đăng nhập, thông báo và quyền riêng tư.</p>
+
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="sec-passkey-title">
+    <h2 id="sec-passkey-title" class="font-bold text-lg mb-2" style="color: var(--color-text);">Passkey (WebAuthn)</h2>
+    <p class="text-sm mb-4" style="color: var(--color-muted);">Đăng nhập bằng vân tay / khuôn mặt / security key khi trình duyệt hỗ trợ.</p>
+    <button type="button" id="passkey-register-btn" class="wh-btn-outline text-xs uppercase tracking-widest mb-4">
       Đăng ký passkey
     </button>
     <div id="passkey-list" class="space-y-2"></div>
     <p id="passkey-msg" class="text-sm mt-2" role="status"></p>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Xác thực hai lớp (TOTP)</h2>
-    <p id="totp-status" class="text-sm text-slate-600 mb-3">Đang tải…</p>
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="sec-totp-title">
+    <h2 id="sec-totp-title" class="font-bold text-lg mb-2" style="color: var(--color-text);">Xác thực hai lớp (TOTP)</h2>
+    <p id="totp-status" class="text-sm mb-4" style="color: var(--color-text-soft);" role="status">Đang tải…</p>
     <div class="flex flex-wrap gap-2">
       <button type="button" id="totp-setup-btn"
-        class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-teal-700">
+        class="btn-primary text-xs uppercase tracking-widest"
+        style="border-radius: var(--radius-full); padding: 0.7rem 1.4rem;">
         Thiết lập 2FA
       </button>
       <button type="button" id="totp-enable-btn"
-        class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-900 hidden">
+        class="hidden text-xs font-black uppercase tracking-widest"
+        style="border: 2px solid var(--color-primary); border-radius: var(--radius-full); padding: 0.7rem 1.4rem; background: transparent; color: var(--color-primary-text); cursor: pointer;">
         Xác nhận mã &amp; bật
       </button>
       <button type="button" id="totp-disable-btn"
-        class="border border-red-300 text-red-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-50 hidden">
+        class="hidden text-xs font-black uppercase tracking-widest"
+        style="border: 2px solid var(--color-danger); border-radius: var(--radius-full); padding: 0.7rem 1.4rem; background: transparent; color: var(--color-danger-text); cursor: pointer;">
         Tắt 2FA
       </button>
     </div>
-    <pre id="totp-secret" class="mt-3 text-xs bg-slate-50 p-3 rounded-xl overflow-x-auto hidden"></pre>
+    <pre id="totp-secret" class="mt-4 text-xs p-3 rounded-xl overflow-x-auto hidden"
+         style="background: var(--color-surface-sunken); color: var(--color-text);"></pre>
     <p id="totp-msg" class="text-sm mt-2" role="status"></p>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <div class="flex items-center justify-between gap-3 mb-4">
-      <h2 class="font-bold">Phiên đăng nhập</h2>
-      <button type="button" id="logout-all-btn"
-        class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700">
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="sec-sessions-title">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h2 id="sec-sessions-title" class="font-bold text-lg" style="color: var(--color-text);">Phiên đăng nhập</h2>
+      <button type="button" id="logout-all-btn" class="wh-btn-brand text-xs uppercase tracking-widest"
+        style="background: var(--color-danger); box-shadow: none;">
         Đăng xuất tất cả
       </button>
     </div>
@@ -46,58 +65,74 @@
     <div id="session-list" class="space-y-2"></div>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Web Push</h2>
-    <p class="text-sm text-slate-500 mb-3">Nhận thông báo trình duyệt (cần HTTPS / localhost và cho phép notification).</p>
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="sec-push-title">
+    <h2 id="sec-push-title" class="font-bold text-lg mb-2" style="color: var(--color-text);">Web Push</h2>
+    <p class="text-sm mb-4" style="color: var(--color-muted);">Nhận thông báo trình duyệt (cần HTTPS / localhost và cho phép notification).</p>
     <div class="flex flex-wrap gap-2">
-      <button type="button" id="push-enable-btn"
-        class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+      <button type="button" id="push-enable-btn" class="wh-btn-brand text-xs uppercase tracking-widest">
         Bật push
       </button>
-      <button type="button" id="push-disable-btn"
-        class="border border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+      <button type="button" id="push-disable-btn" class="wh-btn-outline text-xs uppercase tracking-widest">
         Tắt push
       </button>
     </div>
     <p id="push-msg" class="text-sm mt-2" role="status"></p>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Tùy chọn thông báo & ngôn ngữ</h2>
-    <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="pref-email" /> Email</label>
-    <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="pref-push" /> Push</label>
-    <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" id="pref-sms" /> SMS</label>
-    <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="pref-marketing" /> Marketing opt-in</label>
-    <div class="grid sm:grid-cols-2 gap-3 mb-3">
-      <label class="block text-xs font-bold text-slate-500">Ngôn ngữ
-        <select id="pref-lang" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="sec-prefs-title">
+    <h2 id="sec-prefs-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Tùy chọn thông báo &amp; ngôn ngữ</h2>
+
+    <fieldset class="mb-4" style="border: 0; padding: 0; margin-inline: 0;">
+      <legend class="wh-stat-label mb-2">Kênh nhận thông báo</legend>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="pref-email" />
+        <label for="pref-email" class="text-sm" style="color: var(--color-text-soft);">Email</label>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="pref-push" />
+        <label for="pref-push" class="text-sm" style="color: var(--color-text-soft);">Push</label>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="pref-sms" />
+        <label for="pref-sms" class="text-sm" style="color: var(--color-text-soft);">SMS</label>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="pref-marketing" />
+        <label for="pref-marketing" class="text-sm" style="color: var(--color-text-soft);">Marketing opt-in</label>
+      </div>
+    </fieldset>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="pref-lang">Ngôn ngữ</label>
+        <select id="pref-lang" class="wh-field text-sm">
           <option value="vi">Tiếng Việt</option>
           <option value="en">English</option>
         </select>
-      </label>
-      <label class="block text-xs font-bold text-slate-500">Múi giờ
-        <select id="pref-tz" class="mt-1 w-full border rounded-xl px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase font-black" for="pref-tz">Múi giờ</label>
+        <select id="pref-tz" class="wh-field text-sm">
           <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
           <option value="Asia/Bangkok">Asia/Bangkok</option>
           <option value="Asia/Singapore">Asia/Singapore</option>
           <option value="UTC">UTC</option>
         </select>
-      </label>
+      </div>
     </div>
-    <button type="button" id="pref-save-btn"
-      class="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">Lưu</button>
+
+    <button type="button" id="pref-save-btn" class="wh-btn-brand text-xs uppercase tracking-widest">Lưu</button>
     <p id="pref-msg" class="text-sm mt-2" role="status"></p>
   </section>
 
-  <section class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Quyền riêng tư</h2>
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="sec-privacy-title">
+    <h2 id="sec-privacy-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Quyền riêng tư</h2>
     <div class="flex flex-wrap gap-3">
-      <button type="button" id="export-data-btn"
-        class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-900">
+      <button type="button" id="export-data-btn" class="wh-btn-outline text-xs uppercase tracking-widest">
         Tải dữ liệu của tôi
       </button>
-      <button type="button" id="delete-account-btn"
-        class="border border-red-300 text-red-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-50">
+      <button type="button" id="delete-account-btn" class="wh-btn-brand text-xs uppercase tracking-widest"
+        style="background: var(--color-danger); box-shadow: none;">
         Yêu cầu xóa tài khoản
       </button>
     </div>

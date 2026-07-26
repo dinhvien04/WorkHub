@@ -54,6 +54,14 @@ async function processEmailQueue(workerId = `email-worker-${crypto.randomUUID()}
 
       item.Status = "sent";
       item.LastError = null;
+      // The payload can hold a verification token or reset OTP. Once the mail
+      // is out the door there is nothing left to send, so keep only what is
+      // needed for auditing — mirroring identity's outbox publisher, which
+      // drops its ciphertext at the same point.
+      if (item.Payload && item.Payload.data) {
+        item.Payload = { template: item.Payload.template, to: item.Payload.to };
+        item.markModified("Payload");
+      }
       await item.save();
 
       successCount++;

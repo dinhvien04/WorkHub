@@ -6,6 +6,9 @@ module.exports = [
       'node_modules/**',
       'apps/legacy-monolith/public/uploads/**',
       'apps/legacy-monolith/public/dist/**',
+      // Third-party bundles copied out of node_modules by build-assets.js.
+      // Not our source, and minified UMD trips no-undef on every global.
+      'apps/legacy-monolith/public/vendor/**',
       'apps/legacy-monolith/public/sw.js',
       'apps/legacy-monolith/coverage/**',
       'apps/legacy-monolith/tmp/**',

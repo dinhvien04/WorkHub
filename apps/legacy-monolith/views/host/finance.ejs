@@ -1,56 +1,62 @@
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Tài chính host</h1>
-  <p class="text-sm text-slate-500 mb-6">Số dư từ ledger append-only. Rút tiền giữ (reserve) ngay khi yêu cầu.</p>
+  <header class="mb-6">
+    <h1 class="wh-section-title">Tài chính host</h1>
+    <p class="wh-section-sub text-sm">Số dư từ ledger append-only. Rút tiền giữ (reserve) ngay khi yêu cầu.</p>
+  </header>
 
-  <div id="fin-balance" class="grid md:grid-cols-3 gap-4 mb-6"></div>
+  <section aria-labelledby="fin-balance-title" class="mb-6">
+    <h2 id="fin-balance-title" class="wh-sr-only">Số dư</h2>
+    <div id="fin-balance" class="grid md:grid-cols-3 gap-4"></div>
+  </section>
 
-  <div class="bg-white rounded-3xl border p-5 mb-6">
-    <h2 class="font-bold mb-3">Yêu cầu rút tiền (payout)</h2>
-    <div class="flex flex-wrap gap-3 items-end">
-      <div class="flex-1 min-w-[180px]">
-        <label for="payout-amount" class="block text-[10px] font-black uppercase text-slate-400 mb-1">Số tiền (VND)</label>
-        <input id="payout-amount" type="number" min="50000" step="1000" placeholder="Tối thiểu 50.000"
-          class="w-full border rounded-xl px-3 py-2 text-sm font-semibold" />
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="fin-payout-title">
+    <h2 id="fin-payout-title" class="font-black text-lg mb-4">Yêu cầu rút tiền (payout)</h2>
+    <div class="grid gap-4 md:grid-cols-2 items-end">
+      <div>
+        <label for="payout-amount" class="wh-label text-xs uppercase tracking-widest">Số tiền (VND)</label>
+        <input id="payout-amount" type="number" min="50000" step="1000" placeholder="Tối thiểu 50.000" class="wh-field" />
       </div>
-      <button type="button" id="payout-request-btn"
-        class="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-teal-700">
+      <button type="button" id="payout-request-btn" class="wh-btn-brand w-full text-xs uppercase tracking-widest">
         Rút tiền
       </button>
     </div>
-    <p id="payout-msg" class="text-sm mt-2" role="status"></p>
+    <p id="payout-msg" class="text-sm mt-2" role="status" aria-live="polite"></p>
     <div id="fin-payouts" class="mt-4 border rounded-2xl overflow-hidden bg-slate-50"></div>
-  </div>
+  </section>
 
-  <div class="flex items-center justify-between mb-2">
-    <h2 class="font-bold">Sổ cái (ledger)</h2>
-    <div class="flex gap-2 flex-wrap">
-      <button type="button" id="ledger-export-btn"
-        class="text-xs font-black uppercase tracking-widest text-teal-700 border border-teal-200 px-3 py-1.5 rounded-xl hover:bg-teal-50">
-        Xuất CSV
-      </button>
-      <button type="button" id="ledger-export-async-btn"
-        class="text-xs font-black uppercase tracking-widest text-slate-600 border px-3 py-1.5 rounded-xl hover:bg-slate-50">
-        Export nền
-      </button>
-      <button type="button" id="bookings-export-async-btn"
-        class="text-xs font-black uppercase tracking-widest text-slate-600 border px-3 py-1.5 rounded-xl hover:bg-slate-50">
-        Export bookings
-      </button>
+  <section aria-labelledby="fin-ledger-title">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 id="fin-ledger-title" class="font-black text-lg m-0">Sổ cái (ledger)</h2>
+      <div class="flex gap-2 flex-wrap">
+        <button type="button" id="ledger-export-btn" class="wh-btn-outline text-xs uppercase tracking-widest">
+          Xuất CSV
+        </button>
+        <button type="button" id="ledger-export-async-btn" class="wh-btn-outline text-xs uppercase tracking-widest">
+          Export nền
+        </button>
+        <button type="button" id="bookings-export-async-btn" class="wh-btn-outline text-xs uppercase tracking-widest">
+          Export bookings
+        </button>
+      </div>
     </div>
-  </div>
-  <div id="fin-export-status" class="hidden mb-3 text-sm p-3 rounded-xl border bg-slate-50" role="status"></div>
-  <div id="fin-jobs" class="mb-4 text-xs space-y-1"></div>
-  <div class="bg-white rounded-3xl border overflow-hidden">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
-        <tr>
-          <th class="p-3 text-left">Loại</th>
-          <th class="p-3 text-left">Hướng</th>
-          <th class="p-3 text-right">Số tiền</th>
-          <th class="p-3 text-left">Mô tả</th>
-        </tr>
-      </thead>
-      <tbody id="fin-ledger"></tbody>
-    </table>
-  </div>
+
+    <div id="fin-export-status" class="hidden mb-3 text-sm p-3 rounded-xl border bg-slate-50" role="status" aria-live="polite"></div>
+    <div id="fin-jobs" class="mb-4 text-xs space-y-2"></div>
+
+    <div class="wh-card-gradient overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs uppercase font-black text-slate-600 tracking-widest">
+            <tr>
+              <th scope="col" class="p-3 text-left">Loại</th>
+              <th scope="col" class="p-3 text-left">Hướng</th>
+              <th scope="col" class="p-3 text-right">Số tiền</th>
+              <th scope="col" class="p-3 text-left">Mô tả</th>
+            </tr>
+          </thead>
+          <tbody id="fin-ledger"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>

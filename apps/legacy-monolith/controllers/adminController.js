@@ -620,6 +620,20 @@ async function retryDlqMessage(req, res) {
       return res.status(400).json({ error: 'Thông điệp không khả dụng hoặc đã được xử lý trước đó.' });
     }
 
+    // Secret-bearing envelopes are stored redacted, so replaying one would
+    // publish an event whose token has been stripped — a verification mail
+    // with no code in it. The correct recovery is a fresh request from the
+    // user, not a replay.
+    if (dlDoc.Payload && dlDoc.Payload.redacted) {
+      dlDoc.Status = 'discarded';
+      await dlDoc.save();
+      return res.status(409).json({
+        error:
+          'Thông điệp chứa bí mật đã được ẩn nên không thể phát lại. Hãy yêu cầu người dùng gửi lại email.',
+        code: 'DLQ_REDACTED_NOT_REPLAYABLE',
+      });
+    }
+
     const operationId = crypto.randomUUID();
     const { messaging } = require('@workhub/observability');
     const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';

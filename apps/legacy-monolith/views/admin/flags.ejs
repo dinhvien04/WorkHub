@@ -1,15 +1,40 @@
 <div class="max-w-3xl mx-auto">
-  <h1 class="text-2xl font-black mb-2">Feature flags</h1>
-  <p class="text-sm text-slate-500 mb-4">Kill switch / percentage rollout / role scope.</p>
-  <div class="bg-white rounded-3xl border p-5 mb-4 grid gap-3">
-    <input id="flag-key" class="border rounded-xl px-3 py-2 text-sm" placeholder="flag_key" />
-    <input id="flag-desc" class="border rounded-xl px-3 py-2 text-sm" placeholder="Mô tả" />
-    <div class="flex gap-3 items-center">
-      <label class="text-sm flex items-center gap-2"><input type="checkbox" id="flag-enabled" checked /> Enabled</label>
-      <label class="text-sm">% <input type="number" id="flag-pct" value="100" min="0" max="100" class="border rounded-lg w-20 px-2 py-1" /></label>
+  <header class="mb-6">
+    <h1 class="wh-section-title mb-1">Feature flags</h1>
+    <p class="wh-section-sub text-sm">Kill switch / percentage rollout / role scope.</p>
+  </header>
+
+  <section class="wh-card-elevated p-5 mb-4">
+    <h2 class="wh-sr-only">Tạo hoặc cập nhật flag</h2>
+
+    <div class="mb-4">
+      <label for="flag-key" class="wh-label text-xs uppercase tracking-widest">Flag key</label>
+      <input id="flag-key" class="wh-field text-sm" placeholder="flag_key" />
     </div>
-    <button type="button" id="flag-save" class="bg-teal-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase w-fit">Upsert</button>
-  </div>
+
+    <div class="mb-4">
+      <label for="flag-desc" class="wh-label text-xs uppercase tracking-widest">Mô tả</label>
+      <input id="flag-desc" class="wh-field text-sm" placeholder="Mô tả" />
+    </div>
+
+    <div class="flex flex-wrap gap-6 items-end mb-4">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="flag-enabled" checked style="width:1.15rem;height:1.15rem;accent-color:var(--color-primary);" />
+        <label for="flag-enabled" class="text-sm font-semibold" style="color:var(--color-text-soft);">Enabled</label>
+      </div>
+      <div>
+        <label for="flag-pct" class="wh-label text-xs uppercase tracking-widest">Rollout %</label>
+        <input type="number" id="flag-pct" value="100" min="0" max="100" class="wh-field text-sm" style="width:6.5rem;" />
+      </div>
+    </div>
+
+    <button type="button" id="flag-save" class="wh-btn-brand">Upsert</button>
+  </section>
+
   <p id="flag-msg" class="text-sm mb-3" role="status"></p>
-  <div id="flag-list" class="bg-white rounded-3xl border overflow-hidden"></div>
+
+  <section class="wh-card-elevated overflow-hidden">
+    <h2 class="wh-sr-only">Flag hiện có</h2>
+    <div id="flag-list" style="color:var(--color-text-soft);"></div>
+  </section>
 </div>

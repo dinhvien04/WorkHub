@@ -71,16 +71,11 @@ function createApp() {
   const scriptSrc = ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`];
   const styleSrc = ["'self'", "https://fonts.googleapis.com"];
   if (useTailwindCdn) {
-    scriptSrc.push(
-      "https://cdn.tailwindcss.com",
-      "https://cdn.jsdelivr.net",
-      "https://cdnjs.cloudflare.com",
-    );
-    styleSrc.push(
-      "'unsafe-inline'",
-      "https://cdn.jsdelivr.net",
-      "https://cdnjs.cloudflare.com",
-    );
+    // Dev-only convenience. Chart.js and choices.js are no longer listed here:
+    // they are served from our own origin now (scripts/build-assets.js copies
+    // them out of node_modules), so no CDN needs script-src at all.
+    scriptSrc.push("https://cdn.tailwindcss.com");
+    styleSrc.push("'unsafe-inline'");
   } else {
     // Self-hosted CSS may need limited inline for critical layout vars
     styleSrc.push("'unsafe-inline'");

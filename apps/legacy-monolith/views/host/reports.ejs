@@ -1,12 +1,10 @@
 <div class="flex flex-col gap-8">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Báo cáo doanh thu</h2>
-            <p class="text-slate-500 text-sm font-medium">Thống kê chi tiết dòng tiền theo thời gian cho chủ cơ sở của bạn</p>
-        </div>
-    </div>
+    <header>
+        <h1 class="wh-section-title">Báo cáo doanh thu</h1>
+        <p class="wh-section-sub text-sm">Thống kê chi tiết dòng tiền theo thời gian cho chủ cơ sở của bạn</p>
+    </header>
 
-    <div id="report-notice" class="hidden mt-6 rounded-3xl border border-orange-200 bg-orange-50 px-6 py-4 text-sm font-medium text-orange-700"></div>
+    <div id="report-notice" class="hidden mt-6 rounded-3xl border border-orange-200 bg-orange-50 px-6 py-4 text-sm font-medium text-orange-700" role="status" aria-live="polite"></div>
 
     <script>
     const reportNotice = document.getElementById('report-notice');
@@ -32,7 +30,7 @@
       try {
         const response = await fetch(exportUrl);
         const contentType = response.headers.get('content-type');
-        
+
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
           showReportNotice(data.error || 'Lỗi xuất file', 'error');
@@ -69,106 +67,124 @@
     });
     </script>
 
-    <form method="GET" action="/host/reports" class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-wrap gap-4 items-end">
-        <div class="flex-1 min-w-[200px] flex items-end">
-            <button type="button" id="exportReportButton" data-export-url="<%= exportUrl %>" class="w-full bg-slate-800 text-white px-8 py-3 rounded-xl font-black shadow-lg hover:bg-slate-900 transition uppercase text-xs tracking-widest">
+    <form method="GET" action="/host/reports" class="wh-card-elevated p-5" aria-labelledby="report-filter-title">
+        <h2 id="report-filter-title" class="wh-sr-only">Lọc báo cáo theo khoảng ngày</h2>
+        <div class="grid gap-4 md:grid-cols-4 items-end">
+            <div>
+                <label for="report-start-date" class="wh-label text-xs uppercase tracking-widest">Từ ngày</label>
+                <input type="date" id="report-start-date" name="startDate" value="<%= filters.startDate %>" class="wh-field">
+            </div>
+            <div>
+                <label for="report-end-date" class="wh-label text-xs uppercase tracking-widest">Đến ngày</label>
+                <input type="date" id="report-end-date" name="endDate" value="<%= filters.endDate %>" class="wh-field">
+            </div>
+            <button type="submit" class="wh-btn-brand w-full text-xs uppercase tracking-widest">Lọc dữ liệu</button>
+            <button type="button" id="exportReportButton" data-export-url="<%= exportUrl %>" class="wh-btn-outline w-full text-xs uppercase tracking-widest">
                 Xuất Excel
             </button>
         </div>
-        <div class="flex-1 min-w-[150px]">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-2 pl-1">Từ ngày</label>
-            <input type="date" name="startDate" value="<%= filters.startDate %>" class="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-700">
-        </div>
-        <div class="flex-1 min-w-[150px]">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-2 pl-1">Đến ngày</label>
-            <input type="date" name="endDate" value="<%= filters.endDate %>" class="w-full p-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-700">
-        </div>
-        <button type="submit" class="bg-teal-600 text-white px-8 py-3 rounded-xl font-black shadow-lg hover:bg-teal-700 transition uppercase text-xs tracking-widest">Lọc dữ liệu</button>
     </form>
 
     <script id="hostReportData" type="application/json"><%- JSON.stringify({ chartLabels: chartLabels || [], chartRevenueData: chartRevenueData || [] }) %></script>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-teal-500">
-            <p class="report-card-label text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Tổng giá trị giao dịch (GMV)</p>
-            <p class="report-card-value text-3xl font-black text-slate-800"><%= reportTotals.gmvText %>đ</p>
-            <p class="report-card-note text-[10px] text-teal-600 font-bold mt-2">Tổng doanh thu đã xác nhận từ thanh toán online</p>
-        </div>
-        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-amber-500">
-            <p class="report-card-label text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Tiền cọc đã thu</p>
-            <p class="report-card-value text-3xl font-black text-slate-800"><%= reportTotals.depositText %>đ</p>
-            <p class="report-card-note text-[10px] text-amber-600 font-bold mt-2">Số tiền khách đã thanh toán online</p>
-        </div>
-        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-emerald-500">
-            <p class="report-card-label text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Tổng nợ tại quầy</p>
-            <p class="report-card-value text-3xl font-black text-slate-800"><%= reportTotals.outstandingText %>đ</p>
-            <p class="report-card-note text-[10px] text-emerald-600 font-bold mt-2">Số tiền còn lại khách thanh toán khi check-in</p>
-        </div>
-        <div class="report-card bg-white p-6 rounded-[2rem] border shadow-sm border-l-4 border-l-orange-500 bg-orange-50/30">
-            <p class="report-card-label text-[10px] text-orange-600 font-black uppercase tracking-widest mb-2">Doanh thu hủy</p>
-            <p class="report-card-value text-3xl font-black text-orange-700"><%= reportTotals.cancelledText %>đ</p>
-            <p class="report-card-note text-sm text-gray-500 mt-2">Doanh thu bị huỷ trong kỳ chọn</p>
-        </div>
-    </div>
+    <section class="grid md:grid-cols-4 gap-6 wh-fade-up" aria-labelledby="report-kpi-title">
+        <h2 id="report-kpi-title" class="wh-sr-only">Chỉ số tổng hợp</h2>
 
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div class="lg:col-span-3 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-            <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Biến động doanh thu</h3>
+        <article class="report-card wh-stat">
+            <p class="report-card-label wh-stat-label m-0">Tổng giá trị giao dịch (GMV)</p>
+            <p class="report-card-value wh-stat-value m-0"><%= reportTotals.gmvText %>đ</p>
+            <p class="report-card-note text-xs text-slate-600 mt-2 m-0">Tổng doanh thu đã xác nhận từ thanh toán online</p>
+        </article>
+
+        <article class="report-card wh-stat">
+            <p class="report-card-label wh-stat-label m-0">Tiền cọc đã thu</p>
+            <p class="report-card-value wh-stat-value m-0"><%= reportTotals.depositText %>đ</p>
+            <p class="report-card-note text-xs text-slate-600 mt-2 m-0">Số tiền khách đã thanh toán online</p>
+        </article>
+
+        <article class="report-card wh-stat">
+            <p class="report-card-label wh-stat-label m-0">Tổng nợ tại quầy</p>
+            <p class="report-card-value wh-stat-value m-0"><%= reportTotals.outstandingText %>đ</p>
+            <p class="report-card-note text-xs text-slate-600 mt-2 m-0">Số tiền còn lại khách thanh toán khi check-in</p>
+        </article>
+
+        <article class="report-card wh-stat">
+            <p class="report-card-label wh-stat-label m-0">Doanh thu hủy</p>
+            <p class="report-card-value wh-stat-value m-0"><%= reportTotals.cancelledText %>đ</p>
+            <p class="report-card-note mt-2 m-0"><span class="wh-chip wh-chip-warning">Doanh thu bị huỷ trong kỳ chọn</span></p>
+        </article>
+    </section>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+        <section class="lg:col-span-2 wh-card-elevated p-6" aria-labelledby="report-chart-title">
+            <h2 id="report-chart-title" class="font-black text-sm uppercase tracking-widest mb-6">Biến động doanh thu</h2>
             <div class="h-[250px] bg-slate-50 rounded-2xl border border-slate-100 p-4">
                 <% if (Array.isArray(chartLabels) && chartLabels.length > 0) { %>
                     <canvas id="revenueChart" class="w-full h-full"></canvas>
                 <% } else { %>
                     <div class="h-full flex items-center justify-center">
-                        <span class="text-sm font-medium text-slate-400">Biểu đồ sẽ hiển thị khi có dữ liệu thực tế</span>
+                        <span class="text-sm font-medium text-slate-600">Biểu đồ sẽ hiển thị khi có dữ liệu thực tế</span>
                     </div>
                 <% } %>
             </div>
-        </div>
-        <div class="lg:col-span-2 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-            <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Tổng số booking</h3>
-            <div class="space-y-3 text-slate-700">
-                <div class="flex justify-between items-center"><span class="text-slate-400">Booking xác nhận</span><strong><%= reportTotals.totalBookings %></strong></div>
-                <div class="flex justify-between items-center"><span class="text-slate-400">Số không gian lọc</span><strong><%= reportTotals.totalSpaces %></strong></div>
-                <div class="flex justify-between items-center"><span class="text-slate-400">Chi nhánh chọn</span><strong><%= reportTotals.selectedBranchName %></strong></div>
-            </div>
-        </div>
+        </section>
+
+        <section class="lg:col-span-1 wh-card-elevated p-6" aria-labelledby="report-summary-title">
+            <h2 id="report-summary-title" class="font-black text-sm uppercase tracking-widest mb-6">Tổng số booking</h2>
+            <dl class="text-sm m-0">
+                <div class="flex justify-between items-center gap-3 py-2 border-b border-slate-100">
+                    <dt class="text-slate-600">Booking xác nhận</dt>
+                    <dd class="font-black m-0"><%= reportTotals.totalBookings %></dd>
+                </div>
+                <div class="flex justify-between items-center gap-3 py-2 border-b border-slate-100">
+                    <dt class="text-slate-600">Số không gian lọc</dt>
+                    <dd class="font-black m-0"><%= reportTotals.totalSpaces %></dd>
+                </div>
+                <div class="flex justify-between items-center gap-3 py-2">
+                    <dt class="text-slate-600">Chi nhánh chọn</dt>
+                    <dd class="font-black m-0"><%= reportTotals.selectedBranchName %></dd>
+                </div>
+            </dl>
+        </section>
     </div>
 
-    <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-        <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest mb-6">Hiệu suất không gian</h3>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
-                    <tr>
-                        <th class="p-4 rounded-tl-xl">Xếp hạng</th>
-                        <th class="p-4">Tên phòng/chỗ</th>
-                        <th class="p-4">Chi nhánh</th>
-                        <th class="p-4">Lượt đặt</th>
-                        <th class="p-4">Tỷ lệ lấp đầy</th>
-                        <th class="p-4 rounded-tr-xl">Tổng thu</th>
-                    </tr>
-                </thead>
-                <tbody class="text-sm font-bold text-slate-700">
-                    <% if (performanceRows.length === 0) { %>
+    <section aria-labelledby="report-performance-title">
+        <h2 id="report-performance-title" class="font-black text-sm uppercase tracking-widest mb-4">Hiệu suất không gian</h2>
+        <div class="wh-card-gradient overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-600 font-black tracking-widest">
                         <tr>
-                            <td colspan="6" class="p-6 text-center text-slate-500">Chưa có dữ liệu báo cáo</td>
+                            <th scope="col" class="p-4">Xếp hạng</th>
+                            <th scope="col" class="p-4">Tên phòng/chỗ</th>
+                            <th scope="col" class="p-4">Chi nhánh</th>
+                            <th scope="col" class="p-4">Lượt đặt</th>
+                            <th scope="col" class="p-4">Tỷ lệ lấp đầy</th>
+                            <th scope="col" class="p-4">Tổng thu</th>
                         </tr>
-                    <% } else { %>
-                        <% performanceRows.forEach(row => { %>
-                            <tr class="border-b border-slate-50 hover:bg-slate-50/80 transition">
-                                <td class="p-4"><span class="inline-flex w-8 h-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 text-xs font-black"><%= row.rank %></span></td>
-                                <td class="p-4 text-slate-800"><%= row.spaceName %></td>
-                                <td class="p-4 text-slate-700"><%= row.branchName %></td>
-                                <td class="p-4"><%= row.bookings %></td>
-                                <td class="p-4"><span class="text-emerald-600"><%= row.fillRate %>%</span></td>
-                                <td class="p-4 text-teal-700 font-black"><%= row.revenueText %>đ</td>
+                    </thead>
+                    <tbody class="text-sm font-bold text-slate-700">
+                        <% if (performanceRows.length === 0) { %>
+                            <tr>
+                                <td colspan="6" class="p-6 text-center text-slate-600">Chưa có dữ liệu báo cáo</td>
                             </tr>
-                        <% }); %>
-                    <% } %>
-                </tbody>
-            </table>
+                        <% } else { %>
+                            <% performanceRows.forEach(row => { %>
+                                <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                                    <td class="p-4"><span class="inline-flex w-8 h-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 text-xs font-black"><%= row.rank %></span></td>
+                                    <td class="p-4"><%= row.spaceName %></td>
+                                    <td class="p-4"><%= row.branchName %></td>
+                                    <td class="p-4"><%= row.bookings %></td>
+                                    <td class="p-4"><span class="wh-chip wh-chip-success"><%= row.fillRate %>%</span></td>
+                                    <td class="p-4 font-black"><%= row.revenueText %>đ</td>
+                                </tr>
+                            <% }); %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+    </section>
 </div>
 
 <script>

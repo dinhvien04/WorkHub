@@ -1,8 +1,21 @@
-<div class="max-w-3xl mx-auto" id="booking-wizard" data-step="1">
-  <h1 class="text-2xl font-black text-slate-800 mb-2">Đặt chỗ trong 3 bước</h1>
-  <p class="text-sm text-slate-500 mb-6">Server là nguồn sự thật cho giá, cọc, add-on và chỗ trống. Draft được lưu cục bộ nếu bạn đăng nhập giữa chừng.</p>
+<%/* 3-step booking wizard.
 
-  <ol class="flex gap-2 mb-8 text-[10px] font-black uppercase tracking-wider" id="wizard-steps" aria-label="Các bước đặt chỗ">
+     public/js/booking-wizard.js owns two class contracts that must not change:
+       - `.wizard-step` is how setStep() finds and hides the panels;
+       - `.step-pill` list items have their entire className *rewritten* on every
+         step change, so anything added to those <li> elements is discarded on
+         the first click. They are deliberately left exactly as the script
+         expects.
+
+     Cascade note: the purged utilities are emitted before brand.css, so a
+     wh- class that declares `display` would beat `.hidden`. The panels only
+     carry .wh-card-elevated (no display declaration), which is safe. */%>
+
+<div class="max-w-3xl mx-auto" id="booking-wizard" data-step="1">
+  <h1 class="wh-section-title mb-2">Đặt chỗ trong 3 bước</h1>
+  <p class="wh-section-sub text-sm mb-6">Server là nguồn sự thật cho giá, cọc, add-on và chỗ trống. Draft được lưu cục bộ nếu bạn đăng nhập giữa chừng.</p>
+
+  <ol class="flex gap-2 mb-8 text-xs font-black uppercase tracking-widest" id="wizard-steps" aria-label="Các bước đặt chỗ">
     <li class="flex-1 rounded-xl bg-teal-600 text-white py-2 text-center step-pill" data-step="1">1. Thời gian</li>
     <li class="flex-1 rounded-xl bg-slate-100 text-slate-500 py-2 text-center step-pill" data-step="2">2. Thông tin</li>
     <li class="flex-1 rounded-xl bg-slate-100 text-slate-500 py-2 text-center step-pill" data-step="3">3. Xác nhận</li>
@@ -11,16 +24,17 @@
   <div id="wizard-error" class="error-state hidden mb-4" role="alert"></div>
 
   <!-- Step 1 -->
-  <section id="step-1" class="wizard-step bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-    <h2 class="font-bold text-lg mb-4">Chọn thời gian & phòng</h2>
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-branch">Branch ID</label>
-    <input id="wz-branch" class="w-full border rounded-xl px-3 py-2 mb-3 text-sm" placeholder="branchId" autocomplete="off" />
+  <section id="step-1" class="wizard-step wh-card-elevated p-6" aria-labelledby="step-1-title">
+    <h2 id="step-1-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Chọn thời gian &amp; phòng</h2>
 
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-date">Ngày</label>
-    <input id="wz-date" type="date" class="w-full border rounded-xl px-3 py-2 mb-3 text-sm" />
+    <label class="wh-label text-xs uppercase font-black" for="wz-branch">Branch ID</label>
+    <input id="wz-branch" class="wh-field text-sm mb-4" placeholder="branchId" autocomplete="off" />
 
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-slot">Khung giờ</label>
-    <select id="wz-slot" class="w-full border rounded-xl px-3 py-2 mb-3 text-sm">
+    <label class="wh-label text-xs uppercase font-black" for="wz-date">Ngày</label>
+    <input id="wz-date" type="date" class="wh-field text-sm mb-4" />
+
+    <label class="wh-label text-xs uppercase font-black" for="wz-slot">Khung giờ</label>
+    <select id="wz-slot" class="wh-field text-sm mb-4">
       <option>08:00 - 10:00</option>
       <option>10:00 - 12:00</option>
       <option>13:00 - 15:00</option>
@@ -28,53 +42,61 @@
       <option>18:00 - 20:00</option>
     </select>
 
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-type">Loại phòng</label>
-    <select id="wz-type" class="w-full border rounded-xl px-3 py-2 mb-4 text-sm">
+    <label class="wh-label text-xs uppercase font-black" for="wz-type">Loại phòng</label>
+    <select id="wz-type" class="wh-field text-sm mb-6">
       <option value="meeting">Phòng họp</option>
       <option value="desk">Chỗ ngồi</option>
     </select>
 
-    <button type="button" id="wz-check" class="btn-primary w-full mb-4">Kiểm tra chỗ trống</button>
+    <button type="button" id="wz-check" class="wh-btn-brand w-full mb-4 text-xs uppercase tracking-widest">Kiểm tra chỗ trống</button>
     <div id="wz-spaces" class="space-y-2 mb-4" aria-live="polite"></div>
-    <button type="button" id="wz-next-1" class="btn-primary w-full" disabled>Tiếp tục</button>
+    <button type="button" id="wz-next-1" class="wh-btn-brand w-full text-xs uppercase tracking-widest" disabled>Tiếp tục</button>
   </section>
 
   <!-- Step 2 -->
-  <section id="step-2" class="wizard-step hidden bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-    <h2 class="font-bold text-lg mb-4">Thông tin, add-on & ưu đãi</h2>
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-note">Ghi chú</label>
-    <textarea id="wz-note" rows="3" class="w-full border rounded-xl px-3 py-2 mb-3 text-sm" maxlength="500" placeholder="Nhu cầu thiết bị, số người..."></textarea>
+  <section id="step-2" class="wizard-step hidden wh-card-elevated p-6" aria-labelledby="step-2-title">
+    <h2 id="step-2-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Thông tin, add-on &amp; ưu đãi</h2>
 
-    <p class="text-xs font-bold text-slate-500 mb-2">Add-on (giá server)</p>
-    <div id="wz-addons" class="space-y-2 mb-4" aria-live="polite"></div>
+    <label class="wh-label text-xs uppercase font-black" for="wz-note">Ghi chú</label>
+    <textarea id="wz-note" rows="3" class="wh-field text-sm mb-6" maxlength="500" placeholder="Nhu cầu thiết bị, số người..."></textarea>
 
-    <label class="block text-xs font-bold text-slate-500 mb-1" for="wz-coupon">Mã giảm giá</label>
+    <h3 class="wh-stat-label mb-2">Add-on (giá server)</h3>
+    <div id="wz-addons" class="space-y-2 mb-6" aria-live="polite"></div>
+
+    <label class="wh-label text-xs uppercase font-black" for="wz-coupon">Mã giảm giá</label>
     <div class="flex gap-2 mb-2">
-      <input id="wz-coupon" class="flex-1 border rounded-xl px-3 py-2 text-sm uppercase" placeholder="CODE" />
-      <button type="button" id="wz-apply-coupon" class="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">Áp dụng</button>
+      <input id="wz-coupon" class="wh-field flex-1 text-sm uppercase" placeholder="CODE" autocomplete="off" aria-describedby="wz-coupon-msg" />
+      <button type="button" id="wz-apply-coupon" class="wh-btn-outline text-xs uppercase tracking-widest">Áp dụng</button>
     </div>
-    <p id="wz-coupon-msg" class="text-xs text-slate-500 mb-4"></p>
+    <p id="wz-coupon-msg" class="text-xs mb-6" style="color: var(--color-muted);" role="status"></p>
 
     <div class="flex gap-2">
-      <button type="button" id="wz-back-2" class="flex-1 py-2 rounded-xl border font-bold text-sm">Quay lại</button>
-      <button type="button" id="wz-next-2" class="flex-1 btn-primary">Xem giá & tiếp tục</button>
+      <button type="button" id="wz-back-2" class="wh-btn-outline flex-1 text-xs uppercase tracking-widest">Quay lại</button>
+      <button type="button" id="wz-next-2" class="wh-btn-brand flex-1 text-xs uppercase tracking-widest">Xem giá &amp; tiếp tục</button>
     </div>
   </section>
 
   <!-- Step 3 -->
-  <section id="step-3" class="wizard-step hidden bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-    <h2 class="font-bold text-lg mb-4">Price breakdown & xác nhận</h2>
-    <div id="wz-summary" class="text-sm space-y-2 mb-4 bg-slate-50 rounded-2xl p-4" aria-live="polite"></div>
-    <button type="button" id="wz-refresh-quote" class="text-xs text-teal-700 font-bold underline mb-3">Làm mới báo giá server</button>
-    <p id="wz-hold-timer" class="text-xs text-amber-600 font-bold mb-4"></p>
-    <label class="flex items-start gap-2 text-sm mb-2">
-      <input type="checkbox" id="wz-policy" class="mt-1" />
-      <span>Tôi đồng ý chính sách hủy/đặt chỗ của WorkHub và cơ sở.</span>
-    </label>
-    <p id="wz-policy-text" class="text-xs text-slate-500 mb-4 pl-6"></p>
+  <section id="step-3" class="wizard-step hidden wh-card-elevated p-6" aria-labelledby="step-3-title">
+    <h2 id="step-3-title" class="font-bold text-lg mb-4" style="color: var(--color-text);">Price breakdown &amp; xác nhận</h2>
+
+    <div class="wh-stat mb-4">
+      <p class="wh-stat-label mb-2">Tạm tính từ server</p>
+      <div id="wz-summary" class="text-sm space-y-2" style="color: var(--color-text-soft);" aria-live="polite"></div>
+    </div>
+
+    <button type="button" id="wz-refresh-quote" class="text-xs font-bold underline mb-3" style="color: var(--color-primary-text);">Làm mới báo giá server</button>
+    <p id="wz-hold-timer" class="text-xs font-bold mb-6" style="color: var(--color-highlight-dark);" role="status" aria-live="polite"></p>
+
+    <div class="flex items-start gap-2 mb-2">
+      <input type="checkbox" id="wz-policy" class="mt-1" aria-describedby="wz-policy-text" />
+      <label for="wz-policy" class="text-sm" style="color: var(--color-text-soft);">Tôi đồng ý chính sách hủy/đặt chỗ của WorkHub và cơ sở.</label>
+    </div>
+    <p id="wz-policy-text" class="text-xs mb-6" style="color: var(--color-muted);"></p>
+
     <div class="flex gap-2">
-      <button type="button" id="wz-back-3" class="flex-1 py-2 rounded-xl border font-bold text-sm">Quay lại</button>
-      <button type="button" id="wz-submit" class="flex-1 btn-primary">Tạo đơn & thanh toán</button>
+      <button type="button" id="wz-back-3" class="wh-btn-outline flex-1 text-xs uppercase tracking-widest">Quay lại</button>
+      <button type="button" id="wz-submit" class="wh-btn-brand flex-1 text-xs uppercase tracking-widest">Tạo đơn &amp; thanh toán</button>
     </div>
   </section>
 </div>

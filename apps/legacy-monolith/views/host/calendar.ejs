@@ -1,31 +1,42 @@
 <div class="max-w-6xl mx-auto">
-  <h1 class="text-2xl font-black text-slate-800 mb-2">Lịch vận hành</h1>
-  <p class="text-sm text-slate-500 mb-4">Booking theo khoảng ngày (host-scoped).</p>
-  <div class="flex flex-wrap gap-3 mb-6 items-end">
-    <div>
-      <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="cal-from">Từ</label>
-      <input type="date" id="cal-from" class="border rounded-xl px-3 py-2 text-sm" />
+  <header class="mb-6">
+    <h1 class="wh-section-title">Lịch vận hành</h1>
+    <p class="wh-section-sub text-sm">Booking theo khoảng ngày (host-scoped).</p>
+  </header>
+
+  <section class="wh-card-elevated p-5 mb-6" aria-labelledby="cal-filter-title">
+    <h2 id="cal-filter-title" class="wh-sr-only">Chọn khoảng ngày</h2>
+    <div class="grid gap-4 md:grid-cols-3 items-end">
+      <div>
+        <label class="wh-label text-xs uppercase tracking-widest" for="cal-from">Từ</label>
+        <input type="date" id="cal-from" class="wh-field" />
+      </div>
+      <div>
+        <label class="wh-label text-xs uppercase tracking-widest" for="cal-to">Đến</label>
+        <input type="date" id="cal-to" class="wh-field" />
+      </div>
+      <button type="button" id="cal-load" class="wh-btn-brand w-full text-xs uppercase tracking-widest">Tải lịch</button>
     </div>
-    <div>
-      <label class="block text-[10px] font-black uppercase text-slate-400 mb-1" for="cal-to">Đến</label>
-      <input type="date" id="cal-to" class="border rounded-xl px-3 py-2 text-sm" />
+  </section>
+
+  <div id="cal-error" class="error-state hidden mb-4" role="alert"></div>
+
+  <section class="wh-card-gradient overflow-hidden" aria-labelledby="cal-table-title">
+    <h2 id="cal-table-title" class="wh-sr-only">Booking trong khoảng ngày đã chọn</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-600 font-black tracking-widest">
+          <tr>
+            <th scope="col" class="p-4">Bắt đầu</th>
+            <th scope="col" class="p-4">Kết thúc</th>
+            <th scope="col" class="p-4">Phòng</th>
+            <th scope="col" class="p-4">Khách</th>
+            <th scope="col" class="p-4">Trạng thái</th>
+            <th scope="col" class="p-4">Tiền</th>
+          </tr>
+        </thead>
+        <tbody id="cal-body"></tbody>
+      </table>
     </div>
-    <button type="button" id="cal-load" class="btn-primary">Tải lịch</button>
-  </div>
-  <div id="cal-error" class="error-state hidden mb-4"></div>
-  <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-    <table class="w-full text-left text-sm">
-      <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
-        <tr>
-          <th class="p-4">Bắt đầu</th>
-          <th class="p-4">Kết thúc</th>
-          <th class="p-4">Phòng</th>
-          <th class="p-4">Khách</th>
-          <th class="p-4">Trạng thái</th>
-          <th class="p-4">Tiền</th>
-        </tr>
-      </thead>
-      <tbody id="cal-body"></tbody>
-    </table>
-  </div>
+  </section>
 </div>

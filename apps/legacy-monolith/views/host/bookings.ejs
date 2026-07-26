@@ -1,102 +1,107 @@
 <div class="flex flex-col gap-6">
-    <div class="flex justify-between items-center">
-        <div>
-            <h2 class="text-3xl font-black text-slate-800 uppercase tracking-tighter">Quản lý đơn đặt chỗ</h2>
-            <p class="text-slate-500 text-sm font-medium">Theo dõi và vận hành đơn.</p>
-        </div>
-    </div>
+    <header>
+        <h1 class="wh-section-title">Quản lý đơn đặt chỗ</h1>
+        <p class="wh-section-sub text-sm">Theo dõi và vận hành đơn.</p>
+    </header>
 
-    <div id="host-inbox-bar" class="bg-white rounded-3xl border p-4">
-      <div class="flex flex-wrap gap-2 mb-2">
-        <button type="button" data-inbox-bucket="new" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border ring-2 ring-teal-500">New</button>
-        <button type="button" data-inbox-bucket="awaiting_confirmation" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Confirm</button>
-        <button type="button" data-inbox-bucket="today" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Today</button>
-        <button type="button" data-inbox-bucket="in_use" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border">In use</button>
-        <button type="button" data-inbox-bucket="ending_soon" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Ending soon</button>
-        <button type="button" data-inbox-bucket="awaiting_payment" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Awaiting pay</button>
-        <button type="button" data-inbox-bucket="cancelled" class="text-xs font-black uppercase px-3 py-1.5 rounded-xl border">Cancelled</button>
+    <section id="host-inbox-bar" class="wh-card-elevated p-4" aria-labelledby="host-inbox-title">
+      <h2 id="host-inbox-title" class="text-xs uppercase tracking-widest font-black text-slate-600 mb-3">Hộp việc cần xử lý</h2>
+      <div class="flex flex-wrap gap-2 mb-3" role="group" aria-label="Lọc theo nhóm việc">
+        <button type="button" data-inbox-bucket="new" class="wh-chip wh-chip-brand text-xs uppercase tracking-widest cursor-pointer ring-2 ring-teal-500">New</button>
+        <button type="button" data-inbox-bucket="awaiting_confirmation" class="wh-chip text-xs uppercase tracking-widest cursor-pointer">Confirm</button>
+        <button type="button" data-inbox-bucket="today" class="wh-chip text-xs uppercase tracking-widest cursor-pointer">Today</button>
+        <button type="button" data-inbox-bucket="in_use" class="wh-chip text-xs uppercase tracking-widest cursor-pointer">In use</button>
+        <button type="button" data-inbox-bucket="ending_soon" class="wh-chip text-xs uppercase tracking-widest cursor-pointer">Ending soon</button>
+        <button type="button" data-inbox-bucket="awaiting_payment" class="wh-chip text-xs uppercase tracking-widest cursor-pointer">Awaiting pay</button>
+        <button type="button" data-inbox-bucket="cancelled" class="wh-chip text-xs uppercase tracking-widest cursor-pointer">Cancelled</button>
       </div>
-      <p id="host-inbox-counts" class="text-[10px] text-slate-400 font-bold uppercase mb-2"></p>
+      <p id="host-inbox-counts" class="text-xs text-slate-600 font-bold uppercase tracking-widest mb-2" role="status" aria-live="polite"></p>
       <div id="host-inbox-list" class="max-h-56 overflow-y-auto"></div>
-    </div>
+    </section>
 
-    <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+    <section class="wh-card-elevated p-5" aria-labelledby="host-booking-toolbar-title">
+        <h2 id="host-booking-toolbar-title" class="wh-sr-only">Bộ lọc đơn đặt chỗ</h2>
         <div class="flex flex-col xl:flex-row gap-4 justify-between items-center">
-            
+
             <div class="flex gap-2 bg-slate-50 p-1 rounded-[1rem] border border-slate-100 overflow-x-auto max-w-full">
                 <div class="booking-filter-tab active cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-teal-500 bg-white shadow-sm text-teal-600" data-wh-click="filterHostBookings" data-wh-args="[&quot;all&quot;]" data-wh-this="1">Tất cả</div>
-                
+
                 <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" data-wh-click="filterHostBookings" data-wh-args="[&quot;pending&quot;]" data-wh-this="1">
                     Chờ duyệt <span id="host-pending-count" class="ml-1 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-black hidden">0</span>
                 </div>
-                
+
                 <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" data-wh-click="filterHostBookings" data-wh-args="[&quot;confirmed&quot;]" data-wh-this="1">Đã xác nhận</div>
                 <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" data-wh-click="filterHostBookings" data-wh-args="[&quot;in-use&quot;]" data-wh-this="1">Đang dùng</div>
                 <div class="booking-filter-tab cursor-pointer px-4 py-2 rounded-xl text-sm font-bold transition-all border border-transparent text-slate-500 hover:bg-white" data-wh-click="filterHostBookings" data-wh-args="[&quot;completed&quot;]" data-wh-this="1">Đã kết thúc</div>
             </div>
-            
+
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                
+
                 <div class="relative group z-50 w-full sm:w-auto">
-                    <button class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-teal-500 hover:text-teal-600 transition h-[42px]">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <button type="button" class="wh-btn-outline w-full sm:w-auto text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        <span id="filter-display-text" class="text-sm font-bold text-slate-700 whitespace-nowrap">Tất cả thời gian</span>
+                        <span id="filter-display-text" class="whitespace-nowrap">Tất cả thời gian</span>
                     </button>
 
                     <div class="absolute right-0 top-full pt-2 w-48 hidden group-hover:block origin-top-right z-50">
                         <ul class="py-1 text-sm text-slate-700 bg-white border border-slate-100 shadow-xl rounded-xl overflow-hidden">
                             <li>
-                                <button type="button" data-wh-click="applyFunnelFilter" data-wh-args="[&quot;all&quot;]" class="block w-full text-left px-4 py-3 hover:bg-slate-50 hover:text-teal-600 font-bold transition">
+                                <button type="button" data-wh-click="applyFunnelFilter" data-wh-args="[&quot;all&quot;]" class="block w-full text-left px-4 py-3 bg-white hover:bg-slate-50 font-bold transition">
                                     Tất cả thời gian
                                 </button>
                             </li>
-                            <li class="border-t border-slate-50 relative">
-                                <button type="button" data-wh-click="triggerDatePicker" class="block w-full text-left px-4 py-3 hover:bg-slate-50 hover:text-teal-600 font-bold transition">
+                            <li class="border-t border-slate-100 relative">
+                                <button type="button" data-wh-click="triggerDatePicker" class="block w-full text-left px-4 py-3 bg-white hover:bg-slate-50 font-bold transition">
                                     Ngày cụ thể...
                                 </button>
-                                
+
+                                <label for="funnel-date-picker" class="wh-sr-only">Chọn ngày cụ thể</label>
                                 <input type="date" id="funnel-date-picker" data-wh-change="applyFunnelFilter" data-wh-args="[&quot;specific&quot;]" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; border: none; padding: 0; margin: 0;">
                             </li>
                         </ul>
                     </div>
                 </div>
 
-                <div class="relative w-full sm:w-72 flex items-center bg-slate-50 border border-slate-200 rounded-2xl p-1 focus-within:border-teal-500 transition-all h-[42px]">
-                    <input type="text" 
-                           id="booking-search-input" 
-                           placeholder="Tìm email khách, mã đơn..." 
-                           class="w-full pl-3 pr-12 py-1 bg-transparent border-none outline-none text-sm font-medium text-slate-700">
-                    <button type="button" 
-                            data-wh-input="handleBookingSearch" 
+                <div class="relative w-full sm:w-72 flex items-center gap-2">
+                    <label for="booking-search-input" class="wh-sr-only">Tìm đơn đặt chỗ</label>
+                    <input type="text"
+                           id="booking-search-input"
+                           placeholder="Tìm email khách, mã đơn..."
+                           class="wh-field text-sm">
+                    <button type="button"
+                            data-wh-input="handleBookingSearch"
                             aria-label="Tìm đơn đặt chỗ"
-                            class="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition shadow-md active:scale-95">
+                            class="wh-btn-brand flex-shrink-0 px-4">
                         <span aria-hidden="true">🔍</span>
                     </button>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-        <table class="w-full text-left border-collapse">
-            <thead class="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-black tracking-widest">
-                <tr>
-                    <th class="p-5">Mã đơn / Khách</th>
-                    <th class="p-5">Không gian</th>
-                    <th class="p-5">Thời gian</th>
-                    <th class="p-5">Thanh toán</th>
-                    <th class="p-5">Trạng thái</th>
-                    <th class="p-5 text-right">Hành động</th>
-                </tr>
-            </thead>
-            <tbody class="text-xs" id="host-booking-table-body"></tbody>
-        </table>
-        
-        <div class="p-10 text-center" id="booking-empty-state" style="display: none;">
-            <div class="text-4xl mb-4 opacity-20">📂</div>
-            <p class="text-slate-400 font-bold uppercase text-[10px]">Trống</p>
+    </section>
+
+    <section class="wh-card-gradient overflow-hidden" aria-labelledby="host-booking-table-title">
+        <h2 id="host-booking-table-title" class="wh-sr-only">Danh sách đơn đặt chỗ</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 border-b text-xs uppercase text-slate-600 font-black tracking-widest">
+                    <tr>
+                        <th scope="col" class="p-5">Mã đơn / Khách</th>
+                        <th scope="col" class="p-5">Không gian</th>
+                        <th scope="col" class="p-5">Thời gian</th>
+                        <th scope="col" class="p-5">Thanh toán</th>
+                        <th scope="col" class="p-5">Trạng thái</th>
+                        <th scope="col" class="p-5 text-right">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody class="text-xs" id="host-booking-table-body"></tbody>
+            </table>
         </div>
-    </div>
+
+        <div class="p-10 text-center" id="booking-empty-state" style="display: none;">
+            <p class="text-3xl mb-3 m-0" aria-hidden="true">📂</p>
+            <p class="text-slate-600 font-bold uppercase tracking-widest text-xs m-0">Trống</p>
+        </div>
+    </section>
 </div>

@@ -1,9 +1,20 @@
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-black mb-4">Quản lý Dead-Letter Queue (DLQ)</h1>
-  <div class="mb-4 flex space-x-2">
-    <button id="tab-pending" class="px-4 py-2 font-bold rounded bg-black text-white">Chờ xử lý (Pending)</button>
-    <button id="tab-replayed" class="px-4 py-2 font-bold rounded bg-gray-200 text-black">Đã phát lại (Replayed)</button>
-    <button id="tab-discarded" class="px-4 py-2 font-bold rounded bg-gray-200 text-black">Đã hủy bỏ (Discarded)</button>
+  <header class="mb-6">
+    <h1 class="wh-section-title mb-1">Quản lý Dead-Letter Queue (DLQ)</h1>
+    <p class="wh-section-sub text-sm">Thông điệp nền thất bại — phát lại hoặc hủy bỏ kèm lý do.</p>
+  </header>
+
+  <%/* The three tab buttons keep their original class strings: admin-dlq.js
+       rewrites className on every load to mark the active tab, so any classes
+       set here are replaced on first render. */%>
+  <div class="mb-4 flex flex-wrap gap-2" role="group" aria-label="Lọc theo trạng thái thông điệp">
+    <button id="tab-pending" type="button" class="px-4 py-2 font-bold rounded bg-black text-white">Chờ xử lý (Pending)</button>
+    <button id="tab-replayed" type="button" class="px-4 py-2 font-bold rounded bg-gray-200 text-black">Đã phát lại (Replayed)</button>
+    <button id="tab-discarded" type="button" class="px-4 py-2 font-bold rounded bg-gray-200 text-black">Đã hủy bỏ (Discarded)</button>
   </div>
-  <div id="dlq-list" class="space-y-3"></div>
+
+  <section>
+    <h2 class="wh-sr-only">Danh sách thông điệp</h2>
+    <div id="dlq-list" class="flex flex-col gap-3 text-sm" style="color:var(--color-text-soft);"></div>
+  </section>
 </div>
