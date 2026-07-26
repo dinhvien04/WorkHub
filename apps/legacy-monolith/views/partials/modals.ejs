@@ -1,7 +1,12 @@
 <!-- File này chứa toàn bộ các thẻ nổi lên (Pop-up), Toast thông báo thành công và con tem chỉ báo trang. -->
 <div id="page-indicator">Trang: <span id="current-page-label">Trang Chủ</span></div>
 
-<div id="success-toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-8 py-3 rounded-full shadow-2xl z-[100] hidden">
+<%/* The toast is the app's only feedback channel for success and failure alike.
+     Without a live region it announced nothing at all, so a screen reader user
+     got no signal that (for example) their login had failed. showToast()
+     swaps role between status and alert depending on severity. */%>
+<div id="success-toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-8 py-3 rounded-full shadow-2xl z-[100] hidden"
+     role="status" aria-live="polite" aria-atomic="true">
     <div class="flex items-center gap-3 font-bold">
         <span id="toast-msg">Thành công!</span>
     </div>

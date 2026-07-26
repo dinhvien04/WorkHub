@@ -21,37 +21,37 @@
         </div>
 
         <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Họ và tên</label>
-            <input type="text" id="fullName" placeholder="VD: Nguyễn Văn An" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <label for="fullName" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Họ và tên</label>
+            <input type="text" id="fullName" autocomplete="name" placeholder="VD: Nguyễn Văn An" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
         </div>
 
         <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email đăng ký</label>
-            <input type="email" id="email" placeholder="example@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <label for="email" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email đăng ký</label>
+            <input type="email" id="email" autocomplete="email" placeholder="example@email.com" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
         </div>
 
         <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mật khẩu</label>
-            <input type="password" id="password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <label for="password" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mật khẩu</label>
+            <input type="password" id="password" autocomplete="new-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
         </div>
 
         <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Xác nhận mật khẩu</label>
-            <input type="password" id="confirmPassword" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <label for="confirmPassword" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Xác nhận mật khẩu</label>
+            <input type="password" id="confirmPassword" autocomplete="new-password" placeholder="••••••••" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
         </div>
 
         <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số điện thoại / Hotline</label>
-            <input type="text" id="phone" placeholder="VD: 0901234567" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+            <label for="phone" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số điện thoại / Hotline</label>
+            <input type="text" id="phone" autocomplete="tel" placeholder="VD: 0901234567" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
         </div>
         
         <div class="flex gap-2">
             <div class="flex-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Ngân hàng</label>
+                <label for="bankName" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Ngân hàng</label>
                 <input type="text" id="bankName" placeholder="VD: Vietcombank" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
             </div>
             <div class="flex-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số tài khoản</label>
+                <label for="bankNumber" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số tài khoản</label>
                 <input type="text" id="bankNumber" placeholder="VD: 10123456" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
             </div>
         </div>
@@ -61,16 +61,16 @@
         <div id="hostFields" class="hidden space-y-4 pt-4 border-t border-slate-100">
             <h3 class="text-xs font-bold text-indigo-600 uppercase">Thông tin doanh nghiệp (Bắt buộc)</h3>
             <div class="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên công ty / Cơ sở</label>
-                <input type="text" id="companyName" placeholder="VD: WorkHub Center" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
+                <label for="companyName" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên công ty / Cơ sở</label>
+                <input type="text" id="companyName" autocomplete="organization" placeholder="VD: WorkHub Center" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
             </div>
             
             <div class="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mã số thuế</label>
+                <label for="taxCode" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mã số thuế</label>
                 <input type="text" id="taxCode" placeholder="VD: 0101234567" class="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none text-slate-800">
             </div>
             <div class="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giấy phép kinh doanh (Ảnh/PDF)</label>
+                <label for="verificationDoc" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Giấy phép kinh doanh (Ảnh/PDF)</label>
                 <input type="file" id="verificationDoc" name="verificationDocument" accept=".jpg,.jpeg,.png,.pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200">
             </div>
         </div>

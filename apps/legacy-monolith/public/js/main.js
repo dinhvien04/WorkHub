@@ -165,15 +165,24 @@ function showToast(msg, type) {
   const m = document.getElementById('toast-msg');
   if (t && m) {
     m.innerText = msg;
-    // Apply type-specific styling
+    // Apply type-specific styling.
+    // Backgrounds are set from tokens rather than raw utilities because the
+    // previous pairings failed contrast against the white label: amber-500 at
+    // ~1.9:1 and teal-600 at ~3.7:1, where AA needs 4.5:1.
     t.className = t.className.replace(/bg-\S+/g, '');
     if (type === 'error') {
-      t.classList.add('bg-red-600');
+      t.style.backgroundColor = 'var(--color-danger-dark)';
     } else if (type === 'warning') {
-      t.classList.add('bg-amber-500');
+      // Amber keeps its punch and gets near-black text instead of white.
+      t.style.backgroundColor = 'var(--color-highlight)';
+      t.style.color = '#1f1300';
     } else {
-      t.classList.add('bg-teal-600');
+      t.style.backgroundColor = 'var(--color-primary-fill)';
     }
+    if (type !== 'warning') t.style.color = '';
+    // Failures must interrupt; routine confirmations must not.
+    t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    t.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     t.classList.remove('hidden', 'toast-exit');
     t.classList.add('toast-enter');
     clearTimeout(t._toastTimer);

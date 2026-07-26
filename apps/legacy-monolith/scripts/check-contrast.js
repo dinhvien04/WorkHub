@@ -163,12 +163,62 @@ function runTheme(name, tokens) {
   return failures;
 }
 
+/**
+ * Text colours from utilities.css get used directly in the views, so they need
+ * the same guarantee as the tokens. Checked against the light page background,
+ * which is where the views actually use them.
+ */
+function checkUtilities() {
+  const cssPath = path.join(__dirname, "..", "public", "css", "utilities.css");
+  if (!fs.existsSync(cssPath)) return [];
+
+  const css = fs.readFileSync(cssPath, "utf8");
+  const failures = [];
+  const rows = [];
+
+  // Greys intended for light surfaces. Anything meant for dark surfaces lives
+  // under .text-on-dark* and is excluded here.
+  const LIGHT_SURFACE_TEXT = [
+    "text-slate-400",
+    "text-slate-500",
+    "text-slate-600",
+    "text-slate-700",
+    "text-slate-800",
+  ];
+  const backgrounds = ["#ffffff", "#f8fafc"];
+
+  for (const cls of LIGHT_SURFACE_TEXT) {
+    const match = css.match(
+      new RegExp(`\\.${cls}\\s*\\{\\s*color\\s*:\\s*(#[0-9a-fA-F]{3,8})\\s*\\}`),
+    );
+    if (!match) continue;
+
+    for (const bg of backgrounds) {
+      const ratio = contrastRatio(match[1], bg);
+      const pass = ratio >= AA_NORMAL;
+      if (!pass) {
+        failures.push(
+          `FAIL     [Utilities] .${cls} (${match[1]}) on ${bg} = ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
+        );
+      }
+      rows.push(
+        `  ${pass ? "ok  " : "FAIL"}  ${ratio.toFixed(2).padStart(5)}:1  (min ${AA_NORMAL})  .${cls} on ${bg}`,
+      );
+    }
+  }
+
+  console.log("\nUtilities (light surfaces)\n");
+  console.log(rows.join("\n"));
+  return failures;
+}
+
 function main() {
   const { light, dark } = readThemes();
 
   console.log("WCAG contrast check");
   const failures = runTheme("Light", light);
   if (dark) failures.push(...runTheme("Dark", dark));
+  failures.push(...checkUtilities());
 
   if (failures.length > 0) {
     console.error(`\n${failures.length} contrast failure(s):\n`);
