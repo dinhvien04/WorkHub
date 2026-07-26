@@ -1,7 +1,7 @@
 # WorkHub Microservices Migration Report
 
 ## Repository state
-- Current branch: fix/m6-identity-security-gate-finalization
+- Merged to main from: fix/m6-security-gate-finalization
 - Branched from: 9ef1ac6 feat: implement identity rate limiting controls
 - Working tree: clean
 - Last verified date: 2026-07-26
